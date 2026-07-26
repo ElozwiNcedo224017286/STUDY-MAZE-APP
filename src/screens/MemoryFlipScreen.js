@@ -16,7 +16,7 @@ function buildDeck() {
 }
 
 export default function MemoryFlipScreen({ navigation }) {
-  const { user, syncProgress } = useAuth();
+  const { recordGame } = useAuth();
   const [phase, setPhase] = useState('start'); // start | playing | result
   const [cards, setCards] = useState([]);
   const [moves, setMoves] = useState(0);
@@ -27,13 +27,13 @@ export default function MemoryFlipScreen({ navigation }) {
   const lockRef = useRef(false);
   const matchedRef = useRef(0);
   const timerRef = useRef(null);
-  const coinsRef = useRef(user?.coins ?? 0);
+  const coinsRef = useRef(0); // coins earned this game
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   function startGame() {
     setCards(buildDeck());
-    flippedRef.current = []; lockRef.current = false; matchedRef.current = 0;
+    flippedRef.current = []; lockRef.current = false; matchedRef.current = 0; coinsRef.current = 0;
     setMoves(0); setTimeLeft(GAME_TIME);
     setPhase('playing');
     if (timerRef.current) clearInterval(timerRef.current);
@@ -81,13 +81,13 @@ export default function MemoryFlipScreen({ navigation }) {
     if (timerRef.current) clearInterval(timerRef.current);
     const bonus = Math.max(20, Math.round(timeLeft * 1.5));
     coinsRef.current += bonus;
-    await syncProgress({ coins: coinsRef.current });
+    await recordGame('memory_match', { coinsEarned: coinsRef.current, score: bonus });
     setResultData({ won: true, bonus, moves, coins: coinsRef.current, timeLeft });
     setPhase('result');
   }
 
   async function loseGame() {
-    await syncProgress({ coins: coinsRef.current });
+    await recordGame('memory_match', { coinsEarned: coinsRef.current, score: 0 });
     setResultData({ won: false, matched: matchedRef.current, coins: coinsRef.current });
     setPhase('result');
   }

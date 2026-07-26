@@ -1,51 +1,84 @@
-import Constants from 'expo-constants';
+import { supabase, SUPABASE_FUNCTIONS_URL } from './supabase';
 
-// Configure this in app.json -> expo.extra.apiBaseUrl, or override here.
-// On a physical device this must be your computer's LAN IP, not "localhost".
-const BASE_URL = Constants.expoConfig?.extra?.apiBaseUrl || 'http://localhost:4000';
+// The games speak in { subject, q, opts, correct }; the `tests` table stores questions
+// as { q, choices, answer } (+ subject). Convert at the boundary in both directions.
+function toAppQuestion(row) {
+  return {
+    subject: row.subject || 'QUIZ',
+    q: row.q,
+    opts: row.opts || row.choices || [],
+    correct: typeof row.correct === 'number' ? row.correct : (row.answer ?? 0)
+  };
+}
 
-async function request(path, options = {}) {
-  const res = await fetch(BASE_URL + path, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
-  }
-  return data;
+function toDbQuestion(q) {
+  return { subject: q.subject || 'QUIZ', q: q.q, choices: q.opts, answer: q.correct };
 }
 
 export const api = {
-  register: (username, password, role, teacherCode) =>
-    request('/auth/register', { method: 'POST', body: JSON.stringify({ username, password, role, teacherCode }) }),
+  // The most recently published test acts as the "active" question set for the games.
+  getQuizBank: async () => {
+    const { data, error } = await supabase
+      .from('tests')
+      .select('title, questions, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  login: (username, password) =>
-    request('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+    if (error) throw new Error(error.message || 'Could not load quiz bank.');
+    if (!data) return { meta: null, questions: [] };
 
-  getUser: (username) => request(`/users/${encodeURIComponent(username)}`),
+    return {
+      // profiles RLS is own-row-only, so students can't read the author's name here.
+      meta: { topic: data.title, teacher: 'your teacher' },
+      questions: (data.questions || []).map(toAppQuestion)
+    };
+  },
 
-  updateUser: (username, patch) =>
-    request(`/users/${encodeURIComponent(username)}`, { method: 'PUT', body: JSON.stringify(patch) }),
+  publishQuizBank: async (_teacher, topic, questions) => {
+    // teacher_id is taken from the signed-in user by RLS; the _teacher arg is ignored.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in to publish.');
 
-  getQuizBank: () => request('/quiz'),
+    const { error } = await supabase.from('tests').insert({
+      teacher_id: user.id,
+      title: topic,
+      questions: (questions || []).map(toDbQuestion)
+    });
+    if (error) throw new Error(error.message || 'Could not publish.');
+    return { ok: true };
+  },
 
-  publishQuizBank: (teacher, topic, questions) =>
-    request('/quiz/publish', { method: 'POST', body: JSON.stringify({ teacher, topic, questions }) }),
-
-  clearQuizBank: () => request('/quiz', { method: 'DELETE' }),
+  // Removes this teacher's published tests (RLS restricts deletes to their own rows).
+  clearQuizBank: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { error } = await supabase.from('tests').delete().eq('teacher_id', user.id);
+    if (error) throw new Error(error.message || 'Could not clear quiz bank.');
+    return { ok: true };
+  },
 
   generateQuestions: async (files, topic) => {
+    // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
+    // If that function isn't deployed this fails clearly and the rest of the app is fine.
+    if (!SUPABASE_FUNCTIONS_URL) throw new Error('Supabase is not configured.');
+
+    const { data: { session } } = await supabase.auth.getSession();
     const form = new FormData();
     files.forEach((f) => {
       form.append('files', { uri: f.uri, name: f.name, type: f.mimeType || 'application/octet-stream' });
     });
     form.append('topic', topic || '');
-    const res = await fetch(BASE_URL + '/upload/generate', { method: 'POST', body: form });
+
+    const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-questions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session?.access_token || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`
+      },
+      body: form
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Question generation failed.');
     return data;
-  },
-
-  baseUrl: BASE_URL
+  }
 };

@@ -18,7 +18,7 @@ function shuffle(arr) {
 }
 
 export default function QuizRushScreen({ navigation }) {
-  const { user, syncProgress } = useAuth();
+  const { recordGame } = useAuth();
   const [phase, setPhase] = useState('start'); // 'start' | 'playing' | 'result'
   const [lives, setLives] = useState(3);
   const [streak, setStreak] = useState(0);
@@ -28,7 +28,7 @@ export default function QuizRushScreen({ navigation }) {
   const [resultData, setResultData] = useState(null);
 
   const poolRef = useRef([]);
-  const coinsRef = useRef(user?.coins ?? 0);
+  const coinsRef = useRef(0); // coins earned this run
   const timerRef = useRef(null);
   const livesRef = useRef(3);
   const streakRef = useRef(0);
@@ -46,7 +46,7 @@ export default function QuizRushScreen({ navigation }) {
 
   async function startRun() {
     await loadPool();
-    livesRef.current = 3; streakRef.current = 0;
+    livesRef.current = 3; streakRef.current = 0; coinsRef.current = 0;
     setLives(3); setStreak(0); setAnsweredIdx(null);
     setPhase('playing');
     nextQuestion();
@@ -99,7 +99,7 @@ export default function QuizRushScreen({ navigation }) {
   }
 
   async function finishRun(won) {
-    await syncProgress({ coins: coinsRef.current, highScore: Math.max(user.highScore || 0, streakRef.current * 10) });
+    await recordGame('study_quiz', { coinsEarned: coinsRef.current, score: streakRef.current * 10 });
     setResultData({ won, streak: streakRef.current, coins: coinsRef.current });
     setPhase('result');
   }

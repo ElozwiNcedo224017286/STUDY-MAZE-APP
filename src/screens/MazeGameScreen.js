@@ -11,7 +11,7 @@ const CELL = 22;
 export default function MazeGameScreen({ route, navigation }) {
   const { levelIndex } = route.params;
   const level = LEVELS[levelIndex];
-  const { user, syncProgress } = useAuth();
+  const { recordGame } = useAuth();
 
   const gridRef = useRef(level.grid.map((row) => row.split('').map(Number)));
   const ROWS = gridRef.current.length;
@@ -22,7 +22,7 @@ export default function MazeGameScreen({ route, navigation }) {
   const awaitingQuizRef = useRef(false);
   const quizPoolRef = useRef([]);
   const currentQuizCellRef = useRef(null);
-  const coinsRef = useRef(user?.coins ?? 0);
+  const coinsRef = useRef(0); // coins EARNED this run — added to the player's total on finish
   const runningRef = useRef(true);
 
   const [, forceRender] = useReducer((x) => x + 1, 0);
@@ -115,16 +115,16 @@ export default function MazeGameScreen({ route, navigation }) {
   }
 
   async function gameOver() {
-    await syncProgress({ coins: coinsRef.current });
+    // Loss: record coins earned + score, but no level (so the unlock doesn't advance).
+    await recordGame('quiz_maze', { coinsEarned: coinsRef.current, score });
     navigation.replace('MazeResult', { outcome: 'lose', coins: coinsRef.current, score, levelIndex });
   }
 
   async function checkWin() {
     if (dotsRemainingRef.current <= 0) {
       runningRef.current = false;
-      const isLast = levelIndex >= LEVELS.length - 1;
-      const nextUnlocked = Math.max(user.unlockedLevel || 1, isLast ? LEVELS.length : level.id + 1);
-      await syncProgress({ coins: coinsRef.current, unlockedLevel: nextUnlocked, highScore: Math.max(user.highScore || 0, score) });
+      // Win: record the completed level so game_scores drives the unlocked-level total.
+      await recordGame('quiz_maze', { coinsEarned: coinsRef.current, score, level: level.id });
       navigation.replace('MazeResult', { outcome: 'win', coins: coinsRef.current, score, levelIndex });
     }
   }

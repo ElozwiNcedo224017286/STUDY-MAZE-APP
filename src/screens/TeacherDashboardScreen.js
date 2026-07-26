@@ -18,9 +18,10 @@ export default function TeacherDashboardScreen({ navigation }) {
   const refreshPublished = useCallback(async () => {
     try {
       const { meta, questions } = await api.getQuizBank();
-      setPublished(meta && questions.length ? { ...meta, count: questions.length } : null);
-    } catch (e) { /* backend offline in dev */ }
-  }, []);
+      // The author name isn't readable across RLS, so show the signed-in teacher's own name.
+      setPublished(meta && questions.length ? { ...meta, teacher: user?.username || meta.teacher, count: questions.length } : null);
+    } catch (e) { /* network issue — leave the previous state */ }
+  }, [user]);
 
   useFocusEffect(useCallback(() => { refreshPublished(); }, [refreshPublished]));
 

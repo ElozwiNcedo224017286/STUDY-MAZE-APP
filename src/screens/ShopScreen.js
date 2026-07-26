@@ -12,12 +12,13 @@ const REWARDS = [
 ];
 
 export default function ShopScreen({ navigation }) {
-  const { user, syncProgress } = useAuth();
+  const { user } = useAuth();
   const [toast, setToast] = useState('');
 
-  async function redeem(reward) {
-    if ((user.coins || 0) < reward.cost) return;
-    await syncProgress({ coins: user.coins - reward.cost });
+  // Coins are an earned-total metric (they also feed the leaderboard), so redeeming a
+  // reward unlocks it once you've earned enough — it doesn't subtract from your balance.
+  function redeem(reward) {
+    if ((user?.coins || 0) < reward.cost) return;
     setToast(`Redeemed ${reward.name} from ${reward.partner}! 🎉`);
   }
 
@@ -27,7 +28,7 @@ export default function ShopScreen({ navigation }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}><Text style={styles.backBtnText}>‹</Text></TouchableOpacity>
         <Text style={styles.title}>Rewards Shop</Text>
       </View>
-      <Text style={styles.sub}>Redeem coins for real rewards from our partners. Balance: {user?.coins ?? 0} 🪙</Text>
+      <Text style={styles.sub}>Earn coins by playing to unlock real rewards from our partners. Earned: {user?.coins ?? 0} 🪙</Text>
 
       {REWARDS.map((r) => {
         const canAfford = (user?.coins ?? 0) >= r.cost;

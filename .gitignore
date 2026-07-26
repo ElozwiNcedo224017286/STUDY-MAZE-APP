@@ -9,3 +9,8 @@ npm-debug.*
 *.mobileprovision
 *.orig.*
 web-build/
+
+# Local secrets — do not commit
+.env
+.env.local
+.env.*.local
