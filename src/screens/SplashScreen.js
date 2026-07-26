@@ -1,8 +1,9 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions, TouchableOpacity } from 'react-native';
 import { colors } from '../theme/colors';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const LOAD_HINTS = ['Loading study modules…', 'Sharpening pencils…', 'Waking up the ghosts…', 'Stacking coins…'];
 
 // One floating emoji that drifts up and down and gently rotates, looping forever.
 function FloatingIcon({ emoji, startX, startY, size, duration, delay }) {
@@ -48,7 +49,12 @@ const ICONS = [
 ];
 
 export default function SplashScreen({ navigation }) {
+  const [phase, setPhase] = useState('loading'); // 'loading' | 'ready'
+  const [hint, setHint] = useState(LOAD_HINTS[0]);
+  const progress = useRef(new Animated.Value(0)).current;
+  const [progressPct, setProgressPct] = useState(0);
   const logoPulse = useRef(new Animated.Value(0)).current;
+  const iconsFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.loop(
@@ -58,6 +64,25 @@ export default function SplashScreen({ navigation }) {
       ])
     ).start();
   }, [logoPulse]);
+
+  // Simulated loading bar, then fade the floating icons + CTA in once it's done.
+  useEffect(() => {
+    const listenerId = progress.addListener(({ value }) => {
+      setProgressPct(Math.round(value * 100));
+      setHint(LOAD_HINTS[Math.min(LOAD_HINTS.length - 1, Math.floor(value * LOAD_HINTS.length))]);
+    });
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 1800,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false
+    }).start(() => {
+      setPhase('ready');
+      Animated.timing(iconsFade, { toValue: 1, duration: 500, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    });
+    return () => progress.removeListener(listenerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const logoScale = logoPulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
 
@@ -72,16 +97,36 @@ export default function SplashScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {placedIcons.map((icon, i) => <FloatingIcon key={i} {...icon} />)}
+      {phase === 'ready' && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: iconsFade }]} pointerEvents="none">
+          {placedIcons.map((icon, i) => <FloatingIcon key={i} {...icon} />)}
+        </Animated.View>
+      )}
 
       <View style={styles.centerBlock} pointerEvents="box-none">
         <Animated.Text style={[styles.logo, { transform: [{ scale: logoScale }] }]}>STUDY MAZE</Animated.Text>
         <Text style={styles.tagline}>learn · play · earn</Text>
-        <Text style={styles.pitch}>Dodge ghosts, beat the clock, match pairs — all built from your own class material.</Text>
 
-        <TouchableOpacity style={styles.cta} onPress={() => navigation.replace('Auth')}>
-          <Text style={styles.ctaText}>Get Started ▶</Text>
-        </TouchableOpacity>
+        {phase === 'loading' ? (
+          <>
+            <View style={styles.loadTrack}>
+              <Animated.View
+                style={[
+                  styles.loadFill,
+                  { width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) }
+                ]}
+              />
+            </View>
+            <Text style={styles.loadHint}>{hint} {progressPct}%</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.pitch}>Dodge ghosts, beat the clock, match pairs — all built from your own class material.</Text>
+            <TouchableOpacity style={styles.cta} onPress={() => navigation.replace('Auth')}>
+              <Text style={styles.ctaText}>Get Started ▶</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -106,6 +151,9 @@ const styles = StyleSheet.create({
     marginBottom: 6
   },
   tagline: { color: colors.inkDim, fontSize: 13, letterSpacing: 1, marginBottom: 18 },
+  loadTrack: { width: 200, height: 10, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 6, overflow: 'hidden' },
+  loadFill: { height: '100%', backgroundColor: colors.mint },
+  loadHint: { color: colors.inkDim, fontSize: 11, marginTop: 12 },
   pitch: { color: colors.ink, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 30, opacity: 0.9 },
   cta: {
     backgroundColor: colors.mint,
