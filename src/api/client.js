@@ -58,6 +58,70 @@ export const api = {
     return { ok: true };
   },
 
+  // The current teacher's most recently published test, so they can manage its questions.
+  getMyLatestTest: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { data, error } = await supabase
+      .from('tests')
+      .select('id, title, questions, created_at')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(error.message || 'Could not load your quiz.');
+    if (!data) return null;
+    return { id: data.id, topic: data.title, questions: (data.questions || []).map(toAppQuestion) };
+  },
+
+  // Overwrites a test's questions (used for editing/removing individual questions).
+  updateTestQuestions: async (id, questions) => {
+    const { error } = await supabase
+      .from('tests')
+      .update({ questions: (questions || []).map(toDbQuestion) })
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'Could not update the quiz.');
+    return { ok: true };
+  },
+
+  // ---- Study materials (teacher notes for students) ----
+  getStudyMaterials: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { data, error } = await supabase
+      .from('study_materials')
+      .select('id, title, subject, grade, content, created_at')
+      .eq('teacher_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message || 'Could not load notes.');
+    return { materials: data || [] };
+  },
+
+  createStudyMaterial: async ({ title, subject, grade, content }) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { data, error } = await supabase
+      .from('study_materials')
+      .insert({ teacher_id: user.id, title, subject: subject || null, grade: grade || null, content })
+      .select()
+      .single();
+    if (error) throw new Error(error.message || 'Could not post the note.');
+    return { material: data };
+  },
+
+  deleteStudyMaterial: async (id) => {
+    const { error } = await supabase.from('study_materials').delete().eq('id', id);
+    if (error) throw new Error(error.message || 'Could not delete the note.');
+    return { ok: true };
+  },
+
+  // ---- Class leaderboard (SECURITY DEFINER RPC — aggregates everyone's coins) ----
+  getLeaderboard: async (limit = 50) => {
+    const { data, error } = await supabase.rpc('get_leaderboard', { _limit: limit });
+    if (error) throw new Error(error.message || 'Could not load the leaderboard.');
+    return { rows: data || [] };
+  },
+
   generateQuestions: async (files, topic) => {
     // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
     // If that function isn't deployed this fails clearly and the rest of the app is fine.

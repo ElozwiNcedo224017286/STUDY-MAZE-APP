@@ -50,6 +50,22 @@ The schema (in [`supabase/schema.sql`](supabase/schema.sql)) is already provisio
 
 Key files: [`src/api/supabase.js`](src/api/supabase.js) (client), [`src/api/client.js`](src/api/client.js) (quiz-bank API over `tests`), [`src/context/AuthContext.js`](src/context/AuthContext.js) (auth + progress).
 
-## Optional: AI question generation
+## AI question generation (Edge Function)
 
-The Teacher Dashboard's "Generate Questions from Slides" calls a Supabase **Edge Function** named `generate-questions` (`POST {SUPABASE_URL}/functions/v1/generate-questions`, multipart `files` + `topic`, returns `{ questions: [...] }`). Deploy that function to enable the feature; until then everything else works, and teachers can still publish the built-in questions.
+The Teacher Dashboard's "Generate Questions from Slides" calls a Supabase **Edge Function** named `generate-questions`, implemented in [`supabase/functions/generate-questions/index.ts`](supabase/functions/generate-questions/index.ts). It reads the uploaded files (PDFs are sent to the model as file inputs; `.txt` as text — export PPTX to PDF first), asks **OpenAI** for 10 multiple-choice questions via structured outputs (`response_format` json_schema), and returns `{ questions: [{ subject, q, opts, correct }] }`.
+
+### Deploy it
+
+Easiest (no install): Supabase Dashboard → **Edge Functions** → create a function named `generate-questions`, paste the file contents, **Deploy**, then add the `OPENAI_API_KEY` secret under Edge Functions → Secrets.
+
+Or via CLI:
+
+```bash
+npm i -g supabase
+supabase login
+supabase link --project-ref zqhhslrhglcdkotetjtv
+supabase secrets set OPENAI_API_KEY=sk-...
+supabase functions deploy generate-questions
+```
+
+The function uses `gpt-4o-mini` (cheap, supports PDF + JSON schema). Change the `MODEL` constant to `gpt-4o` for higher quality. Until the function is deployed, the generate button returns a clear error and everything else (manual question builder, notes, published, class) works without any API key.
