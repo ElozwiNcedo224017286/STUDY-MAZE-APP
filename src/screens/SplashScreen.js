@@ -7,9 +7,9 @@ import {
   Easing,
   Dimensions,
   TouchableOpacity,
-  AccessibilityInfo,
-  SafeAreaView
+  AccessibilityInfo
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '../theme/colors';
 
@@ -113,6 +113,8 @@ export default function SplashScreen({ navigation }) {
   const [progressPct, setProgressPct] = useState(0);
   const hintFade = useRef(new Animated.Value(1)).current;
 
+  // The logo animates textShadowRadius (a glow), which only the JS driver supports —
+  // so logoIntro/logoPulse below run on the JS driver too (you can't mix drivers on one node).
   const logoIntro = useRef(new Animated.Value(0)).current;
   const logoPulse = useRef(new Animated.Value(0)).current;
   const dotTrail = useRef(new Animated.Value(0)).current;
@@ -130,12 +132,12 @@ export default function SplashScreen({ navigation }) {
 
   // Logo pop-in, then a continuous soft glow breathing + dot-trail sweep.
   useEffect(() => {
-    Animated.spring(logoIntro, { toValue: 1, friction: 5.5, tension: 60, useNativeDriver: true }).start();
+    Animated.spring(logoIntro, { toValue: 1, friction: 5.5, tension: 60, useNativeDriver: false }).start();
     if (reduceMotion) return;
     Animated.loop(
       Animated.sequence([
-        Animated.timing(logoPulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(logoPulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true })
+        Animated.timing(logoPulse, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
+        Animated.timing(logoPulse, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: false })
       ])
     ).start();
     Animated.loop(
