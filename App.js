@@ -14,6 +14,7 @@ import QuizRushScreen from './src/screens/QuizRushScreen';
 import MemoryFlipScreen from './src/screens/MemoryFlipScreen';
 import TeacherDashboardScreen from './src/screens/TeacherDashboardScreen';
 import ShopScreen from './src/screens/ShopScreen';
+import StreakScreen from './src/screens/StreakScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -33,6 +34,7 @@ export default function App() {
           <Stack.Screen name="MemoryFlip" component={MemoryFlipScreen} />
           <Stack.Screen name="TeacherDashboard" component={TeacherDashboardScreen} />
           <Stack.Screen name="Shop" component={ShopScreen} />
+          <Stack.Screen name="Streak" component={StreakScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </AuthProvider>
