@@ -123,7 +123,7 @@ export default function MemoryFlipScreen({ navigation }) {
               : `You matched ${resultData.matched}/${EMOJIS.length} pairs. Coins kept: ${resultData.coins}`}
           </Text>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setPhase('start')}><Text style={styles.btnSecondaryText}>Play Again</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Hub')}><Text style={styles.btnGhostText}>Back to Hub</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
         </View>
       </View>
     );

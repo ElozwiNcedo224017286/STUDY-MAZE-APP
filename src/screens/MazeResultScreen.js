@@ -32,8 +32,8 @@ export default function MazeResultScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
 
-        <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Hub')}>
-          <Text style={styles.btnGhostText}>Back to Hub</Text>
+        <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}>
+          <Text style={styles.btnGhostText}>Back to Home</Text>
         </TouchableOpacity>
       </View>
     </View>
