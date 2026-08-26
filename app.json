@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Study Maze",
+    "slug": "study-maze",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#12082B"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.studymaze.app"
+    },
+    "android": {
+      "package": "com.studymaze.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#12082B"
+      }
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
+  }
+}
