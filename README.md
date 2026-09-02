@@ -1,87 +1,71 @@
 # Study Maze
 
-A React Native (Expo) mobile app with a Node.js + SQLite backend:
-students play three quiz-based games and earn coins; teachers upload lesson
-slides and Claude generates quiz questions from them automatically.
+An Expo / React Native learning-games app (maze runner, quiz rush, memory flip) with student and teacher roles, backed by **Supabase** (Auth + Postgres + Storage).
 
-```
-study-maze-app/
-├── backend/     Node.js + Express + SQLite API (accounts, progress, quiz bank, slide→question generation)
-└── mobile/      Expo React Native app (the actual mobile app students/teachers install)
-```
+## Getting started
 
-## 1. Run the backend
-
-```
-cd backend
+```bash
 npm install
-cp .env.example .env
-# edit .env: set ANTHROPIC_API_KEY (needed for the teacher's "Generate Questions" feature)
 npm start
 ```
 
-This starts the API on `http://localhost:4000` and creates `studymaze.db` — a real
-SQLite database file — automatically on first run. No separate database server
-to install.
+## Supabase
 
-- `TEACHER_CODE` in `.env` is the access code students must enter to register as
-  a teacher (defaults to `TEACH2026`). Change it before giving this to real users.
-- `ANTHROPIC_API_KEY` powers the "Generate Questions from Slides" feature. Without
-  it, everything else works but that one feature will return an error.
+The app talks to Supabase directly via `@supabase/supabase-js` — there is no separate backend server.
 
-## 2. Run the mobile app
+### Environment variables
+
+Credentials live in `.env` (git-ignored). `EXPO_PUBLIC_*` vars are inlined by Expo at build time, so **restart the dev server after editing `.env`.**
 
 ```
-cd mobile
-npm install
-npx expo start
+EXPO_PUBLIC_SUPABASE_URL="https://<project>.supabase.co"
+EXPO_PUBLIC_SUPABASE_ANON_KEY="<anon-key>"
+EXPO_PUBLIC_TEACHER_CODE="TEACH2024"   # code required to register a teacher account
 ```
 
-Scan the QR code with **Expo Go** (iOS/Android) or press `i` / `a` for a
-simulator. This is a real Expo/React Native project — from here it can be built
-into an installable `.ipa`/`.apk` with `eas build`, and eventually submitted to
-the App Store / Play Store.
+### Database
 
-### Pointing the app at your backend
+The schema (in [`supabase/schema.sql`](supabase/schema.sql)) is already provisioned in the connected project. It uses:
 
-Edit `mobile/app.json` → `expo.extra.apiBaseUrl`:
+- **Supabase Auth** (`auth.users`) for identity — accounts are email + password.
+- `profiles` / `user_roles` — auto-created on signup by the `handle_new_user` trigger, which reads `display_name` and `role` from the sign-up metadata the app sends.
+- `game_scores` — append-only; **the single source of truth for coins and scores.** Each finished game inserts a row. Coins shown in the app are the *earned total* (also what the leaderboard sums), so the Rewards Shop unlocks items once enough is earned rather than deducting a balance.
+- `tests` / `test_attempts` — teacher-authored quizzes; the app's "publish quiz to students" writes a `tests` row and the games read the latest one.
+- `avatars` storage bucket for profile pictures.
 
-- Simulator on the same machine as the backend: `http://localhost:4000` (default)
-- Physical phone via Expo Go: use your computer's LAN IP, e.g. `http://192.168.1.42:4000`
-  (localhost on a phone refers to the phone itself, not your computer)
-- Once deployed, point it at your real server's URL
+### Auth settings
 
-## What's implemented
+- **Teacher signup:** anyone entering the correct `EXPO_PUBLIC_TEACHER_CODE` at registration is granted the `teacher` role (passed in signup metadata → `user_roles`). This is a client-side gate.
+- **Email confirmation:** if it's enabled in your Supabase project (Authentication → Providers → Email), a new account can't log in until the email is confirmed — the app shows a "check your email" message. Disable it in the dashboard for a friction-free demo.
 
-- **Splash screen** with floating, looping animated icons (maze piece, ghost,
-  coin, lightning bolt, etc.) before the login screen — a "Get Started" button
-  leads into Login/Register.
-- **Accounts** stored in the SQLite database: register/login, with a
-  Student/Teacher role toggle. Teacher registration requires the access code.
-- **Three games**, each with a genuine way to lose, sharing one coin balance:
-  - **Maze Runner** — 3 levels, ghosts that actively chase you, 3 lives
-  - **Quiz Rush** — 10-second-per-question timed quiz, 3 lives, win by getting
-    10 in a row
-  - **Memory Flip** — match 8 pairs before a 60-second timer runs out
-- **Rewards Shop** — redeem coins for mocked airtime/data/voucher rewards
-- **Teacher Dashboard** — upload PDF/PPTX/TXT slides, the backend extracts the
-  text and calls Claude to generate 8–12 multiple-choice questions from it,
-  the teacher reviews/removes any and publishes them; students then see those
-  questions mixed into Maze Runner and Quiz Rush automatically, with a banner
-  telling them a custom quiz is active.
-- **Back buttons** on every screen except the top-level Hub/Teacher Dashboard.
+## How the app maps to the schema
 
-## Known limitations (things to harden before a real launch)
+| App concept | Supabase |
+|---|---|
+| Login / register | `supabase.auth` (email + password) |
+| Player role | `user_roles` (`student` / `teacher` / `admin`) |
+| Coins / high score / unlocked level | aggregated from `game_scores` on each load |
+| Teacher publishes questions | insert into `tests`; games read the latest row |
+| AI "generate questions from slides" | Supabase Edge Function `generate-questions` (optional, see below) |
 
-- **Auth is intentionally simple** — passwords are stored in plain text and
-  there's no session token/JWT. Fine for a prototype demo, not for production.
-  Add password hashing (bcrypt) and token-based auth before going further.
-- **Single shared quiz bank** — publishing replaces the one active question
-  set for everyone. A real multi-class product needs a `classes` table and
-  per-class quiz banks.
-- **PDF text extraction has no OCR** — scanned/image-only slides won't extract
-  any text.
-- **No push notifications, offline mode, or app store assets** yet.
-- The database is SQLite in a single file — great for a pilot, but a multi-school
-  deployment should move to Postgres/MySQL (the route files are written so this
-  is a matter of swapping `db.js`, not rewriting the routes).
+Key files: [`src/api/supabase.js`](src/api/supabase.js) (client), [`src/api/client.js`](src/api/client.js) (quiz-bank API over `tests`), [`src/context/AuthContext.js`](src/context/AuthContext.js) (auth + progress).
+
+## AI question generation (Edge Function)
+
+The Teacher Dashboard's "Generate Questions from Slides" calls a Supabase **Edge Function** named `generate-questions`, implemented in [`supabase/functions/generate-questions/index.ts`](supabase/functions/generate-questions/index.ts). It reads the uploaded files (PDFs are sent to the model as file inputs; `.txt` as text — export PPTX to PDF first), asks **OpenAI** for 10 multiple-choice questions via structured outputs (`response_format` json_schema), and returns `{ questions: [{ subject, q, opts, correct }] }`.
+
+### Deploy it
+
+Easiest (no install): Supabase Dashboard → **Edge Functions** → create a function named `generate-questions`, paste the file contents, **Deploy**, then add the `OPENAI_API_KEY` secret under Edge Functions → Secrets.
+
+Or via CLI:
+
+```bash
+npm i -g supabase
+supabase login
+supabase link --project-ref zqhhslrhglcdkotetjtv
+supabase secrets set OPENAI_API_KEY=sk-...
+supabase functions deploy generate-questions
+```
+
+The function uses `gpt-4o-mini` (cheap, supports PDF + JSON schema). Change the `MODEL` constant to `gpt-4o` for higher quality. Until the function is deployed, the generate button returns a clear error and everything else (manual question builder, notes, published, class) works without any API key.
