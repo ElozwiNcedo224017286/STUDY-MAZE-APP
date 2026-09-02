@@ -1,18 +1,26 @@
 import React, { useEffect, useRef, useState } from 'react';
+<<<<<<< HEAD
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
+=======
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { colors } from '../theme/colors';
+>>>>>>> origin/maze-updates
 import { useAuth } from '../context/AuthContext';
 
 const EMOJIS = ['📐', '🧪', '📖', '🌍', '💰', '🎨', '🎵', '⚽'];
 const GAME_TIME = 60;
+<<<<<<< HEAD
 const GRID_COLS = 4;
 const GRID_GAP = 8;
 const GRID_SIDE_MARGIN = 4;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Bleed the grid almost to the screen edges so cards read as real game pieces, not a shrunken preview.
 const CARD_SIZE = Math.floor((SCREEN_WIDTH - GRID_SIDE_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
+=======
+>>>>>>> origin/maze-updates
 
 function buildDeck() {
   const deck = [...EMOJIS, ...EMOJIS];
@@ -24,7 +32,10 @@ function buildDeck() {
 }
 
 export default function MemoryFlipScreen({ navigation }) {
+<<<<<<< HEAD
   const insets = useSafeAreaInsets();
+=======
+>>>>>>> origin/maze-updates
   const { recordGame } = useAuth();
   const [phase, setPhase] = useState('start'); // start | playing | result
   const [cards, setCards] = useState([]);
@@ -103,11 +114,17 @@ export default function MemoryFlipScreen({ navigation }) {
 
   if (phase === 'start') {
     return (
+<<<<<<< HEAD
       <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
         <View style={styles.topnav}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
             <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
+=======
+      <View style={styles.flex}>
+        <View style={styles.topnav}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}><Text style={styles.backBtnText}>‹</Text></TouchableOpacity>
+>>>>>>> origin/maze-updates
           <Text style={styles.title}>Memory Flip</Text>
         </View>
         <View style={styles.card}>
@@ -124,23 +141,36 @@ export default function MemoryFlipScreen({ navigation }) {
 
   if (phase === 'result') {
     return (
+<<<<<<< HEAD
       <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
         <View style={styles.card}>
           <Text style={styles.icon}>{resultData.won ? '🎉' : '⏳'}</Text>
           <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'All matched!' : "Time's up"}</Text>
+=======
+      <View style={styles.flex}>
+        <View style={styles.card}>
+          <Text style={styles.icon}>{resultData.won ? '🎉' : '⏳'}</Text>
+          <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'ALL MATCHED' : "TIME'S UP"}</Text>
+>>>>>>> origin/maze-updates
           <Text style={styles.sub}>
             {resultData.won
               ? `Finished in ${resultData.moves} moves with ${resultData.timeLeft}s left. +${resultData.bonus} coins. Total: ${resultData.coins}`
               : `You matched ${resultData.matched}/${EMOJIS.length} pairs. Coins kept: ${resultData.coins}`}
           </Text>
+<<<<<<< HEAD
           <TouchableOpacity style={styles.btn} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
           <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
+=======
+          <TouchableOpacity style={styles.btnSecondary} onPress={() => setPhase('start')}><Text style={styles.btnSecondaryText}>Play Again</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Hub')}><Text style={styles.btnGhostText}>Back to Hub</Text></TouchableOpacity>
+>>>>>>> origin/maze-updates
         </View>
       </View>
     );
   }
 
   return (
+<<<<<<< HEAD
     <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
       <View style={styles.topnav}>
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (timerRef.current) clearInterval(timerRef.current); navigation.goBack(); }}>
@@ -166,6 +196,29 @@ export default function MemoryFlipScreen({ navigation }) {
             ))}
           </View>
         </View>
+=======
+    <View style={styles.flex}>
+      <View style={styles.topnav}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => { if (timerRef.current) clearInterval(timerRef.current); navigation.goBack(); }}>
+          <Text style={styles.backBtnText}>‹</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Memory Flip</Text>
+      </View>
+      <View style={styles.hudRow}>
+        <Text style={styles.infoText}>Moves: {moves}</Text>
+        <Text style={styles.infoText}>{timeLeft}s</Text>
+      </View>
+      <View style={styles.grid}>
+        {cards.map((card) => (
+          <TouchableOpacity
+            key={card.id}
+            style={[styles.mcard, card.matched && styles.mcardMatched, !card.flipped && !card.matched && styles.mcardHidden]}
+            onPress={() => flip(card.id)}
+          >
+            <Text style={styles.mcardText}>{card.flipped || card.matched ? card.emoji : '❓'}</Text>
+          </TouchableOpacity>
+        ))}
+>>>>>>> origin/maze-updates
       </View>
     </View>
   );
@@ -181,6 +234,7 @@ function Bullet({ icon, text }) {
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 20 },
   topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   backBtn: {
@@ -226,4 +280,32 @@ const styles = StyleSheet.create({
   mcardHidden: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   mcardMatched: { backgroundColor: COLORS.successLight, borderColor: COLORS.success, opacity: 0.75 },
   mcardText: { fontSize: Math.round(CARD_SIZE * 0.42) },
+=======
+  flex: { flex: 1, backgroundColor: colors.bg, padding: 18, paddingTop: 50 },
+  topnav: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  backBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, alignItems: 'center', justifyContent: 'center' },
+  backBtnText: { color: colors.ink, fontSize: 18 },
+  title: { color: colors.ink, fontWeight: '700', fontSize: 14 },
+  card: { backgroundColor: colors.panelLight, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 16, padding: 20 },
+  heroTitle: { color: colors.gold, fontWeight: '900', fontSize: 17, marginBottom: 12, textAlign: 'center' },
+  heroTitleLose: { color: colors.coral },
+  icon: { fontSize: 38, textAlign: 'center', marginBottom: 4 },
+  sub: { color: colors.inkDim, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
+  bullet: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 10 },
+  bulletIcon: { fontSize: 17, width: 26, textAlign: 'center' },
+  bulletText: { color: colors.ink, fontSize: 13, flex: 1 },
+  btn: { backgroundColor: colors.mint, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  btnText: { color: '#062B1F', fontWeight: '800', fontSize: 14.5 },
+  btnSecondary: { backgroundColor: colors.teal, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
+  btnSecondaryText: { color: '#062B1F', fontWeight: '800', fontSize: 14.5 },
+  btnGhost: { borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },
+  btnGhostText: { color: colors.inkDim, fontWeight: '700', fontSize: 13.5 },
+  hudRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  infoText: { color: colors.inkDim, fontSize: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
+  mcard: { width: '22%', aspectRatio: 1, borderRadius: 10, backgroundColor: colors.panelLight, borderWidth: 2, borderColor: colors.wallEdge, alignItems: 'center', justifyContent: 'center' },
+  mcardHidden: { backgroundColor: colors.wall, borderColor: colors.wallEdge },
+  mcardMatched: { backgroundColor: 'rgba(6,255,165,0.15)', borderColor: colors.mint, opacity: 0.7 },
+  mcardText: { fontSize: 22 }
+>>>>>>> origin/maze-updates
 });

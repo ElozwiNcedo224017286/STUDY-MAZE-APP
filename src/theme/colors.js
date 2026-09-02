@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // Study Maze design system — AgriMate structure, violet palette.
 
 export const COLORS = {
@@ -75,6 +76,8 @@ export const SHADOWS = {
 };
 
 // Arcade palette kept for in-game screens (maze, quiz rush, memory flip).
+=======
+>>>>>>> origin/maze-updates
 export const colors = {
   bg: '#12082B',
   panel: '#1E1044',
@@ -86,7 +89,11 @@ export const colors = {
   coral: '#FF4D6D',
   teal: '#4ECDC4',
   ink: '#F4F0FF',
+<<<<<<< HEAD
   inkDim: '#B7A9E0',
+=======
+  inkDim: '#B7A9E0'
+>>>>>>> origin/maze-updates
 };
 
 export const spacing = { xs: 4, sm: 8, md: 14, lg: 20, xl: 28 };

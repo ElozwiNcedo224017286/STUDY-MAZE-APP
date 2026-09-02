@@ -15,7 +15,11 @@ async function loadUser(authUser) {
   const [{ data: profile }, { data: roles }, { data: scores }] = await Promise.all([
     supabase.from('profiles').select('display_name, avatar_url, grade, created_at').eq('id', authUser.id).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', authUser.id),
+<<<<<<< HEAD
     supabase.from('game_scores').select('coins, score, detail, created_at').eq('user_id', authUser.id)
+=======
+    supabase.from('game_scores').select('coins, score, detail').eq('user_id', authUser.id)
+>>>>>>> origin/maze-updates
   ]);
 
   const roleNames = (roles || []).map((r) => r.role);
@@ -33,6 +37,7 @@ async function loadUser(authUser) {
     if (typeof lvl === 'number' && lvl > bestLevel) bestLevel = lvl;
   });
 
+<<<<<<< HEAD
   // Consecutive-day play streak, derived from the calendar dates of past score rows
   // (today counts if already played; otherwise the streak is still "alive" through yesterday).
   const playDates = new Set((scores || []).map((s) => new Date(s.created_at).toDateString()));
@@ -46,6 +51,8 @@ async function loadUser(authUser) {
     }
   }
 
+=======
+>>>>>>> origin/maze-updates
   const displayName = profile?.display_name || authUser.email?.split('@')[0] || 'Player';
 
   return {
@@ -58,8 +65,11 @@ async function loadUser(authUser) {
     role,
     coins,
     highScore,
+<<<<<<< HEAD
     streakDays,
     gamesPlayed: (scores || []).length,
+=======
+>>>>>>> origin/maze-updates
     unlockedLevel: bestLevel + 1, // completing level N unlocks N+1
     createdAt: profile?.created_at
   };
@@ -93,6 +103,7 @@ export function AuthProvider({ children }) {
     return fresh;
   }, []);
 
+<<<<<<< HEAD
   const getUserStreak = useCallback(async () => {
   if (!user) return null;
 
@@ -201,6 +212,8 @@ const getDailyRewardDates = useCallback(async () => {
   return (data || []).map((row) => row.reward_date);
 }, [user]);
 
+=======
+>>>>>>> origin/maze-updates
   const login = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw new Error(error.message);
@@ -253,6 +266,7 @@ const getDailyRewardDates = useCallback(async () => {
     return refreshUser();
   }, [user, refreshUser]);
 
+<<<<<<< HEAD
   
 // Claim today's daily login reward through the secure Supabase RPC.
 // The database decides whether the reward has already been claimed.
@@ -322,6 +336,10 @@ const hasClaimedDailyReward = useCallback(async () => {
 
   return (
     <AuthContext.Provider value={{ user, booting, login, register, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
+=======
+  return (
+    <AuthContext.Provider value={{ user, booting, login, register, logout, recordGame, refreshUser, setUser }}>
+>>>>>>> origin/maze-updates
       {children}
     </AuthContext.Provider>
   );
