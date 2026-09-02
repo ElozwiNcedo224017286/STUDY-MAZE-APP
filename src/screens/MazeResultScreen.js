@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { colors } from '../theme/colors';
+import { COLORS, SHADOWS } from '../theme/colors';
 import { LEVELS } from './mazeData';
 
 export default function MazeResultScreen({ route, navigation }) {
@@ -12,7 +12,7 @@ export default function MazeResultScreen({ route, navigation }) {
     <View style={styles.flex}>
       <View style={styles.card}>
         <Text style={styles.icon}>{isWin ? '🏆' : '💀'}</Text>
-        <Text style={[styles.title, !isWin && styles.titleLose]}>{isWin ? 'LEVEL COMPLETE' : 'GAME OVER'}</Text>
+        <Text style={[styles.title, !isWin && styles.titleLose]}>{isWin ? 'Level complete!' : 'Game over'}</Text>
         <Text style={styles.sub}>
           {isWin
             ? `Total coins: ${coins} · Score: ${score}`
@@ -21,14 +21,14 @@ export default function MazeResultScreen({ route, navigation }) {
 
         {isWin ? (
           <TouchableOpacity
-            style={styles.btnSecondary}
+            style={styles.btnPrimary}
             onPress={() => navigation.replace('MazeGame', { levelIndex: isLast ? 0 : levelIndex + 1 })}
           >
-            <Text style={styles.btnSecondaryText}>{isLast ? 'Play Again from Level 1 →' : 'Continue →'}</Text>
+            <Text style={styles.btnPrimaryText}>{isLast ? 'Play again from Level 1' : 'Continue'}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.btnCoral} onPress={() => navigation.replace('MazeGame', { levelIndex })}>
-            <Text style={styles.btnCoralText}>Retry Level</Text>
+          <TouchableOpacity style={styles.btnRetry} onPress={() => navigation.replace('MazeGame', { levelIndex })}>
+            <Text style={styles.btnRetryText}>Retry level</Text>
           </TouchableOpacity>
         )}
 
@@ -41,16 +41,16 @@ export default function MazeResultScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg, justifyContent: 'center', padding: 20 },
-  card: { backgroundColor: colors.panelLight, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 16, padding: 24 },
-  icon: { fontSize: 40, textAlign: 'center', marginBottom: 6 },
-  title: { color: colors.gold, fontWeight: '900', fontSize: 17, textAlign: 'center', marginBottom: 10 },
-  titleLose: { color: colors.coral },
-  sub: { color: colors.inkDim, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  btnSecondary: { backgroundColor: colors.teal, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  btnSecondaryText: { color: '#062B1F', fontWeight: '800', fontSize: 14.5 },
-  btnCoral: { backgroundColor: colors.coral, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  btnCoralText: { color: '#3a0410', fontWeight: '800', fontSize: 14.5 },
-  btnGhost: { borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },
-  btnGhostText: { color: colors.inkDim, fontWeight: '700', fontSize: 13.5 }
+  flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: COLORS.white, borderRadius: 22, padding: 26, ...SHADOWS.medium },
+  icon: { fontSize: 44, textAlign: 'center', marginBottom: 8 },
+  title: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 20, textAlign: 'center', marginBottom: 10 },
+  titleLose: { color: COLORS.error },
+  sub: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 22 },
+  btnPrimary: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', ...SHADOWS.small },
+  btnPrimaryText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  btnRetry: { backgroundColor: COLORS.error, borderRadius: 14, paddingVertical: 15, alignItems: 'center', ...SHADOWS.small },
+  btnRetryText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  btnGhost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  btnGhostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
 });

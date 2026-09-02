@@ -131,6 +131,14 @@ export const api = {
     return { rows: data || [] };
   },
 
+  updateProfile: async (displayName) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() }).eq('id', user.id);
+    if (error) throw new Error(error.message || 'Could not update your profile.');
+    return { ok: true };
+  },
+
   generateQuestions: async (files, topic) => {
     // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
     // If that function isn't deployed this fails clearly and the rest of the app is fine.
