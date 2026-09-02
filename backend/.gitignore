@@ -1,0 +1,6 @@
+node_modules/
+.env
+studymaze.db
+studymaze.db-journal
+studymaze.db-wal
+studymaze.db-shm
