@@ -15,7 +15,7 @@ async function loadUser(authUser) {
   const [{ data: profile }, { data: roles }, { data: scores }] = await Promise.all([
     supabase.from('profiles').select('display_name, avatar_url, grade, created_at').eq('id', authUser.id).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', authUser.id),
-    supabase.from('game_scores').select('coins, score, detail').eq('user_id', authUser.id)
+    supabase.from('game_scores').select('coins, score, detail, created_at').eq('user_id', authUser.id)
   ]);
 
   const roleNames = (roles || []).map((r) => r.role);
@@ -33,6 +33,19 @@ async function loadUser(authUser) {
     if (typeof lvl === 'number' && lvl > bestLevel) bestLevel = lvl;
   });
 
+  // Consecutive-day play streak, derived from the calendar dates of past score rows
+  // (today counts if already played; otherwise the streak is still "alive" through yesterday).
+  const playDates = new Set((scores || []).map((s) => new Date(s.created_at).toDateString()));
+  let streakDays = 0;
+  if (playDates.size) {
+    const cursor = new Date();
+    if (!playDates.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+    while (playDates.has(cursor.toDateString())) {
+      streakDays += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+  }
+
   const displayName = profile?.display_name || authUser.email?.split('@')[0] || 'Player';
 
   return {
@@ -45,6 +58,8 @@ async function loadUser(authUser) {
     role,
     coins,
     highScore,
+    streakDays,
+    gamesPlayed: (scores || []).length,
     unlockedLevel: bestLevel + 1, // completing level N unlocks N+1
     createdAt: profile?.created_at
   };

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { colors } from '../theme/colors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { buildActivePool } from './quizBank';
@@ -18,6 +20,7 @@ function shuffle(arr) {
 }
 
 export default function QuizRushScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const { recordGame } = useAuth();
   const [phase, setPhase] = useState('start'); // 'start' | 'playing' | 'result'
   const [lives, setLives] = useState(3);
@@ -106,18 +109,22 @@ export default function QuizRushScreen({ navigation }) {
 
   if (phase === 'start') {
     return (
-      <View style={styles.flex}>
+      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
         <View style={styles.topnav}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}><Text style={styles.backBtnText}>‹</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
+          </TouchableOpacity>
           <Text style={styles.title}>Quiz Rush</Text>
         </View>
-        <View style={styles.card}>
-          <Text style={styles.heroTitle}>Beat the Clock</Text>
-          <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
-          <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
-          <Bullet icon="💔" text="Wrong or too slow costs a life" />
-          <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
-          <TouchableOpacity style={styles.btn} onPress={startRun}><Text style={styles.btnText}>Start Run</Text></TouchableOpacity>
+        <View style={styles.centerBody}>
+          <View style={styles.card}>
+            <Text style={styles.heroTitle}>Beat the Clock</Text>
+            <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
+            <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
+            <Bullet icon="💔" text="Wrong or too slow costs a life" />
+            <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
+            <TouchableOpacity style={styles.btn} onPress={startRun}><Text style={styles.btnText}>Start Run</Text></TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -125,17 +132,19 @@ export default function QuizRushScreen({ navigation }) {
 
   if (phase === 'result') {
     return (
-      <View style={styles.flex}>
-        <View style={styles.card}>
-          <Text style={styles.icon}>{resultData.won ? '🏁' : '💀'}</Text>
-          <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'RUN COMPLETE' : 'RUN OVER'}</Text>
-          <Text style={styles.sub}>
-            {resultData.won
-              ? `You nailed ${RUSH_TARGET} in a row. Total coins: ${resultData.coins}`
-              : `You got ${resultData.streak} correct this run. Coins kept: ${resultData.coins}`}
-          </Text>
-          <TouchableOpacity style={styles.btnSecondary} onPress={() => setPhase('start')}><Text style={styles.btnSecondaryText}>Play Again</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Hub')}><Text style={styles.btnGhostText}>Back to Hub</Text></TouchableOpacity>
+      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.centerBody}>
+          <View style={styles.card}>
+            <Text style={styles.icon}>{resultData.won ? '🏁' : '💀'}</Text>
+            <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'Run complete!' : 'Run over'}</Text>
+            <Text style={styles.sub}>
+              {resultData.won
+                ? `You nailed ${RUSH_TARGET} in a row. Total coins: ${resultData.coins}`
+                : `You got ${resultData.streak} correct this run. Coins kept: ${resultData.coins}`}
+            </Text>
+            <TouchableOpacity style={styles.btn} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -143,39 +152,41 @@ export default function QuizRushScreen({ navigation }) {
 
   const pct = Math.max(0, (timeLeft / RUSH_TIME) * 100);
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={{ paddingBottom: 30 }}>
+    <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
       <View style={styles.topnav}>
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (timerRef.current) clearInterval(timerRef.current); navigation.goBack(); }}>
-          <Text style={styles.backBtnText}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Quiz Rush</Text>
       </View>
-      <View style={styles.hudRow}>
-        <View style={styles.lives}>{[0, 1, 2].map((i) => <Text key={i} style={[styles.heart, i >= lives && styles.heartDead]}>❤️</Text>)}</View>
-        <Text style={styles.streakText}>Streak: {streak}/{RUSH_TARGET}</Text>
-      </View>
-      <View style={styles.timerTrack}><View style={[styles.timerFill, { width: `${pct}%` }, pct < 35 && styles.timerFillDanger]} /></View>
-      {question && (
-        <View style={styles.card}>
-          <Text style={styles.quizTag}>{question.subject}</Text>
-          <Text style={styles.quizQ}>{question.q}</Text>
-          {question.opts.map((opt, i) => {
-            const isCorrect = answeredIdx !== null && i === question.correct;
-            const isWrong = answeredIdx === i && i !== question.correct;
-            return (
-              <TouchableOpacity
-                key={i}
-                style={[styles.quizOpt, isCorrect && styles.quizOptCorrect, isWrong && styles.quizOptWrong]}
-                onPress={() => answer(i)}
-                disabled={answeredIdx !== null}
-              >
-                <Text style={styles.quizOptText}>{opt}</Text>
-              </TouchableOpacity>
-            );
-          })}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.playScroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.hudRow}>
+          <View style={styles.lives}>{[0, 1, 2].map((i) => <Text key={i} style={[styles.heart, i >= lives && styles.heartDead]}>❤️</Text>)}</View>
+          <Text style={styles.streakText}>Streak: {streak}/{RUSH_TARGET}</Text>
         </View>
-      )}
-    </ScrollView>
+        <View style={styles.timerTrack}><View style={[styles.timerFill, { width: `${pct}%` }, pct < 35 && styles.timerFillDanger]} /></View>
+        {question && (
+          <View style={styles.card}>
+            <Text style={styles.quizTag}>{question.subject}</Text>
+            <Text style={styles.quizQ}>{question.q}</Text>
+            {question.opts.map((opt, i) => {
+              const isCorrect = answeredIdx !== null && i === question.correct;
+              const isWrong = answeredIdx === i && i !== question.correct;
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.quizOpt, isCorrect && styles.quizOptCorrect, isWrong && styles.quizOptWrong]}
+                  onPress={() => answer(i)}
+                  disabled={answeredIdx !== null}
+                >
+                  <Text style={styles.quizOptText}>{opt}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -189,37 +200,46 @@ function Bullet({ icon, text }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg, padding: 18, paddingTop: 50 },
-  topnav: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
-  backBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, alignItems: 'center', justifyContent: 'center' },
-  backBtnText: { color: colors.ink, fontSize: 18 },
-  title: { color: colors.ink, fontWeight: '700', fontSize: 14 },
-  card: { backgroundColor: colors.panelLight, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 16, padding: 20 },
-  heroTitle: { color: colors.gold, fontWeight: '900', fontSize: 17, marginBottom: 12, textAlign: 'center' },
-  heroTitleLose: { color: colors.coral },
-  icon: { fontSize: 38, textAlign: 'center', marginBottom: 4 },
-  sub: { color: colors.inkDim, fontSize: 13.5, textAlign: 'center', lineHeight: 20, marginBottom: 18 },
-  bullet: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 10 },
-  bulletIcon: { fontSize: 17, width: 26, textAlign: 'center' },
-  bulletText: { color: colors.ink, fontSize: 13, flex: 1 },
-  btn: { backgroundColor: colors.mint, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  btnText: { color: '#062B1F', fontWeight: '800', fontSize: 14.5 },
-  btnSecondary: { backgroundColor: colors.teal, borderRadius: 10, paddingVertical: 14, alignItems: 'center' },
-  btnSecondaryText: { color: '#062B1F', fontWeight: '800', fontSize: 14.5 },
-  btnGhost: { borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },
-  btnGhostText: { color: colors.inkDim, fontWeight: '700', fontSize: 13.5 },
-  hudRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  lives: { flexDirection: 'row', gap: 3 },
-  heart: { fontSize: 15 },
+  flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 14 },
+  centerBody: { flex: 1, justifyContent: 'center' },
+  playScroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
+  topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.small,
+  },
+  title: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 18 },
+  card: { backgroundColor: COLORS.white, borderRadius: 20, padding: 24, ...SHADOWS.small },
+  heroTitle: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 20, marginBottom: 16, textAlign: 'center' },
+  heroTitleLose: { color: COLORS.error },
+  icon: { fontSize: 46, textAlign: 'center', marginBottom: 8 },
+  sub: { color: COLORS.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 21, marginBottom: 22 },
+  bullet: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 14 },
+  bulletIcon: { fontSize: 20, width: 28, textAlign: 'center' },
+  bulletText: { color: COLORS.textPrimary, fontSize: 15, flex: 1 },
+  btn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 17, alignItems: 'center', marginTop: 10, ...SHADOWS.small },
+  btnText: { color: COLORS.white, fontWeight: '800', fontSize: 16 },
+  btnGhost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
+  btnGhostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
+  hudRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  lives: { flexDirection: 'row', gap: 4 },
+  heart: { fontSize: 20 },
   heartDead: { opacity: 0.25 },
-  streakText: { color: colors.teal, fontSize: 12 },
-  timerTrack: { height: 8, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 6, overflow: 'hidden', marginBottom: 16 },
-  timerFill: { height: '100%', backgroundColor: colors.mint },
-  timerFillDanger: { backgroundColor: colors.coral },
-  quizTag: { color: colors.coral, fontSize: 10, letterSpacing: 1, marginBottom: 10, fontWeight: '800' },
-  quizQ: { color: colors.ink, fontSize: 16, lineHeight: 22, marginBottom: 16 },
-  quizOpt: { backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 10, padding: 12, marginBottom: 9 },
-  quizOptCorrect: { borderColor: colors.mint, backgroundColor: 'rgba(6,255,165,0.12)' },
-  quizOptWrong: { borderColor: colors.coral, backgroundColor: 'rgba(255,77,109,0.12)' },
-  quizOptText: { color: colors.ink, fontSize: 13.5 }
+  streakText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
+  timerTrack: { height: 10, backgroundColor: COLORS.backgroundTertiary, borderRadius: 6, overflow: 'hidden', marginBottom: 20 },
+  timerFill: { height: '100%', backgroundColor: COLORS.primary },
+  timerFillDanger: { backgroundColor: COLORS.error },
+  quizTag: { color: COLORS.primary, fontSize: 12, letterSpacing: 1, marginBottom: 12, fontWeight: '800' },
+  quizQ: { color: COLORS.textPrimary, fontSize: 17, lineHeight: 23, marginBottom: 18, fontWeight: '600' },
+  quizOpt: { backgroundColor: COLORS.backgroundSecondary, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, marginBottom: 12 },
+  quizOptCorrect: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
+  quizOptWrong: { borderColor: COLORS.error, backgroundColor: COLORS.errorLight },
+  quizOptText: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '600' },
 });

@@ -97,6 +97,15 @@ export const api = {
     return { materials: data || [] };
   },
 
+  getPublishedNotes: async () => {
+    const { data, error } = await supabase
+      .from('study_materials')
+      .select('id, title, subject, grade, content, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message || 'Could not load notes.');
+    return { materials: data || [] };
+  },
+
   createStudyMaterial: async ({ title, subject, grade, content }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
@@ -120,6 +129,14 @@ export const api = {
     const { data, error } = await supabase.rpc('get_leaderboard', { _limit: limit });
     if (error) throw new Error(error.message || 'Could not load the leaderboard.');
     return { rows: data || [] };
+  },
+
+  updateProfile: async (displayName) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() }).eq('id', user.id);
+    if (error) throw new Error(error.message || 'Could not update your profile.');
+    return { ok: true };
   },
 
   generateQuestions: async (files, topic) => {
