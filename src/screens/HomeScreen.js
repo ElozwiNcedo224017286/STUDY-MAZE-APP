@@ -29,31 +29,51 @@ function greetingWord() {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, getUserStreak } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [refreshing, setRefreshing] = useState(false);
   const [quizMeta, setQuizMeta] = useState(null);
   const [quizCount, setQuizCount] = useState(0);
   const [board, setBoard] = useState([]);
   const [notesCount, setNotesCount] = useState(0);
+  const [dailyStreak, setDailyStreak] = useState(null);
   const scrollRef = useRef(null);
   const boardSectionY = useRef(0);
 
-  const load = useCallback(async () => {
-    try {
-      const [{ meta, questions }, { rows }, notes] = await Promise.all([
-        api.getQuizBank().catch(() => ({ meta: null, questions: [] })),
-        api.getLeaderboard(5).catch(() => ({ rows: [] })),
-        (isTeacher ? api.getStudyMaterials() : api.getPublishedNotes()).catch(() => ({ materials: [] })),
+const load = useCallback(async () => {
+  try {
+    const [{ meta, questions }, { rows }, notes, streakData] =
+      await Promise.all([
+        api.getQuizBank().catch(() => ({
+          meta: null,
+          questions: [],
+        })),
+
+        api.getLeaderboard(5).catch(() => ({
+          rows: [],
+        })),
+
+        (isTeacher
+          ? api.getStudyMaterials()
+          : api.getPublishedNotes()
+        ).catch(() => ({
+          materials: [],
+        })),
+
+        !isTeacher
+          ? getUserStreak().catch(() => null)
+          : Promise.resolve(null),
       ]);
-      setQuizMeta(meta);
-      setQuizCount((questions || []).length);
-      setBoard(rows || []);
-      setNotesCount((notes.materials || []).length);
-    } catch {
-      /* keep last good state */
-    }
-  }, [isTeacher]);
+
+    setQuizMeta(meta);
+    setQuizCount((questions || []).length);
+    setBoard(rows || []);
+    setNotesCount((notes.materials || []).length);
+    setDailyStreak(streakData);
+  } catch {
+    /* keep last good state */
+  }
+}, [isTeacher, getUserStreak]);
 
   useFocusEffect(useCallback(() => { load(); refreshUser?.(); }, [load, refreshUser]));
 
@@ -171,41 +191,66 @@ export default function HomeScreen({ navigation }) {
                   <Ionicons name="flame" size={20} color={COLORS.accent} />
                 </View>
                 <Text style={styles.streakText}>
-                  <Text style={styles.streakNumber}>{user?.streakDays ?? 0}</Text> day streak
+                  <Text style={styles.streakNumber}> {dailyStreak?.current_streak ?? 0} </Text> day streak
                 </Text>
               </View>
             )}
 
-            <View style={styles.pillRow}>
-              {isTeacher ? (
-                <>
-                  <View style={styles.pill}>
-                    <Ionicons name="people" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>{board.length} students</Text>
-                  </View>
-                  <View style={styles.pill}>
-                    <Ionicons name="document-text" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>{notesCount} notes</Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.pill}>
-                    <Ionicons name="star" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>Level {currentLevel}</Text>
-                  </View>
-                  <View style={styles.pill}>
-                    <Text style={styles.pillCoin}>🪙</Text>
-                    <Text style={styles.pillText}>{(user?.coins ?? 0).toLocaleString()} coins</Text>
-                  </View>
-                </>
-              )}
-            </View>
+<View style={styles.pillRow}>
+  {isTeacher ? (
+    <>
+      <View style={styles.pill}>
+        <Ionicons
+          name="people"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          {board.length} students
+        </Text>
+      </View>
+
+      <View style={styles.pill}>
+        <Ionicons
+          name="document-text"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          {notesCount} notes
+        </Text>
+      </View>
+    </>
+  ) : (
+    <>
+      <View style={styles.pill}>
+        <Ionicons
+          name="trophy"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          Best {dailyStreak?.longest_streak ?? 0} days
+        </Text>
+      </View>
+
+      <View style={styles.pill}>
+        <Text style={styles.pillCoin}>
+          🪙
+        </Text>
+
+        <Text style={styles.pillText}>
+          {(user?.coins ?? 0).toLocaleString()} coins
+        </Text>
+      </View>
+    </>
+  )}
+</View>
 
             <TouchableOpacity
               style={styles.continueBtn}
               activeOpacity={0.85}
-              onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.navigate('Play'))}
+              onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.getParent()?.navigate('Streak'))}
             >
               <Text style={styles.continueBtnText}>Continue</Text>
               <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />

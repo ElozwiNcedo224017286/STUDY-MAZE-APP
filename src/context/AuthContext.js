@@ -93,7 +93,7 @@ export function AuthProvider({ children }) {
     return fresh;
   }, []);
 
-  const getUserStreak = useCallback(async () => {
+const getUserStreak = useCallback(async () => {
   if (!user) return null;
 
   const { data, error } = await supabase
@@ -112,15 +112,22 @@ export function AuthProvider({ children }) {
     return {
       current_streak: 0,
       longest_streak: 0,
-      last_reward_date: null
+      last_reward_date: null,
     };
+  }
+
+  // If the streak is already 0, there is nothing to reset.
+  // This also prevents repeated database updates when the user
+  // has already broken their streak.
+  if (data.current_streak === 0) {
+    return data;
   }
 
   // If there is no last reward date, the streak cannot be active.
   if (!data.last_reward_date) {
     return {
       ...data,
-      current_streak: 0
+      current_streak: 0,
     };
   }
 
@@ -136,10 +143,9 @@ export function AuthProvider({ children }) {
   );
   lastRewardDate.setHours(0, 0, 0, 0);
 
-  const differenceInDays =
-    Math.floor(
-      (today - lastRewardDate) / (1000 * 60 * 60 * 24)
-    );
+  const differenceInDays = Math.floor(
+    (today - lastRewardDate) / (1000 * 60 * 60 * 24)
+  );
 
   // Claimed today or yesterday.
   if (differenceInDays <= 1) {
@@ -151,15 +157,13 @@ export function AuthProvider({ children }) {
   // Reset current streak but preserve the record.
   // --------------------------------------------------
 
-  const { data: resetData, error: resetError } = await supabase
+  const { error: resetError } = await supabase
     .from('daily_streaks')
     .update({
       current_streak: 0,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
-    .eq('user_id', user.id)
-    .select('current_streak, longest_streak, last_reward_date')
-    .single();
+    .eq('user_id', user.id);
 
   if (resetError) {
     console.warn(
@@ -171,11 +175,16 @@ export function AuthProvider({ children }) {
     // don't display the old broken streak.
     return {
       ...data,
-      current_streak: 0
+      current_streak: 0,
     };
   }
 
-  return resetData;
+  // Return the reset state locally.
+  // We don't need Supabase to return the updated row here.
+  return {
+    ...data,
+    current_streak: 0,
+  };
 }, [user]);
 
 const getDailyRewardDates = useCallback(async () => {

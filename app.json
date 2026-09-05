@@ -6,22 +6,22 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/logo.png",
-    "splash": {
-      "image": "./assets/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F6F4FB"
-    },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.studymaze.app"
     },
     "android": {
-      "package": "com.studymaze.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#F6F4FB"
-      }
-    }
+      },
+      "package": "com.studymaze.app"
+    },
+    "plugins": [
+      "expo-status-bar"
+    ]
   }
 }

@@ -14,6 +14,7 @@ import MazeGameScreen from './src/screens/MazeGameScreen';
 import MazeResultScreen from './src/screens/MazeResultScreen';
 import QuizRushScreen from './src/screens/QuizRushScreen';
 import MemoryFlipScreen from './src/screens/MemoryFlipScreen';
+import StreakScreen from './src/screens/StreakScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -31,6 +32,7 @@ export default function App() {
             <Stack.Screen name="Splash" component={SplashScreen} />
             <Stack.Screen name="Auth" component={AuthScreen} />
             <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="Streak" component={StreakScreen} />
 
             <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
             <Stack.Screen name="MazeGame" component={MazeGameScreen} />
