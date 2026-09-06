@@ -97,6 +97,7 @@ export const api = {
     return { materials: data || [] };
   },
 
+<<<<<<< HEAD
   getPublishedNotes: async () => {
     const { data, error } = await supabase
       .from('study_materials')
@@ -106,6 +107,8 @@ export const api = {
     return { materials: data || [] };
   },
 
+=======
+>>>>>>> origin/maze-updates
   createStudyMaterial: async ({ title, subject, grade, content }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
@@ -131,6 +134,7 @@ export const api = {
     return { rows: data || [] };
   },
 
+<<<<<<< HEAD
   updateProfile: async (displayName) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
@@ -139,6 +143,8 @@ export const api = {
     return { ok: true };
   },
 
+=======
+>>>>>>> origin/maze-updates
   generateQuestions: async (files, topic) => {
     // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
     // If that function isn't deployed this fails clearly and the rest of the app is fine.

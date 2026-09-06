@@ -1,9 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
+<<<<<<< HEAD
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, } from 'react-native';
+=======
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+>>>>>>> origin/maze-updates
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+<<<<<<< HEAD
+import NavigationDock from '../components/NavigationDock';
+=======
+>>>>>>> origin/maze-updates
 
 const GAMES = [
   { key: 'MazeLevels', emoji: '🧩', name: 'Maze Runner', desc: 'Dodge ghosts, collect tokens, answer quiz nodes. 3 levels.' },
@@ -12,9 +20,19 @@ const GAMES = [
 ];
 
 export default function HubScreen({ navigation }) {
+<<<<<<< HEAD
+  const { user, hasClaimedDailyReward, claimDailyReward } = useAuth();
+  const [quizMeta, setQuizMeta] = useState(null);
+
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [rewardClaimed, setRewardClaimed] = useState(false);
+  const [claimingReward, setClaimingReward] = useState(false);
+
+=======
   const { user, logout } = useAuth();
   const [quizMeta, setQuizMeta] = useState(null);
 
+>>>>>>> origin/maze-updates
   const loadMeta = useCallback(async () => {
     try {
       const { meta } = await api.getQuizBank();
@@ -22,6 +40,107 @@ export default function HubScreen({ navigation }) {
     } catch (e) { /* backend may be offline in dev — fail quietly here */ }
   }, []);
 
+<<<<<<< HEAD
+  const checkDailyReward = useCallback(async () => {
+  if (!user) return;
+
+  try {
+    const claimed = await hasClaimedDailyReward();
+
+    if (!claimed) {
+      setRewardClaimed(false);
+      setShowDailyReward(true);
+    }
+  } catch (e) {
+    console.warn('Failed to check daily reward:', e.message);
+  }
+}, [user, hasClaimedDailyReward]);
+
+const handleClaimDailyReward = async () => {
+  if (claimingReward) return;
+
+  try {
+    setClaimingReward(true);
+
+    const result = await claimDailyReward();
+
+    if (result.claimed) {
+      setRewardClaimed(true);
+    }
+  } catch (e) {
+    console.warn('Failed to claim daily reward:', e.message);
+  } finally {
+    setClaimingReward(false);
+  }
+};
+
+useFocusEffect(
+  useCallback(() => {
+    loadMeta();
+    checkDailyReward();
+  }, [loadMeta, checkDailyReward])
+);
+
+
+  return (
+    <>
+    <Modal visible={showDailyReward} transparent animationType="fade" onRequestClose={() => setShowDailyReward(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.rewardCard}>
+
+      <TouchableOpacity style={styles.closeRewardBtn} onPress={() => setShowDailyReward(false)}>
+        <Text style={styles.closeRewardText}>×</Text>
+      </TouchableOpacity>
+
+      {!rewardClaimed ? (
+        <>
+          <Text style={styles.rewardEmoji}>🎁</Text>
+
+          <Text style={styles.rewardTitle}> Daily Reward </Text>
+
+          <Text style={styles.rewardSubtitle}> Welcome back, {user?.username}! </Text>
+
+          <Text style={styles.rewardDescription}> Claim your daily reward and receive </Text>
+
+          <Text style={styles.rewardCoins}> 🪙 25 Coins </Text>
+
+          <TouchableOpacity
+            style={styles.claimRewardBtn}
+            onPress={handleClaimDailyReward}
+            disabled={claimingReward}
+          >
+            <Text style={styles.claimRewardText}>
+              {claimingReward ? 'Claiming...' : 'Claim 25 Coins'}
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.rewardEmoji}>🎉</Text>
+
+          <Text style={styles.rewardTitle}>Reward Claimed! </Text>
+
+          <Text style={styles.rewardSubtitle}> You earned 25 coins!</Text>
+
+          <Text style={styles.rewardDescription}> Come back tomorrow to claim another daily reward.</Text>
+
+          <TouchableOpacity
+            style={styles.closeRewardAction}
+            onPress={() => setShowDailyReward(false)}
+          >
+            <Text style={styles.closeRewardActionText}>
+              Continue
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      </View>
+    </View>
+    </Modal>
+
+    <View style={styles.screen}>
+=======
   useFocusEffect(useCallback(() => { loadMeta(); }, [loadMeta]));
 
   async function handleLogout() {
@@ -30,12 +149,17 @@ export default function HubScreen({ navigation }) {
   }
 
   return (
+>>>>>>> origin/maze-updates
     <ScrollView style={styles.flex} contentContainerStyle={styles.container}>
       <View style={styles.header}>
         <Text style={styles.welcome}>Hey, <Text style={styles.username}>{user?.username}</Text></Text>
         <View style={styles.headerActions}>
           <View style={styles.coinPill}><Text style={styles.coinText}>🪙 {user?.coins ?? 0}</Text></View>
+<<<<<<< HEAD
+  
+=======
           <TouchableOpacity style={styles.iconBtn} onPress={handleLogout}><Text style={styles.iconBtnText}>⏻</Text></TouchableOpacity>
+>>>>>>> origin/maze-updates
         </View>
       </View>
 
@@ -65,24 +189,40 @@ export default function HubScreen({ navigation }) {
         </View>
       ))}
 
+<<<<<<< HEAD
+    </ScrollView>
+    <NavigationDock navigation={navigation} activeRoute="Hub"/>
+    </View>
+    </>
+=======
       <TouchableOpacity style={styles.shopBtn} onPress={() => navigation.navigate('Shop')}>
         <Text style={styles.shopBtnText}>Rewards Shop</Text>
       </TouchableOpacity>
     </ScrollView>
+>>>>>>> origin/maze-updates
   );
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
+  screen: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1, backgroundColor: colors.bg },
+  container: { paddingHorizontal: 20, paddingTop: 50, paddingBottom: 150,},
+=======
   flex: { flex: 1, backgroundColor: colors.bg },
   container: { padding: 18, paddingTop: 50 },
+>>>>>>> origin/maze-updates
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   welcome: { color: colors.inkDim, fontSize: 13 },
   username: { color: colors.gold, fontWeight: '800' },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   coinPill: { backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 20, paddingVertical: 5, paddingHorizontal: 10 },
   coinText: { color: colors.gold, fontWeight: '700', fontSize: 12 },
+<<<<<<< HEAD
+=======
   iconBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: colors.ink, fontSize: 14 },
+>>>>>>> origin/maze-updates
   badge: { backgroundColor: 'rgba(6,255,165,0.1)', borderWidth: 2, borderColor: colors.mint, borderRadius: 10, padding: 10, marginBottom: 14 },
   badgeText: { color: colors.mint, fontSize: 12 },
   teacherBtn: { backgroundColor: colors.teal, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginBottom: 16 },
@@ -94,7 +234,25 @@ const styles = StyleSheet.create({
   gameName: { color: colors.ink, fontWeight: '700', fontSize: 14.5 },
   gameDesc: { color: colors.inkDim, fontSize: 11.5, marginTop: 3, lineHeight: 15 },
   playBtn: { backgroundColor: colors.mint, borderRadius: 8, paddingVertical: 9, paddingHorizontal: 14 },
+<<<<<<< HEAD
+  playBtnText: { color: '#062B1F', fontWeight: '700', fontSize: 12 }, 
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 24,},
+  rewardCard: { width: '100%', maxWidth: 360, backgroundColor: colors.panel, borderWidth: 2, borderColor: colors.wallEdge, borderRadius: 20, padding: 26, alignItems: 'center', position: 'relative',},
+  closeRewardBtn: {position: 'absolute', top: 8, right: 10, width: 30, height: 30, alignItems: 'center', justifyContent: 'center',},
+  closeRewardText: {color: colors.inkDim, fontSize: 26, fontWeight: '700', },
+  rewardEmoji: { fontSize: 48, marginBottom: 10, },
+  rewardTitle: { color: colors.gold, fontSize: 22, fontWeight: '900', marginBottom: 8, },
+  rewardSubtitle: { color: colors.ink, fontSize: 14, fontWeight: '700', textAlign: 'center', marginBottom: 10, },
+  rewardDescription: { color: colors.inkDim, fontSize: 12, textAlign: 'center', lineHeight: 18, },
+  rewardCoins: { color: colors.gold, fontSize: 24, fontWeight: '900', marginTop: 12, marginBottom: 20, },
+  claimRewardBtn: { width: '100%', backgroundColor: colors.mint, borderRadius: 12, paddingVertical: 14, alignItems: 'center', },
+  claimRewardText: { color: '#062B1F', fontSize: 14, fontWeight: '900', },
+  closeRewardAction: { width: '100%', backgroundColor: colors.teal, borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 18, },
+  closeRewardActionText: { color: '#062B1F', fontSize: 14, fontWeight: '900',},
+
+=======
   playBtnText: { color: '#062B1F', fontWeight: '700', fontSize: 12 },
   shopBtn: { backgroundColor: colors.teal, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 6, marginBottom: 30 },
   shopBtnText: { color: '#062B1F', fontWeight: '800', fontSize: 14 }
+>>>>>>> origin/maze-updates
 });
