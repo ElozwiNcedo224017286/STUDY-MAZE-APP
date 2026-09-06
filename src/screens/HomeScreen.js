@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,7 +30,7 @@ function greetingWord() {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { user, refreshUser, getUserStreak } = useAuth();
+  const { user, refreshUser, getUserStreak, hasClaimedDailyReward, claimDailyReward } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [refreshing, setRefreshing] = useState(false);
   const [quizMeta, setQuizMeta] = useState(null);
@@ -39,43 +40,87 @@ export default function HomeScreen({ navigation }) {
   const [dailyStreak, setDailyStreak] = useState(null);
   const scrollRef = useRef(null);
   const boardSectionY = useRef(0);
+  const [showDailyReward, setShowDailyReward] = useState(false);
+  const [rewardClaimed, setRewardClaimed] = useState(false);
+  const [claimingReward, setClaimingReward] = useState(false);
 
-const load = useCallback(async () => {
-  try {
-    const [{ meta, questions }, { rows }, notes, streakData] =
-      await Promise.all([
-        api.getQuizBank().catch(() => ({
-          meta: null,
-          questions: [],
-        })),
+  const load = useCallback(async () => {
+    try {
+      const [{ meta, questions }, { rows }, notes, streakData] =
+        await Promise.all([
+          api.getQuizBank().catch(() => ({
+            meta: null,
+            questions: [],
+          })),
 
-        api.getLeaderboard(5).catch(() => ({
-          rows: [],
-        })),
+          api.getLeaderboard(5).catch(() => ({
+            rows: [],
+          })),
 
-        (isTeacher
-          ? api.getStudyMaterials()
-          : api.getPublishedNotes()
-        ).catch(() => ({
-          materials: [],
-        })),
+          (isTeacher
+            ? api.getStudyMaterials()
+            : api.getPublishedNotes()
+          ).catch(() => ({
+            materials: [],
+          })),
 
-        !isTeacher
-          ? getUserStreak().catch(() => null)
-          : Promise.resolve(null),
-      ]);
+          !isTeacher
+            ? getUserStreak().catch(() => null)
+            : Promise.resolve(null),
+        ]);
 
-    setQuizMeta(meta);
-    setQuizCount((questions || []).length);
-    setBoard(rows || []);
-    setNotesCount((notes.materials || []).length);
-    setDailyStreak(streakData);
-  } catch {
-    /* keep last good state */
-  }
-}, [isTeacher, getUserStreak]);
+      setQuizMeta(meta);
+      setQuizCount((questions || []).length);
+      setBoard(rows || []);
+      setNotesCount((notes.materials || []).length);
+      setDailyStreak(streakData);
+    } catch {
+      /* keep last good state */
+    }
+  }, [isTeacher, getUserStreak]);
 
-  useFocusEffect(useCallback(() => { load(); refreshUser?.(); }, [load, refreshUser]));
+  const checkDailyReward = useCallback(async () => {
+    if (!user || isTeacher) return;
+
+    try {
+      const claimed = await hasClaimedDailyReward();
+
+      if (!claimed) {
+        setRewardClaimed(false);
+        setShowDailyReward(true);
+      }
+    } catch (e) {
+      console.warn('Failed to check daily reward:', e.message);
+    }
+  }, [user, isTeacher, hasClaimedDailyReward]);
+
+
+  const handleClaimDailyReward = async () => {
+    if (claimingReward) return;
+
+    try {
+      setClaimingReward(true);
+
+      const result = await claimDailyReward();
+
+      if (result.claimed) {
+        setRewardClaimed(true);
+
+        // Refresh Home's streak stats immediately.
+        const updatedStreak = await getUserStreak();
+        setDailyStreak(updatedStreak);
+
+        // Refresh coins/user information.
+        await refreshUser?.();
+      }
+    } catch (e) {
+      console.warn('Failed to claim daily reward:', e.message);
+    } finally {
+      setClaimingReward(false);
+    }
+  };
+
+  useFocusEffect(useCallback(() => { load(); refreshUser?.(); checkDailyReward(); }, [load, refreshUser, checkDailyReward, ]));
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -135,6 +180,94 @@ const load = useCallback(async () => {
       };
 
   return (
+  <>
+    <Modal
+      visible={showDailyReward}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowDailyReward(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.rewardCard}>
+
+          <TouchableOpacity
+            style={styles.closeRewardBtn}
+            onPress={() => setShowDailyReward(false)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="close"
+              size={22}
+              color={COLORS.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {!rewardClaimed ? (
+            <>
+              <Text style={styles.rewardEmoji}>🎁</Text>
+
+              <Text style={styles.rewardTitle}>
+                Daily Reward
+              </Text>
+
+              <Text style={styles.rewardSubtitle}>
+                Welcome back, {user?.username || 'Player'}!
+              </Text>
+
+              <Text style={styles.rewardDescription}>
+                Claim your daily reward and receive
+              </Text>
+
+              <Text style={styles.rewardCoins}>
+                🪙 25 Coins
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.claimRewardBtn,
+                  claimingReward && styles.claimRewardBtnDisabled,
+                ]}
+                onPress={handleClaimDailyReward}
+                disabled={claimingReward}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.claimRewardText}>
+                  {claimingReward ? 'Claiming...' : 'Claim 25 Coins'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.rewardEmoji}>🎉</Text>
+
+              <Text style={styles.rewardTitle}>
+                Reward Claimed!
+              </Text>
+
+              <Text style={styles.rewardSubtitle}>
+                You earned 25 coins!
+              </Text>
+
+              <Text style={styles.rewardDescription}>
+                Come back tomorrow to claim another daily reward.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.closeRewardAction}
+                onPress={() => setShowDailyReward(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.closeRewardActionText}>
+                  Continue
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+        </View>
+      </View>
+    </Modal>
+
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
 
@@ -196,63 +329,63 @@ const load = useCallback(async () => {
               </View>
             )}
 
-<View style={styles.pillRow}>
-  {isTeacher ? (
-    <>
-      <View style={styles.pill}>
-        <Ionicons
-          name="people"
-          size={14}
-          color={COLORS.white}
-        />
-        <Text style={styles.pillText}>
-          {board.length} students
-        </Text>
-      </View>
+          <View style={styles.pillRow}>
+            {isTeacher ? (
+              <>
+                <View style={styles.pill}>
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.pillText}>
+                    {board.length} students
+                  </Text>
+                </View>
 
-      <View style={styles.pill}>
-        <Ionicons
-          name="document-text"
-          size={14}
-          color={COLORS.white}
-        />
-        <Text style={styles.pillText}>
-          {notesCount} notes
-        </Text>
-      </View>
-    </>
-  ) : (
-    <>
-      <View style={styles.pill}>
-        <Ionicons
-          name="trophy"
-          size={14}
-          color={COLORS.white}
-        />
-        <Text style={styles.pillText}>
-          Best {dailyStreak?.longest_streak ?? 0} days
-        </Text>
-      </View>
+                <View style={styles.pill}>
+                  <Ionicons
+                    name="document-text"
+                    size={14}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.pillText}>
+                    {notesCount} notes
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.pill}>
+                  <Ionicons
+                    name="trophy"
+                    size={14}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.pillText}>
+                    Best {dailyStreak?.longest_streak ?? 0} days
+                  </Text>
+                </View>
 
-      <View style={styles.pill}>
-        <Text style={styles.pillCoin}>
-          🪙
-        </Text>
+                <View style={styles.pill}>
+                  <Text style={styles.pillCoin}>
+                    🪙
+                  </Text>
 
-        <Text style={styles.pillText}>
-          {(user?.coins ?? 0).toLocaleString()} coins
-        </Text>
-      </View>
-    </>
-  )}
-</View>
+                  <Text style={styles.pillText}>
+                    {(user?.coins ?? 0).toLocaleString()} coins
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
 
             <TouchableOpacity
               style={styles.continueBtn}
               activeOpacity={0.85}
               onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.getParent()?.navigate('Streak'))}
             >
-              <Text style={styles.continueBtnText}>Continue</Text>
+              <Text style={styles.continueBtnText}>Details</Text>
               <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
@@ -398,10 +531,115 @@ const load = useCallback(async () => {
         )}
       </ScrollView>
     </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 16, 48, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+
+  rewardCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    padding: 28,
+    alignItems: 'center',
+    position: 'relative',
+    ...SHADOWS.large,
+  },
+
+  closeRewardBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rewardEmoji: {
+    fontSize: 52,
+    marginBottom: 12,
+  },
+
+  rewardTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    marginBottom: 8,
+  },
+
+  rewardSubtitle: {
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  rewardDescription: {
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+
+  rewardCoins: {
+    color: COLORS.primary,
+    fontSize: 25,
+    fontWeight: '900',
+    marginTop: 14,
+    marginBottom: 22,
+  },
+
+  claimRewardBtn: {
+    width: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...SHADOWS.small,
+  },
+
+  claimRewardBtnDisabled: {
+    opacity: 0.65,
+  },
+
+  claimRewardText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
+  closeRewardAction: {
+    width: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    ...SHADOWS.small,
+  },
+
+  closeRewardActionText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+
   container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 16 },
