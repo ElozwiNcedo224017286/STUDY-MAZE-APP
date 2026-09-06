@@ -5,6 +5,8 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Modal,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -37,6 +39,8 @@ export default function AuthScreen({ navigation, route }) {
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [termsVisible, setTermsVisible] = useState(true);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const nameValid = displayName.trim().length > 1;
   const emailValid = EMAIL_RE.test(email.trim());
@@ -46,6 +50,7 @@ export default function AuthScreen({ navigation, route }) {
   }, [booting, user, navigation]);
 
   async function submit() {
+    if (!termsAccepted) return;
     setMsg('');
     if (!email.trim() || !password) { setMsg('Enter an email and password.'); return; }
     setBusy(true);
@@ -68,6 +73,54 @@ export default function AuthScreen({ navigation, route }) {
     }
     setBusy(false);
   }
+
+  const termsModal = (
+    <Modal visible={termsVisible} transparent animationType="fade" onRequestClose={() => {}}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.termsCard}>
+          <View style={styles.termsHeader}>
+            <View style={styles.termsIcon}>
+              <Ionicons name="document-text-outline" size={22} color={COLORS.primary} />
+            </View>
+            <View style={styles.termsHeaderCopy}>
+              <Text style={styles.termsTitle}>Terms and conditions</Text>
+              <Text style={styles.termsSubtitle}>Please review these before continuing.</Text>
+            </View>
+          </View>
+
+          <ScrollView style={styles.termsScroll} showsVerticalScrollIndicator={false}>
+            <Text style={styles.termsBody}>
+              By using Study Maze, you agree to use the app for learning and to provide accurate account information. Keep your password private and do not share your account. Study Maze may update these terms or features as the service evolves.
+            </Text>
+            <Text style={styles.termsBody}>
+              Your account activity and learning progress may be stored securely so we can provide games, rewards and class features. You can stop using the service at any time.
+            </Text>
+          </ScrollView>
+
+          <TouchableOpacity
+            style={styles.termsAgreeRow}
+            activeOpacity={0.8}
+            onPress={() => setTermsAccepted((accepted) => !accepted)}
+          >
+            <View style={[styles.termsCheckbox, termsAccepted && styles.termsCheckboxActive]}>
+              {termsAccepted && <Ionicons name="checkmark" size={15} color={COLORS.white} />}
+            </View>
+            <Text style={styles.termsAgreeText}>I agree to the Terms and Conditions</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.termsButton, !termsAccepted && styles.termsButtonDisabled]}
+            disabled={!termsAccepted}
+            onPress={() => setTermsVisible(false)}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.termsButtonText}>Continue</Text>
+            <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 
   const tabsRow = (
     <View style={styles.tabs}>
@@ -235,6 +288,7 @@ export default function AuthScreen({ navigation, route }) {
             <Text style={styles.footerText}>Securely powered by Supabase Auth</Text>
           </View>
         </View>
+        {termsModal}
       </KeyboardAvoidingView>
     );
   }
@@ -386,6 +440,7 @@ export default function AuthScreen({ navigation, route }) {
           </View>
         </View>
       </View>
+      {termsModal}
     </KeyboardAvoidingView>
   );
 }
@@ -394,6 +449,58 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: COLORS.white },
   preload: { position: 'absolute', width: 0, height: 0, overflow: 'hidden' },
   preloadImg: { width: 1, height: 1 },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(26, 16, 48, 0.55)',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  termsCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    padding: 22,
+    ...SHADOWS.large,
+  },
+  termsHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
+  termsIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  termsHeaderCopy: { flex: 1 },
+  termsTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '900' },
+  termsSubtitle: { color: COLORS.textSecondary, fontSize: 13, marginTop: 3 },
+  termsScroll: { maxHeight: 190 },
+  termsBody: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: 14 },
+  termsAgreeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, marginBottom: 16 },
+  termsCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  termsCheckboxActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  termsAgreeText: { flex: 1, color: COLORS.textPrimary, fontSize: 13, fontWeight: '700' },
+  termsButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  termsButtonDisabled: { opacity: 0.45 },
+  termsButtonText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
 
   hero: {
     flex: 1,
