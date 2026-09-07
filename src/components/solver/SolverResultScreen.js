@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../../theme/colors';
+import MarkdownText from '../chat/MarkdownText';
 
 function difficultyColor(value) {
   const key = String(value || '').toLowerCase();
@@ -125,7 +126,7 @@ export default function SolverResultScreen({
               <Text style={styles.sectionTitle}>The question</Text>
             </View>
             <View style={styles.card}>
-              <Text style={styles.question}>{result.question}</Text>
+              <MarkdownText text={result.question} />
             </View>
           </View>
 
@@ -141,7 +142,9 @@ export default function SolverResultScreen({
                     <View style={[styles.stepNum, { backgroundColor: toolConfig.color }]}>
                       <Text style={styles.stepNumText}>{index + 1}</Text>
                     </View>
-                    <Text style={styles.stepText}>{step}</Text>
+                    <View style={styles.stepBody}>
+                      <MarkdownText text={String(step)} />
+                    </View>
                   </View>
                 ))}
               </View>
@@ -154,7 +157,7 @@ export default function SolverResultScreen({
               <Text style={styles.sectionTitle}>Final answer</Text>
             </View>
             <LinearGradient colors={toolConfig.gradient} style={styles.answerCard}>
-              <Text style={styles.answerText}>{result.final_answer}</Text>
+              <MarkdownText text={String(result.final_answer || '')} isUser />
             </LinearGradient>
           </View>
 
@@ -165,7 +168,7 @@ export default function SolverResultScreen({
                 <Text style={styles.sectionTitle}>Quick check</Text>
               </View>
               <View style={styles.card}>
-                <Text style={styles.bodyText}>{result.check}</Text>
+                <MarkdownText text={String(result.check)} />
               </View>
             </View>
           ) : null}
@@ -177,7 +180,7 @@ export default function SolverResultScreen({
                 <Text style={styles.sectionTitle}>Memory tip</Text>
               </View>
               <View style={styles.card}>
-                <Text style={styles.bodyText}>{result.tip}</Text>
+                <MarkdownText text={String(result.tip)} />
               </View>
             </View>
           ) : null}
@@ -262,7 +265,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   stepNumText: { color: COLORS.white, fontWeight: '800', fontSize: 12 },
-  stepText: { flex: 1, fontSize: 14, lineHeight: 20, color: COLORS.textSecondary, fontWeight: '600' },
+  stepBody: { flex: 1 },
   answerCard: { borderRadius: 16, padding: 18, ...SHADOWS.small },
   answerText: { color: COLORS.white, fontSize: 20, fontWeight: '800', textAlign: 'center' },
   bodyText: { fontSize: 14, lineHeight: 21, color: COLORS.textSecondary, fontWeight: '600' },

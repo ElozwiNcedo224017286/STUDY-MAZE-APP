@@ -642,6 +642,7 @@ def solver_response():
         parts.append(
             (user_input + "\n\n" if user_input else "")
             + "Solve the academic question. If more than one appears, solve the clearest one first. "
+            "Write maths as LaTeX with $...$ or $$...$$, using \\frac{a}{b}. "
             "Return JSON only: question, subject (MATH/SCIENCE/ENGLISH/HISTORY/OTHER), "
             "difficulty (Easy/Medium/Hard), confidence 0-100, 3-8 short teaching steps, "
             "final_answer, check, and tip."
