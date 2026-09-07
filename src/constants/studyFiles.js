@@ -39,9 +39,9 @@ const MIME_BY_EXT = {
   m4a: 'audio/aac',
   aac: 'audio/aac',
   caf: 'audio/aac',
-  mp3: 'audio/mpeg',
+  mp3: 'audio/mp3',
   wav: 'audio/wav',
-  mp4: 'audio/mp4',
+  mp4: 'audio/aac',
 };
 
 export function mimeFromFileName(name, fallback = 'application/pdf') {

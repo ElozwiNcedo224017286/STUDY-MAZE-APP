@@ -7,8 +7,10 @@ import os
 import tempfile
 import time
 import base64
+import zipfile
 import traceback
 from io import BytesIO
+from xml.etree import ElementTree as ET
 from dotenv import load_dotenv
 import json
 from werkzeug.datastructures import FileStorage
@@ -24,7 +26,8 @@ CORS(app)
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
 
 INLINE_LIMIT = 18 * 1024 * 1024
-# Same text model as NcedoCare (new Gemini keys cannot call gemini-2.5-flash).
+# NcedoCare text model. Official Gemini 3.6 Flash inputs: text, image, audio, video, PDF.
+# https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash
 MODEL_NAME = (
     os.getenv("GEMINI_TEXT_MODEL")
     or os.getenv("GEMINI_MODEL")
@@ -219,9 +222,108 @@ def file_from_request(field_name):
     return FileStorage(stream=BytesIO(data), filename=filename, content_type=mime)
 
 
-def part_from_storage(file_storage, mime_type, suffix):
+def gemini_image_mime(mime):
+    value = (mime or "image/jpeg").split(";")[0].strip().lower()
+    if value == "image/jpg":
+        return "image/jpeg"
+    if value in {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"}:
+        return value
+    return "image/jpeg"
+
+
+def gemini_audio_mime(mime):
+    value = (mime or "audio/aac").split(";")[0].strip().lower()
+    aliases = {
+        "audio/mp4": "audio/aac",
+        "audio/m4a": "audio/aac",
+        "audio/x-m4a": "audio/aac",
+        "audio/x-aac": "audio/aac",
+        "audio/caf": "audio/aac",
+        "audio/mpeg": "audio/mp3",
+        "audio/x-wav": "audio/wav",
+        "audio/wave": "audio/wav",
+        "audio/vnd.wave": "audio/wav",
+    }
+    value = aliases.get(value, value)
+    if value in {"audio/aac", "audio/mp3", "audio/wav", "audio/ogg", "audio/flac", "audio/aiff"}:
+        return value
+    return "audio/aac"
+
+
+def read_storage_bytes(file_storage):
     file_storage.seek(0)
     data = file_storage.read()
+    file_storage.seek(0)
+    return data or b""
+
+
+def extract_openxml_text(data, kind):
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as archive:
+            if kind == "docx":
+                names = ["word/document.xml"]
+            elif kind == "pptx":
+                names = sorted(
+                    name for name in archive.namelist()
+                    if name.startswith("ppt/slides/slide") and name.endswith(".xml")
+                )
+            elif kind == "xlsx":
+                names = [
+                    name for name in archive.namelist()
+                    if name.startswith("xl/") and name.endswith(".xml")
+                    and "printerSettings" not in name
+                ]
+            else:
+                return None
+            chunks = []
+            for name in names:
+                if name not in archive.namelist():
+                    continue
+                root = ET.fromstring(archive.read(name))
+                for element in root.iter():
+                    if element.text and element.text.strip():
+                        chunks.append(element.text.strip())
+            return "\n".join(chunks).strip()
+    except Exception as error:
+        print(f"[docs] could not extract {kind}: {error}")
+        return None
+
+
+def document_part(file_storage):
+    filename = file_storage.filename or "notes.pdf"
+    suffix = os.path.splitext(filename)[1].lower() or ".pdf"
+    mime = detect_document_mime(filename)
+    data = read_storage_bytes(file_storage)
+    if not data:
+        return None
+
+    if mime == "application/pdf" or suffix == ".pdf":
+        print(f"[docs] PDF {filename} ({len(data)} bytes)")
+        return part_from_bytes(data, "application/pdf", ".pdf")
+
+    if mime.startswith("text/") or suffix in {".txt", ".md", ".csv", ".rtf"}:
+        text = data.decode("utf-8", errors="replace").strip()
+        if not text:
+            return None
+        print(f"[docs] text {filename} ({len(text)} chars)")
+        return f"Study material from {filename}:\n{text[:80000]}"
+
+    kind = {".docx": "docx", ".pptx": "pptx", ".xlsx": "xlsx"}.get(suffix)
+    if kind:
+        extracted = extract_openxml_text(data, kind)
+        if extracted:
+            print(f"[docs] extracted {kind} {filename} ({len(extracted)} chars)")
+            return f"Study material extracted from {filename}:\n{extracted[:80000]}"
+        raise ValueError("document_error")
+
+    if suffix in {".doc", ".ppt", ".xls", ".odt", ".odp"}:
+        raise ValueError("document_unsupported")
+
+    print(f"[docs] treating {filename} as PDF")
+    return part_from_bytes(data, "application/pdf", ".pdf")
+
+
+def part_from_bytes(data, mime_type, suffix):
     if not data:
         return None
     if len(data) <= INLINE_LIMIT:
@@ -243,6 +345,10 @@ def part_from_storage(file_storage, mime_type, suffix):
                 os.unlink(temp_path)
             except OSError:
                 pass
+
+
+def part_from_storage(file_storage, mime_type, suffix):
+    return part_from_bytes(read_storage_bytes(file_storage), mime_type, suffix)
 
 
 def is_substantive_message(text, has_media):
@@ -301,21 +407,19 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
     content_parts = []
 
     if image_file:
-        image_file.seek(0)
-        header = image_file.read(12)
-        image_file.seek(0)
-        mime = detect_image_mime(image_file.filename, header)
+        header = read_storage_bytes(image_file)[:12]
+        mime = gemini_image_mime(detect_image_mime(image_file.filename, header))
+        print(f"[chatbot] image mime={mime}")
         part = part_from_storage(image_file, mime, ".jpg")
         if not part:
             raise ValueError("image_upload_failed")
         content_parts.append(part)
 
     if audio_file:
-        audio_file.seek(0)
-        header = audio_file.read(16)
-        audio_file.seek(0)
-        mime = detect_audio_mime(audio_file.filename, header)
+        header = read_storage_bytes(audio_file)[:16]
+        mime = gemini_audio_mime(detect_audio_mime(audio_file.filename, header))
         suffix = ".m4a" if mime == "audio/aac" else (os.path.splitext(audio_file.filename or "")[1] or ".m4a")
+        print(f"[chatbot] audio mime={mime}")
         part = part_from_storage(audio_file, mime, suffix)
         if not part:
             raise ValueError("audio_processing_failed")
@@ -327,10 +431,7 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
         content_parts.append(part)
 
     if document_file:
-        filename = document_file.filename or "notes.pdf"
-        suffix = os.path.splitext(filename)[1] or ".pdf"
-        mime = detect_document_mime(filename)
-        part = part_from_storage(document_file, mime, suffix)
+        part = document_part(document_file)
         if not part:
             raise ValueError("document_error")
         content_parts.append(part)
@@ -470,6 +571,7 @@ def run_chat(mode="tutor"):
             "audio_processing_failed": "I could not process that voice note. Please try again.",
             "document_upload_failed": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
             "document_error": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
+            "document_unsupported": "That older file format is not supported. Save it as PDF, DOCX, or PPTX and try again.",
         }
         return jsonify({
             "error": code,
@@ -494,6 +596,7 @@ def health_check():
         "message": "Study Maze Smart Learn API is running",
         "model": MODEL_NAME,
         "sdk": "google-genai",
+        "inputs": ["text", "image", "audio", "pdf"],
         "timestamp": datetime.now().isoformat(),
     }), 200
 
@@ -546,7 +649,8 @@ def solver_response():
             image_file.seek(0)
             header = image_file.read(12)
             image_file.seek(0)
-            mime = detect_image_mime(image_file.filename, header)
+            mime = gemini_image_mime(detect_image_mime(image_file.filename, header))
+            print(f"[solver] image mime={mime}")
             part = part_from_storage(image_file, mime, ".jpg")
             if not part:
                 raise ValueError("image_upload_failed")
