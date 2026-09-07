@@ -75,13 +75,21 @@ def require_client():
     return client
 
 
-def chat_config(temperature=0.7, max_output_tokens=900, extra=None):
+def thinking_config():
+    return types.ThinkingConfig(
+        thinking_level=types.ThinkingLevel.MINIMAL,
+        include_thoughts=False,
+    )
+
+
+def chat_config(temperature=0.7, max_output_tokens=800, extra=None):
     kwargs = {
         "system_instruction": system_instruction,
         "temperature": temperature,
         "max_output_tokens": max_output_tokens,
         "top_p": 0.95,
         "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
+        "thinking_config": thinking_config(),
     }
     if extra:
         kwargs.update(extra)
@@ -367,40 +375,14 @@ def is_substantive_message(text, has_media):
 
 
 def generate_conversation_title(user_input, ai_response_text, has_media, has_audio):
-    try:
-        user_text = user_input.strip()[:100] if user_input else ""
-        ai_text = (ai_response_text or "").strip()[:150]
-        response = require_client().models.generate_content(
-            model=TITLE_MODEL,
-            contents=(
-                "Based on this Study Maze tutoring conversation, generate a specific title in 2-4 words. "
-                f"Context: User: {user_text} | AI: {ai_text}"
-            ),
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "You are a concise title generator for student study chats. "
-                    "Output ONLY a 2-4 word title. Examples: 'Algebra Practice', "
-                    "'Photosynthesis Recap', 'Quiz Rush Prep'."
-                ),
-                temperature=0.0,
-                max_output_tokens=64,
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            ),
-        )
-        title = extract_text(response).strip().strip('"').strip("'")
-        for char in ".:!?":
-            title = title.replace(char, "")
-        final_title = " ".join(title.split()[:4]).title()
-        if not final_title:
-            raise Exception("Empty title")
-        return final_title
-    except Exception as error:
-        print(f"Title generation error: {error}")
-        if has_media and not has_audio:
-            return "Study Material"
-        if has_audio:
-            return "Voice Session"
-        return (user_input or "Study session").strip()[:30].title() or "New Conversation"
+    if has_audio and not (user_input or "").strip():
+        return "Voice Session"
+    if has_media and not (user_input or "").strip():
+        return "Study Material"
+    words = (user_input or "").strip().split()
+    if len(words) >= 2:
+        return " ".join(words[:4]).title()[:40]
+    return (user_input or "Study session").strip()[:30].title() or "New Conversation"
 
 
 def build_content_parts(user_input, image_file, audio_file, document_file, mode):
@@ -521,10 +503,10 @@ def run_chat(mode="tutor"):
             raise ValueError("no_input")
 
         requested_max_tokens = request.form.get("max_tokens")
-        max_tokens = 900 if mode == "tutor" else 1400
+        max_tokens = 800
         if requested_max_tokens:
             try:
-                max_tokens = min(int(requested_max_tokens), 4096)
+                max_tokens = min(int(requested_max_tokens), 2048)
             except (ValueError, TypeError):
                 pass
 
@@ -532,10 +514,11 @@ def run_chat(mode="tutor"):
         response = session["chat"].send_message(
             payload,
             config=types.GenerateContentConfig(
-                temperature=0.6 if mode == "solver" else 0.7,
+                temperature=0.7,
                 max_output_tokens=max_tokens,
                 top_p=0.95,
                 automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                thinking_config=thinking_config(),
             ),
         )
         response_text = extract_text(response)
@@ -545,6 +528,7 @@ def run_chat(mode="tutor"):
             raise RuntimeError(f"Gemini returned no text ({reason})")
 
         processing_time = time.time() - start_time
+        print(f"[chatbot] reply {len(response_text)} chars in {processing_time:.2f}s")
         has_media = image_file is not None or document_file is not None
         has_audio = audio_file is not None
 
