@@ -174,6 +174,64 @@ CREATE POLICY "avatars delete own" ON storage.objects FOR DELETE TO authenticate
   USING (bucket_id = 'avatars' AND (storage.foldername(name))[1] = auth.uid()::text);
 
 -- ---------------------------------------------------------------------
+-- Profile images (the file bytes live in the avatars bucket)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.profile_images (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  storage_path TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+GRANT SELECT, INSERT, UPDATE ON public.profile_images TO authenticated;
+GRANT ALL ON public.profile_images TO service_role;
+ALTER TABLE public.profile_images ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "own profile image read" ON public.profile_images;
+DROP POLICY IF EXISTS "own profile image insert" ON public.profile_images;
+DROP POLICY IF EXISTS "own profile image update" ON public.profile_images;
+CREATE POLICY "own profile image read" ON public.profile_images FOR SELECT TO authenticated USING (auth.uid() = user_id);
+CREATE POLICY "own profile image insert" ON public.profile_images FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "own profile image update" ON public.profile_images FOR UPDATE TO authenticated USING (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------
+-- Notifications (recipient-specific or broadcast to all authenticated users)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  category TEXT NOT NULL CHECK (category IN (
+    'system',
+    'announcement',
+    'earnings',
+    'document_verification',
+    'admin_message'
+  )),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  read_at TIMESTAMPTZ,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notifications_recipient_idx ON public.notifications (recipient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS notifications_category_idx ON public.notifications (category, created_at DESC);
+GRANT SELECT, UPDATE ON public.notifications TO authenticated;
+GRANT ALL ON public.notifications TO service_role;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "users read own notifications" ON public.notifications;
+DROP POLICY IF EXISTS "users mark own notifications read" ON public.notifications;
+DROP POLICY IF EXISTS "admins create notifications" ON public.notifications;
+CREATE POLICY "users read own notifications" ON public.notifications
+  FOR SELECT TO authenticated
+  USING (recipient_id IS NULL OR auth.uid() = recipient_id);
+CREATE POLICY "users mark own notifications read" ON public.notifications
+  FOR UPDATE TO authenticated
+  USING (auth.uid() = recipient_id)
+  WITH CHECK (auth.uid() = recipient_id);
+CREATE POLICY "admins create notifications" ON public.notifications
+  FOR INSERT TO authenticated
+  WITH CHECK (public.has_role(auth.uid(), 'admin') OR public.has_role(auth.uid(), 'teacher'));
+
+-- ---------------------------------------------------------------------
 -- Teacher tests + student attempts
 -- The app's "publish quiz to students" writes a tests row; the games read the
 -- latest one. questions shape: [{ "q": "...", "choices": [...], "answer": 0, "subject": "MATH" }]

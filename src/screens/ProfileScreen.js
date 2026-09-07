@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
 import ProfileSection from '../components/ProfileSection';
 import ProfileMenuItem from '../components/ProfileMenuItem';
 import { COLORS, SHADOWS } from '../theme/colors';
@@ -31,6 +32,10 @@ export default function ProfileScreen({ navigation }) {
   const [editVisible, setEditVisible] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +85,50 @@ export default function ProfileScreen({ navigation }) {
     setSaving(false);
   }
 
+  async function uploadProfileImage() {
+    if (uploadingImage) return;
+    const result = await DocumentPicker.getDocumentAsync({
+      type: 'image/*',
+      copyToCacheDirectory: true,
+      multiple: false
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    setUploadingImage(true);
+    try {
+      await api.uploadProfileImage(result.assets[0]);
+      await refreshUser();
+    } catch (e) {
+      Alert.alert('Could not upload photo', e.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  async function openNotifications() {
+    setNotificationsVisible(true);
+    setNotificationsLoading(true);
+    try {
+      setNotifications(await api.getNotifications());
+    } catch (e) {
+      Alert.alert('Could not load notifications', e.message);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }
+
+  async function markNotificationRead(notification) {
+    if (notification.read_at) return;
+    try {
+      await api.markNotificationRead(notification.id);
+      setNotifications((items) => items.map((item) => item.id === notification.id
+        ? { ...item, read_at: new Date().toISOString() }
+        : item));
+    } catch (e) {
+      Alert.alert('Could not update notification', e.message);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
@@ -123,9 +172,9 @@ export default function ProfileScreen({ navigation }) {
             <TouchableOpacity
               style={styles.cameraBtn}
               activeOpacity={0.8}
-              onPress={() => Alert.alert('Coming soon', 'Uploading a profile photo isn\'t available yet.')}
+              onPress={uploadProfileImage}
             >
-              <Ionicons name="camera" size={14} color={COLORS.primary} />
+              <Ionicons name={uploadingImage ? 'hourglass-outline' : 'camera'} size={14} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
 
@@ -226,7 +275,8 @@ export default function ProfileScreen({ navigation }) {
           <ProfileMenuItem
             icon="notifications-outline"
             title="Notifications"
-            onPress={() => Alert.alert('Coming soon', 'Notification settings aren\'t available yet.')}
+            description="View system and account messages"
+            onPress={openNotifications}
           />
           <ProfileMenuItem
             icon="help-circle-outline"
@@ -261,6 +311,47 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.modalSaveText}>{saving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={notificationsVisible} transparent animationType="slide" onRequestClose={() => setNotificationsVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.notificationsCard}>
+            <View style={styles.notificationsHeader}>
+              <Text style={styles.modalTitle}>Notifications</Text>
+              <TouchableOpacity onPress={() => setNotificationsVisible(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            {notificationsLoading ? (
+              <Text style={styles.emptyNotifications}>Loading notifications...</Text>
+            ) : notifications.length === 0 ? (
+              <Text style={styles.emptyNotifications}>You have no notifications yet.</Text>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {notifications.map((notification) => (
+                  <TouchableOpacity
+                    key={notification.id}
+                    style={[styles.notificationItem, !notification.read_at && styles.notificationUnread]}
+                    onPress={() => markNotificationRead(notification)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={notification.category === 'earnings' ? 'cash-outline' : notification.category === 'announcement' ? 'megaphone-outline' : 'notifications-outline'}
+                      size={20}
+                      color={COLORS.primary}
+                    />
+                    <View style={styles.notificationCopy}>
+                      <Text style={styles.notificationTitle}>{notification.title}</Text>
+                      <Text style={styles.notificationMessage}>{notification.message}</Text>
+                      <Text style={styles.notificationDate}>{new Date(notification.created_at).toLocaleDateString()}</Text>
+                    </View>
+                    {!notification.read_at && <View style={styles.unreadDot} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
           </View>
         </View>
       </Modal>
@@ -413,6 +504,16 @@ const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   modalCard: { backgroundColor: COLORS.white, borderRadius: 20, padding: 22, width: '100%', ...SHADOWS.large },
+  notificationsCard: { backgroundColor: COLORS.white, borderRadius: 20, padding: 20, width: '100%', maxHeight: '78%', ...SHADOWS.large },
+  notificationsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  emptyNotifications: { color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 28, fontSize: 13 },
+  notificationItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, gap: 10 },
+  notificationUnread: { backgroundColor: COLORS.backgroundWarm },
+  notificationCopy: { flex: 1 },
+  notificationTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
+  notificationMessage: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  notificationDate: { color: COLORS.textTertiary, fontSize: 10, marginTop: 5 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primary, marginTop: 6 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 14 },
   modalLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 },
   modalInput: {

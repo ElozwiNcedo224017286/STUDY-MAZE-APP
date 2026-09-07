@@ -5,41 +5,22 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-<<<<<<< HEAD
-    "icon": "./assets/logo.png",
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#F6F4FB"
     },
     "assetBundlePatterns": ["**/*"],
-=======
-    "splash": {
-      "backgroundColor": "#12082B"
-    },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
->>>>>>> origin/maze-updates
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.studymaze.app"
     },
     "android": {
-      "package": "com.studymaze.app",
       "adaptiveIcon": {
-<<<<<<< HEAD
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#F6F4FB"
-      }
+      },
+      "package": "com.studymaze.app"
     }
-=======
-        "backgroundColor": "#12082B"
-      }
-    },
-    "plugins": [
-      "expo-status-bar"
-    ]
->>>>>>> origin/maze-updates
   }
 }

@@ -12,14 +12,11 @@ const TEACHER_CODE = process.env.EXPO_PUBLIC_TEACHER_CODE || 'TEACH2024';
 async function loadUser(authUser) {
   if (!authUser) return null;
 
-  const [{ data: profile }, { data: roles }, { data: scores }] = await Promise.all([
+  const [{ data: profile }, { data: image }, { data: roles }, { data: scores }] = await Promise.all([
     supabase.from('profiles').select('display_name, avatar_url, grade, created_at').eq('id', authUser.id).maybeSingle(),
+    supabase.from('profile_images').select('image_url, updated_at').eq('user_id', authUser.id).maybeSingle(),
     supabase.from('user_roles').select('role').eq('user_id', authUser.id),
-<<<<<<< HEAD
     supabase.from('game_scores').select('coins, score, detail, created_at').eq('user_id', authUser.id)
-=======
-    supabase.from('game_scores').select('coins, score, detail').eq('user_id', authUser.id)
->>>>>>> origin/maze-updates
   ]);
 
   const roleNames = (roles || []).map((r) => r.role);
@@ -37,7 +34,6 @@ async function loadUser(authUser) {
     if (typeof lvl === 'number' && lvl > bestLevel) bestLevel = lvl;
   });
 
-<<<<<<< HEAD
   // Consecutive-day play streak, derived from the calendar dates of past score rows
   // (today counts if already played; otherwise the streak is still "alive" through yesterday).
   const playDates = new Set((scores || []).map((s) => new Date(s.created_at).toDateString()));
@@ -51,8 +47,6 @@ async function loadUser(authUser) {
     }
   }
 
-=======
->>>>>>> origin/maze-updates
   const displayName = profile?.display_name || authUser.email?.split('@')[0] || 'Player';
 
   return {
@@ -60,16 +54,13 @@ async function loadUser(authUser) {
     email: authUser.email,
     username: displayName,       // screens still read `username` for the greeting
     displayName,
-    avatarUrl: profile?.avatar_url || null,
+    avatarUrl: image?.image_url || profile?.avatar_url || null,
     grade: profile?.grade || null,
     role,
     coins,
     highScore,
-<<<<<<< HEAD
     streakDays,
     gamesPlayed: (scores || []).length,
-=======
->>>>>>> origin/maze-updates
     unlockedLevel: bestLevel + 1, // completing level N unlocks N+1
     createdAt: profile?.created_at
   };
@@ -103,7 +94,6 @@ export function AuthProvider({ children }) {
     return fresh;
   }, []);
 
-<<<<<<< HEAD
   const getUserStreak = useCallback(async () => {
   if (!user) return null;
 
@@ -123,15 +113,22 @@ export function AuthProvider({ children }) {
     return {
       current_streak: 0,
       longest_streak: 0,
-      last_reward_date: null
+      last_reward_date: null,
     };
+  }
+
+  // If the streak is already 0, there is nothing to reset.
+  // This also prevents repeated database updates when the user
+  // has already broken their streak.
+  if (data.current_streak === 0) {
+    return data;
   }
 
   // If there is no last reward date, the streak cannot be active.
   if (!data.last_reward_date) {
     return {
       ...data,
-      current_streak: 0
+      current_streak: 0,
     };
   }
 
@@ -147,10 +144,9 @@ export function AuthProvider({ children }) {
   );
   lastRewardDate.setHours(0, 0, 0, 0);
 
-  const differenceInDays =
-    Math.floor(
-      (today - lastRewardDate) / (1000 * 60 * 60 * 24)
-    );
+  const differenceInDays = Math.floor(
+    (today - lastRewardDate) / (1000 * 60 * 60 * 24)
+  );
 
   // Claimed today or yesterday.
   if (differenceInDays <= 1) {
@@ -162,15 +158,13 @@ export function AuthProvider({ children }) {
   // Reset current streak but preserve the record.
   // --------------------------------------------------
 
-  const { data: resetData, error: resetError } = await supabase
+  const { error: resetError } = await supabase
     .from('daily_streaks')
     .update({
       current_streak: 0,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     })
-    .eq('user_id', user.id)
-    .select('current_streak, longest_streak, last_reward_date')
-    .single();
+    .eq('user_id', user.id);
 
   if (resetError) {
     console.warn(
@@ -182,11 +176,16 @@ export function AuthProvider({ children }) {
     // don't display the old broken streak.
     return {
       ...data,
-      current_streak: 0
+      current_streak: 0,
     };
   }
 
-  return resetData;
+  // Return the reset state locally.
+  // We don't need Supabase to return the updated row here.
+  return {
+    ...data,
+    current_streak: 0,
+  };
 }, [user]);
 
 const getDailyRewardDates = useCallback(async () => {
@@ -212,8 +211,6 @@ const getDailyRewardDates = useCallback(async () => {
   return (data || []).map((row) => row.reward_date);
 }, [user]);
 
-=======
->>>>>>> origin/maze-updates
   const login = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw new Error(error.message);
@@ -266,7 +263,6 @@ const getDailyRewardDates = useCallback(async () => {
     return refreshUser();
   }, [user, refreshUser]);
 
-<<<<<<< HEAD
   
 // Claim today's daily login reward through the secure Supabase RPC.
 // The database decides whether the reward has already been claimed.
@@ -336,10 +332,6 @@ const hasClaimedDailyReward = useCallback(async () => {
 
   return (
     <AuthContext.Provider value={{ user, booting, login, register, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
-=======
-  return (
-    <AuthContext.Provider value={{ user, booting, login, register, logout, recordGame, refreshUser, setUser }}>
->>>>>>> origin/maze-updates
       {children}
     </AuthContext.Provider>
   );

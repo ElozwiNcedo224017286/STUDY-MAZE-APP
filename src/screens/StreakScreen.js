@@ -1,9 +1,28 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated, Easing, ScrollView, } from 'react-native';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  ScrollView,
+} from 'react-native';
+
 import { useFocusEffect } from '@react-navigation/native';
-import { colors } from '../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
+
+import ScreenHeader from '../components/ScreenHeader';
+import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
-import NavigationDock from '../components/NavigationDock';
 
 const DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -23,9 +42,7 @@ function getMonthName(date) {
 }
 
 export default function StreakScreen({ navigation }) {
-  const {
-    getUserStreak,
-  } = useAuth();
+  const { getUserStreak } = useAuth();
 
   const [streak, setStreak] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +125,7 @@ export default function StreakScreen({ navigation }) {
       });
     }
 
-    // Complete the final row
+    // Complete final row
     while (days.length % 7 !== 0) {
       days.push(null);
     }
@@ -124,38 +141,42 @@ export default function StreakScreen({ navigation }) {
     return formatDateKey(new Date());
   }, []);
 
-// --------------------------------------------------
-// Active streak dates
-// --------------------------------------------------
-// Only dates belonging to the CURRENT streak are highlighted.
-// Older claimed rewards remain in daily_login_rewards but are
-// intentionally not displayed as part of the active streak.
+  // --------------------------------------------------
+  // Active streak dates
+  // --------------------------------------------------
+  // Only dates belonging to the CURRENT streak are
+  // highlighted.
+  //
+  // Older claimed rewards may still exist in the
+  // database but are intentionally not displayed as
+  // part of the active streak.
+  // --------------------------------------------------
 
   const activeStreakDateSet = useMemo(() => {
-  const dates = new Set();
+    const dates = new Set();
 
-  const currentStreak = streak?.current_streak ?? 0;
-  const lastRewardDate = streak?.last_reward_date;
+    const currentStreak = streak?.current_streak ?? 0;
+    const lastRewardDate = streak?.last_reward_date;
 
-  if (!lastRewardDate || currentStreak <= 0) {
-    return dates;
-  }
+    if (!lastRewardDate || currentStreak <= 0) {
+      return dates;
+    }
 
-  const lastDate = new Date(`${lastRewardDate}T00:00:00`);
+    const lastDate = new Date(`${lastRewardDate}T00:00:00`);
 
-  for (let i = 0; i < currentStreak; i += 1) {
-    const date = new Date(lastDate);
+    for (let i = 0; i < currentStreak; i += 1) {
+      const date = new Date(lastDate);
 
-    date.setDate(date.getDate() - i);
+      date.setDate(date.getDate() - i);
 
-    dates.add(formatDateKey(date));
-  }
+      dates.add(formatDateKey(date));
+    }
 
     return dates;
   }, [streak]);
 
   // --------------------------------------------------
-  // Load streak + reward history
+  // Load streak
   // --------------------------------------------------
 
   const loadStreak = useCallback(async () => {
@@ -164,10 +185,11 @@ export default function StreakScreen({ navigation }) {
       setError(null);
 
       const streakData = await getUserStreak();
-      
+
       setStreak(streakData);
     } catch (e) {
       console.warn('Failed to load streak:', e.message);
+
       setError(e.message || 'Could not load streak.');
     } finally {
       setLoading(false);
@@ -184,142 +206,143 @@ export default function StreakScreen({ navigation }) {
   // Run animations after streak has loaded
   // --------------------------------------------------
 
-useEffect(() => {
-  if (loading || error || !streak) return;
+  useEffect(() => {
+    if (loading || error || !streak) return;
 
-  const targetStreak = streak.current_streak ?? 0;
+    const targetStreak = streak.current_streak ?? 0;
 
-  // Reset main animations
-  heroOpacity.setValue(0);
-  heroTranslateY.setValue(25);
+    // Reset main animations
+    heroOpacity.setValue(0);
+    heroTranslateY.setValue(25);
 
-  fireScale.setValue(0.5);
-  fireOpacity.setValue(0);
+    fireScale.setValue(0.5);
+    fireOpacity.setValue(0);
 
-  calendarOpacity.setValue(0);
-  calendarTranslateY.setValue(25);
+    calendarOpacity.setValue(0);
+    calendarTranslateY.setValue(25);
 
-  setAnimatedStreak(0);
-
-  // Reset calendar cells
-  calendarCellAnimations.forEach((animation) => {
-    animation.setValue(0);
-  });
-
-  // -----------------------------------------------
-  // Hero entrance
-  // -----------------------------------------------
-
-  Animated.parallel([
-    Animated.timing(heroOpacity, {
-      toValue: 1,
-      duration: 500,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }),
-
-    Animated.timing(heroTranslateY, {
-      toValue: 0,
-      duration: 500,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }),
-  ]).start();
-
-  // -----------------------------------------------
-  // Fire pop
-  // -----------------------------------------------
-
-  Animated.sequence([
-    Animated.delay(250),
-
-    Animated.parallel([
-      Animated.timing(fireOpacity, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-
-      Animated.spring(fireScale, {
-        toValue: 1,
-        friction: 5,
-        tension: 70,
-        useNativeDriver: true,
-      }),
-    ]),
-  ]).start();
-
-  // -----------------------------------------------
-  // Streak counter
-  // -----------------------------------------------
-
-  let interval = null;
-
-  if (targetStreak === 0) {
     setAnimatedStreak(0);
-  } else {
-    const duration = 650;
-    const steps = targetStreak;
-    const intervalTime = Math.max(60, duration / steps);
 
-    let current = 0;
+    // Reset calendar cells
+    calendarCellAnimations.forEach((animation) => {
+      animation.setValue(0);
+    });
 
-    interval = setInterval(() => {
-      current += 1;
-      setAnimatedStreak(current);
-
-      if (current >= targetStreak) {
-        clearInterval(interval);
-        interval = null;
-      }
-    }, intervalTime);
-  }
-
-  // -----------------------------------------------
-  // Calendar entrance
-  // -----------------------------------------------
-
-  Animated.sequence([
-    Animated.delay(500),
+    // --------------------------------------------------
+    // Hero entrance
+    // --------------------------------------------------
 
     Animated.parallel([
-      Animated.timing(calendarOpacity, {
+      Animated.timing(heroOpacity, {
         toValue: 1,
         duration: 500,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
 
-      Animated.timing(calendarTranslateY, {
+      Animated.timing(heroTranslateY, {
         toValue: 0,
         duration: 500,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-    ]),
-  ]).start();
+    ]).start();
 
-  // -----------------------------------------------
-  // Cleanup
-  // -----------------------------------------------
+    // --------------------------------------------------
+    // Fire pop
+    // --------------------------------------------------
 
-  return () => {
-    if (interval) {
-      clearInterval(interval);
+    Animated.sequence([
+      Animated.delay(250),
+
+      Animated.parallel([
+        Animated.timing(fireOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+
+        Animated.spring(fireScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 70,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // --------------------------------------------------
+    // Streak counter
+    // --------------------------------------------------
+
+    let interval = null;
+
+    if (targetStreak === 0) {
+      setAnimatedStreak(0);
+    } else {
+      const duration = 650;
+      const steps = targetStreak;
+      const intervalTime = Math.max(60, duration / steps);
+
+      let current = 0;
+
+      interval = setInterval(() => {
+        current += 1;
+
+        setAnimatedStreak(current);
+
+        if (current >= targetStreak) {
+          clearInterval(interval);
+          interval = null;
+        }
+      }, intervalTime);
     }
-  };
-}, [
-  loading,
-  error,
-  streak,
-  heroOpacity,
-  heroTranslateY,
-  fireScale,
-  fireOpacity,
-  calendarOpacity,
-  calendarTranslateY,
-  calendarCellAnimations,
-]);
+
+    // --------------------------------------------------
+    // Calendar entrance
+    // --------------------------------------------------
+
+    Animated.sequence([
+      Animated.delay(500),
+
+      Animated.parallel([
+        Animated.timing(calendarOpacity, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+
+        Animated.timing(calendarTranslateY, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // --------------------------------------------------
+    // Cleanup
+    // --------------------------------------------------
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [
+    loading,
+    error,
+    streak,
+    heroOpacity,
+    heroTranslateY,
+    fireScale,
+    fireOpacity,
+    calendarOpacity,
+    calendarTranslateY,
+    calendarCellAnimations,
+  ]);
 
   // --------------------------------------------------
   // Calendar cell animation
@@ -361,7 +384,7 @@ useEffect(() => {
       <View style={styles.loadingContainer}>
         <ActivityIndicator
           size="large"
-          color={colors.mint}
+          color={COLORS.primary}
         />
 
         <Text style={styles.loadingText}>
@@ -377,34 +400,58 @@ useEffect(() => {
 
   if (error) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>
-          Daily Streak
-        </Text>
+      <View style={styles.screen}>
+        <ScreenHeader
+          title="Daily"
+          titleHighlight="Rewards"
+          subtitle="Keep your streak alive and earn rewards every day."
+        />
 
-        <View style={styles.card}>
-          <Text style={styles.errorText}>
-            {error}
-          </Text>
+        <View style={styles.errorContainer}>
+          <View style={styles.errorCard}>
+            <View style={styles.errorIconWrap}>
+              <Ionicons
+                name="alert-circle-outline"
+                size={28}
+                color={COLORS.error}
+              />
+            </View>
+
+            <Text style={styles.errorTitle}>
+              Something went wrong
+            </Text>
+
+            <Text style={styles.errorText}>
+              {error}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={loadStreak}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.retryButtonText}>
+                Try Again
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity
-            style={styles.button}
-            onPress={loadStreak}
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>
-              Try Again
+            <Ionicons
+              name="arrow-back"
+              size={17}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.backButtonText}>
+              Back
             </Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>
-            ← Back to Hub
-          </Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -415,359 +462,473 @@ useEffect(() => {
 
   return (
     <View style={styles.screen}>
-    <ScrollView
-    style={styles.scrollView}
-    contentContainerStyle={styles.container}
-    showsVerticalScrollIndicator={false}
-    scrollIndicatorInsets={{ bottom: 120 }}
-    >
-      <Text style={styles.title}>
-        Daily Streak
-      </Text>
+      <ScreenHeader
+        title="Daily"
+        titleHighlight="Rewards"
+        subtitle="Keep your streak alive and earn rewards every day."
+      />
 
-      {/* ------------------------------------------------
-          HERO
-      ------------------------------------------------ */}
-
-      <Animated.View
-        style={[
-          styles.mainCard,
-          {
-            opacity: heroOpacity,
-            transform: [
-              { translateY: heroTranslateY },
-            ],
-          },
-        ]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
       >
-        <Animated.Text
+        {/* ------------------------------------------------
+            HERO
+        ------------------------------------------------ */}
+
+        <Animated.View
           style={[
-            styles.fire,
+            styles.heroCard,
             {
-              opacity: fireOpacity,
+              opacity: heroOpacity,
               transform: [
-                { scale: fireScale },
+                {
+                  translateY: heroTranslateY,
+                },
               ],
             },
           ]}
         >
-          🔥
-        </Animated.Text>
+          <View style={styles.heroGlow} />
 
-        <Text style={styles.streakNumber}>
-          {animatedStreak}
-        </Text>
-
-        <Text style={styles.streakLabel}>
-          DAY STREAK
-        </Text>
-
-        <Text style={styles.keepGoing}>
-          Keep showing up every day!
-        </Text>
-      </Animated.View>
-
-      {/* ------------------------------------------------
-          STATISTICS
-      ------------------------------------------------ */}
-
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {streak?.current_streak ?? 0}
-          </Text>
-
-          <Text style={styles.statLabel}>
-            Current Streak
-          </Text>
-        </View>
-
-        <View style={styles.statCard}>
-          <Text style={styles.statNumber}>
-            {streak?.longest_streak ?? 0}
-          </Text>
-
-          <Text style={styles.statLabel}>
-            Best Streak
-          </Text>
-        </View>
-      </View>
-
-      {/* ------------------------------------------------
-          CALENDAR
-      ------------------------------------------------ */}
-
-      <Animated.View
-        style={[
-          styles.calendarCard,
-          {
-            opacity: calendarOpacity,
-            transform: [
-              { translateY: calendarTranslateY },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.calendarHeader}>
-          <View>
-            <Text style={styles.calendarEyebrow}>
-              YOUR JOURNEY
-            </Text>
-
-            <Text style={styles.calendarTitle}>
-              {getMonthName(
-                new Date(
-                  currentMonth.year,
-                  currentMonth.month,
-                  1
-                )
-              )}
-            </Text>
-          </View>
-
-          <View style={styles.monthStreakPill}>
-            <Text style={styles.monthStreakIcon}>
+          <Animated.View
+            style={[
+              styles.fireCircle,
+              {
+                opacity: fireOpacity,
+                transform: [
+                  {
+                    scale: fireScale,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.fire}>
               🔥
             </Text>
+          </Animated.View>
 
-            <Text style={styles.monthStreakText}>
-              {streak?.current_streak ?? 0}
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.calendarSubtitle}>
-          Every reward keeps your journey alive.
-        </Text>
-
-        {/* Weekday headings */}
-
-        <View style={styles.weekRow}>
-          {DAY_NAMES.map((day) => (
-            <View
-              key={day}
-              style={styles.weekDay}
-            >
-              <Text style={styles.weekDayText}>
-                {day}
-              </Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Calendar grid */}
-
-        <View style={styles.calendarGrid}>
-          {calendarDays.map((item, index) => {
-            if (!item) {
-              return (
-                <View
-                  key={`empty-${index}`}
-                  style={styles.dayCell}
-                />
-              );
-            }
-
-            const claimed = activeStreakDateSet.has(
-              item.dateKey
-            );
-
-            const isToday =
-              item.dateKey === todayKey;
-
-            const animatedStyle = {
-              opacity: calendarCellAnimations[index],
-              transform: [
-                {
-                  scale: calendarCellAnimations[index].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.75, 1],
-                  }),
-                },
-              ],
-            };
-
-            return (
-              <Animated.View
-                key={item.dateKey}
-                style={[
-                  styles.dayCell,
-                  animatedStyle,
-                ]}
-              >
-                <View
-                  style={[
-                    styles.dayInner,
-                    claimed && styles.claimedDay,
-                    isToday && styles.todayDay,
-                    claimed &&
-                      isToday &&
-                      styles.claimedTodayDay,
-                  ]}
-                >
-                  {claimed ? (
-                    <Text style={styles.dayFire}>
-                      🔥
-                    </Text>
-                  ) : null}
-
-                  <Text
-                    style={[
-                      styles.dayNumber,
-                      claimed &&
-                        styles.claimedDayNumber,
-                      isToday &&
-                        styles.todayDayNumber,
-                    ]}
-                  >
-                    {item.day}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </View>
-
-        {/* Legend */}
-
-        <View style={styles.legend}>
-          <View style={styles.legendItem}>
-            <View style={styles.legendFireCircle}>
-              <Text style={styles.legendFire}>
-                🔥
-              </Text>
-            </View>
-
-            <Text style={styles.legendText}>
-              Reward claimed
-            </Text>
-          </View>
-
-          <View style={styles.legendItem}>
-            <View style={styles.legendTodayCircle} />
-
-            <Text style={styles.legendText}>
-              Today
-            </Text>
-          </View>
-        </View>
-      </Animated.View>
-
-      {/* ------------------------------------------------
-          DAILY REWARD
-      ------------------------------------------------ */}
-
-      <View style={styles.infoCard}>
-        <View style={styles.rewardHeader}>
-          <Text style={styles.rewardIcon}>
-            🎁
+          <Text style={styles.streakNumber}>
+            {animatedStreak}
           </Text>
 
-          <View style={styles.rewardHeaderText}>
-            <Text style={styles.infoTitle}>
+          <Text style={styles.streakLabel}>
+            DAY STREAK
+          </Text>
+
+          <Text style={styles.keepGoing}>
+            Keep showing up every day!
+          </Text>
+
+          <View style={styles.heroBadge}>
+            <Ionicons
+              name="flame"
+              size={14}
+              color={COLORS.primary}
+            />
+
+            <Text style={styles.heroBadgeText}>
+              Daily progress
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* ------------------------------------------------
+            STATISTICS
+        ------------------------------------------------ */}
+
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrap}>
+              <Ionicons
+                name="flame-outline"
+                size={19}
+                color={COLORS.primary}
+              />
+            </View>
+
+            <View style={styles.statTextBlock}>
+              <Text style={styles.statNumber}>
+                {streak?.current_streak ?? 0}
+              </Text>
+
+              <Text style={styles.statLabel}>
+                Current Streak
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.statCard}>
+            <View style={styles.statIconWrap}>
+              <Ionicons
+                name="trophy-outline"
+                size={19}
+                color={COLORS.accentDark}
+              />
+            </View>
+
+            <View style={styles.statTextBlock}>
+              <Text style={styles.statNumber}>
+                {streak?.longest_streak ?? 0}
+              </Text>
+
+              <Text style={styles.statLabel}>
+                Best Streak
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ------------------------------------------------
+            CALENDAR
+        ------------------------------------------------ */}
+
+        <Animated.View
+          style={[
+            styles.calendarCard,
+            {
+              opacity: calendarOpacity,
+              transform: [
+                {
+                  translateY: calendarTranslateY,
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.calendarHeader}>
+            <View style={styles.calendarHeaderText}>
+              <Text style={styles.calendarEyebrow}>
+                YOUR JOURNEY
+              </Text>
+
+              <Text style={styles.calendarTitle}>
+                {getMonthName(
+                  new Date(
+                    currentMonth.year,
+                    currentMonth.month,
+                    1
+                  )
+                )}
+              </Text>
+            </View>
+
+            <View style={styles.monthStreakPill}>
+              <Ionicons
+                name="flame"
+                size={14}
+                color={COLORS.primary}
+              />
+
+              <Text style={styles.monthStreakText}>
+                {streak?.current_streak ?? 0}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.calendarSubtitle}>
+            Every reward keeps your journey alive.
+          </Text>
+
+          {/* Weekday headings */}
+
+          <View style={styles.weekRow}>
+            {DAY_NAMES.map((day) => (
+              <View
+                key={day}
+                style={styles.weekDay}
+              >
+                <Text style={styles.weekDayText}>
+                  {day}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Calendar grid */}
+
+          <View style={styles.calendarGrid}>
+            {calendarDays.map((item, index) => {
+              if (!item) {
+                return (
+                  <View
+                    key={`empty-${index}`}
+                    style={styles.dayCell}
+                  />
+                );
+              }
+
+              const claimed =
+                activeStreakDateSet.has(item.dateKey);
+
+              const isToday =
+                item.dateKey === todayKey;
+
+              const animatedStyle = {
+                opacity:
+                  calendarCellAnimations[index],
+                transform: [
+                  {
+                    scale:
+                      calendarCellAnimations[
+                        index
+                      ].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.75, 1],
+                      }),
+                  },
+                ],
+              };
+
+              return (
+                <Animated.View
+                  key={item.dateKey}
+                  style={[
+                    styles.dayCell,
+                    animatedStyle,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.dayInner,
+                      claimed &&
+                        styles.claimedDay,
+                      isToday &&
+                        styles.todayDay,
+                      claimed &&
+                        isToday &&
+                        styles.claimedTodayDay,
+                    ]}
+                  >
+                    {claimed ? (
+                      <View style={styles.dayFireWrap}>
+                        <Text style={styles.dayFire}>
+                          🔥
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    <Text
+                      style={[
+                        styles.dayNumber,
+                        claimed &&
+                          styles.claimedDayNumber,
+                        isToday &&
+                          styles.todayDayNumber,
+                      ]}
+                    >
+                      {item.day}
+                    </Text>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </View>
+
+          {/* Legend */}
+
+          <View style={styles.legend}>
+            <View style={styles.legendItem}>
+              <View style={styles.legendFireCircle}>
+                <Ionicons
+                  name="flame"
+                  size={10}
+                  color={COLORS.primary}
+                />
+              </View>
+
+              <Text style={styles.legendText}>
+                Active streak
+              </Text>
+            </View>
+
+            <View style={styles.legendItem}>
+              <View style={styles.legendTodayCircle} />
+
+              <Text style={styles.legendText}>
+                Today
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* ------------------------------------------------
+            DAILY REWARD
+        ------------------------------------------------ */}
+
+        <View style={styles.rewardCard}>
+          <View style={styles.rewardIconWrap}>
+            <Ionicons
+              name="gift-outline"
+              size={23}
+              color={COLORS.primary}
+            />
+          </View>
+
+          <View style={styles.rewardContent}>
+            <Text style={styles.rewardTitle}>
               Daily Reward
             </Text>
 
-            <Text style={styles.infoText}>
+            <Text style={styles.rewardText}>
               Claim your reward every day to keep
               your streak alive!
             </Text>
           </View>
-        </View>
 
-        {streak?.last_reward_date && (
-          <View style={styles.lastRewardRow}>
-            <Text style={styles.lastRewardLabel}>
-              LAST REWARD
-            </Text>
-
-            <Text style={styles.dateText}>
-              {streak.last_reward_date}
+          <View style={styles.rewardBadge}>
+            <Text style={styles.rewardBadgeText}>
+              DAILY
             </Text>
           </View>
-        )}
-      </View>
-      
-    </ScrollView>
-    <NavigationDock navigation={navigation} activeRoute="Streak"/>
+
+          {streak?.last_reward_date && (
+            <View style={styles.lastRewardRow}>
+              <View>
+                <Text style={styles.lastRewardLabel}>
+                  LAST REWARD
+                </Text>
+
+                <Text style={styles.dateText}>
+                  {streak.last_reward_date}
+                </Text>
+              </View>
+
+              <Ionicons
+                name="checkmark-circle"
+                size={21}
+                color={COLORS.success}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Bottom spacing for the root stack screen */}
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, 
-    backgroundColor: colors.bg 
+  // --------------------------------------------------
+  // Screen
+  // --------------------------------------------------
+
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary,
   },
+
   scrollView: {
     flex: 1,
-    backgroundColor: colors.bg,
   },
+
   container: {
     paddingHorizontal: 20,
-    paddingTop: 55,
-    paddingBottom: 150,
+    paddingBottom: 40,
   },
+
+  // --------------------------------------------------
+  // Loading
+  // --------------------------------------------------
+
   loadingContainer: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: COLORS.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   loadingText: {
-    color: colors.inkDim,
-    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontSize: 13,
     marginTop: 12,
   },
 
-  title: {
-    color: colors.mint,
-    fontSize: 24,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginBottom: 25,
-  },
-
-  // -----------------------------------------------
+  // --------------------------------------------------
   // Hero
-  // -----------------------------------------------
+  // --------------------------------------------------
 
-  mainCard: {
-    backgroundColor: colors.panel,
-    borderWidth: 2,
-    borderColor: colors.wallEdge,
-    borderRadius: 18,
+  heroCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 22,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    paddingVertical: 30,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    ...SHADOWS.medium,
   },
 
-  fire: {
-    fontSize: 48,
+  heroGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: COLORS.primaryFaded,
+    top: -90,
+    right: -60,
+  },
+
+  fireCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: COLORS.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
   },
 
+  fire: {
+    fontSize: 38,
+  },
+
   streakNumber: {
-    color: colors.mint,
+    color: COLORS.textPrimary,
     fontSize: 52,
     fontWeight: '900',
+    letterSpacing: -1,
   },
 
   streakLabel: {
-    color: colors.inkDim,
-    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
+    marginTop: -2,
   },
 
   keepGoing: {
-    color: colors.inkDim,
-    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontSize: 12,
     marginTop: 8,
   },
 
-  // -----------------------------------------------
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryFaded,
+    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    marginTop: 16,
+  },
+
+  heroBadgeText: {
+    color: COLORS.primary,
+    fontSize: 10,
+    fontWeight: '800',
+    marginLeft: 5,
+  },
+
+  // --------------------------------------------------
   // Statistics
-  // -----------------------------------------------
+  // --------------------------------------------------
 
   statsRow: {
     flexDirection: 'row',
@@ -777,38 +938,56 @@ const styles = StyleSheet.create({
 
   statCard: {
     flex: 1,
-    backgroundColor: colors.panel,
-    borderWidth: 2,
-    borderColor: colors.wallEdge,
-    borderRadius: 14,
+    minHeight: 82,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    ...SHADOWS.small,
+  },
+
+  statIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: COLORS.primaryFaded,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+
+  statTextBlock: {
+    flex: 1,
   },
 
   statNumber: {
-    color: colors.mint,
-    fontSize: 26,
+    color: COLORS.textPrimary,
+    fontSize: 23,
     fontWeight: '900',
   },
 
   statLabel: {
-    color: colors.inkDim,
-    fontSize: 11,
-    marginTop: 4,
-    textAlign: 'center',
+    color: COLORS.textSecondary,
+    fontSize: 10,
+    marginTop: 2,
+    lineHeight: 14,
   },
 
-  // -----------------------------------------------
+  // --------------------------------------------------
   // Calendar
-  // -----------------------------------------------
+  // --------------------------------------------------
 
   calendarCard: {
-    backgroundColor: colors.panel,
-    borderWidth: 2,
-    borderColor: colors.wallEdge,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
     padding: 16,
     marginTop: 14,
+    ...SHADOWS.small,
   },
 
   calendarHeader: {
@@ -817,46 +996,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  calendarHeaderText: {
+    flex: 1,
+  },
+
   calendarEyebrow: {
-    color: colors.mint,
+    color: COLORS.primary,
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
   },
 
   calendarTitle: {
-    color: colors.ink,
-    fontSize: 18,
+    color: COLORS.textPrimary,
+    fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
   },
 
   calendarSubtitle: {
-    color: colors.inkDim,
-    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontSize: 11,
     marginTop: 5,
+    lineHeight: 16,
   },
 
   monthStreakPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(6,255,165,0.08)',
+    backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
-    borderColor: colors.mint,
+    borderColor: COLORS.primaryLight,
     borderRadius: 20,
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-  },
-
-  monthStreakIcon: {
-    fontSize: 12,
-    marginRight: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
   },
 
   monthStreakText: {
-    color: colors.mint,
+    color: COLORS.primary,
     fontSize: 12,
     fontWeight: '900',
+    marginLeft: 4,
   },
 
   weekRow: {
@@ -871,7 +1051,7 @@ const styles = StyleSheet.create({
   },
 
   weekDayText: {
-    color: colors.inkDim,
+    color: COLORS.textTertiary,
     fontSize: 8,
     fontWeight: '900',
   },
@@ -883,66 +1063,73 @@ const styles = StyleSheet.create({
 
   dayCell: {
     width: '14.2857%',
-    height: 44,
+    height: 45,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   dayInner: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 35,
+    height: 35,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
 
   dayNumber: {
-    color: colors.inkDim,
-    fontSize: 10,
+    color: COLORS.textTertiary,
+    fontSize: 11,
     fontWeight: '700',
   },
 
   claimedDay: {
-    backgroundColor: 'rgba(6,255,165,0.12)',
+    backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
-    borderColor: colors.mint,
+    borderColor: COLORS.primaryLight,
   },
 
   claimedDayNumber: {
-    color: colors.mint,
+    color: COLORS.primary,
     fontWeight: '900',
   },
 
   todayDay: {
-    borderWidth: 1,
-    borderColor: colors.teal,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
   },
 
   todayDayNumber: {
-    color: colors.ink,
+    color: COLORS.textPrimary,
     fontWeight: '900',
   },
 
   claimedTodayDay: {
     borderWidth: 2,
-    borderColor: colors.mint,
+    borderColor: COLORS.primary,
   },
 
-  dayFire: {
+  dayFireWrap: {
     position: 'absolute',
     top: -5,
     right: -4,
+  },
+
+  dayFire: {
     fontSize: 9,
   },
+
+  // --------------------------------------------------
+  // Calendar legend
+  // --------------------------------------------------
 
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 20,
+    gap: 22,
     borderTopWidth: 1,
-    borderTopColor: colors.wallEdge,
+    borderTopColor: COLORS.divider,
     marginTop: 12,
     paddingTop: 12,
   },
@@ -956,136 +1143,184 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: 'rgba(6,255,165,0.12)',
+    backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 5,
   },
 
-  legendFire: {
-    fontSize: 8,
-  },
-
   legendTodayCircle: {
-    width: 12,
-    height: 12,
+    width: 13,
+    height: 13,
     borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.teal,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
     marginRight: 5,
   },
 
   legendText: {
-    color: colors.inkDim,
+    color: COLORS.textSecondary,
     fontSize: 9,
   },
 
-  // -----------------------------------------------
-  // Daily Reward
-  // -----------------------------------------------
+  // --------------------------------------------------
+  // Daily reward card
+  // --------------------------------------------------
 
-  infoCard: {
-    backgroundColor: colors.panel,
-    borderWidth: 2,
-    borderColor: colors.wallEdge,
-    borderRadius: 14,
+  rewardCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
     padding: 16,
     marginTop: 14,
+    ...SHADOWS.small,
   },
 
-  rewardHeader: {
-    flexDirection: 'row',
+  rewardIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryFaded,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
 
-  rewardIcon: {
-    fontSize: 24,
-    marginRight: 10,
+  rewardContent: {
+    paddingRight: 45,
   },
 
-  rewardHeaderText: {
-    flex: 1,
+  rewardTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '900',
   },
 
-  infoTitle: {
-    color: colors.ink,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-
-  infoText: {
-    color: colors.inkDim,
+  rewardText: {
+    color: COLORS.textSecondary,
     fontSize: 11,
-    marginTop: 4,
     lineHeight: 17,
+    marginTop: 4,
+  },
+
+  rewardBadge: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 12,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+  },
+
+  rewardBadgeText: {
+    color: COLORS.primary,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   lastRewardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: colors.wallEdge,
-    marginTop: 12,
-    paddingTop: 10,
+    borderTopColor: COLORS.divider,
+    marginTop: 14,
+    paddingTop: 12,
   },
 
   lastRewardLabel: {
-    color: colors.inkDim,
+    color: COLORS.textTertiary,
     fontSize: 8,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
   dateText: {
-    color: colors.mint,
+    color: COLORS.primary,
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,
   },
 
-  // -----------------------------------------------
+  // --------------------------------------------------
   // Error
-  // -----------------------------------------------
+  // --------------------------------------------------
 
-  card: {
-    backgroundColor: colors.panel,
-    borderWidth: 2,
-    borderColor: colors.wallEdge,
-    borderRadius: 14,
-    padding: 20,
+  errorContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    alignItems: 'stretch',
+  },
+
+  errorCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 22,
     alignItems: 'center',
+    ...SHADOWS.small,
+  },
+
+  errorIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: COLORS.errorLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+
+  errorTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
   },
 
   errorText: {
-    color: '#FF6B6B',
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
-    marginBottom: 15,
+    marginTop: 7,
+    marginBottom: 18,
   },
 
-  button: {
-    backgroundColor: colors.mint,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
 
-  buttonText: {
-    color: '#062B1F',
+  retryButtonText: {
+    color: COLORS.white,
+    fontSize: 12,
     fontWeight: '800',
   },
 
-  // -----------------------------------------------
-  // Back
-  // -----------------------------------------------
-
   backButton: {
-    backgroundColor: colors.teal,
-    borderRadius: 10,
-    paddingVertical: 13,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginTop: 10,
   },
 
   backButtonText: {
-    color: '#062B1F',
+    color: COLORS.primary,
+    fontSize: 12,
     fontWeight: '800',
+    marginLeft: 6,
+  },
+
+  bottomSpacer: {
+    height: 20,
   },
 });

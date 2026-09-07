@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,31 +30,57 @@ function greetingWord() {
 }
 
 export default function HomeScreen({ navigation }) {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, getUserStreak } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [refreshing, setRefreshing] = useState(false);
   const [quizMeta, setQuizMeta] = useState(null);
   const [quizCount, setQuizCount] = useState(0);
   const [board, setBoard] = useState([]);
   const [notesCount, setNotesCount] = useState(0);
+  const [dailyStreak, setDailyStreak] = useState(null);
+  const [notificationsVisible, setNotificationsVisible] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const scrollRef = useRef(null);
   const boardSectionY = useRef(0);
 
-  const load = useCallback(async () => {
-    try {
-      const [{ meta, questions }, { rows }, notes] = await Promise.all([
-        api.getQuizBank().catch(() => ({ meta: null, questions: [] })),
-        api.getLeaderboard(5).catch(() => ({ rows: [] })),
-        (isTeacher ? api.getStudyMaterials() : api.getPublishedNotes()).catch(() => ({ materials: [] })),
+const load = useCallback(async () => {
+  try {
+    const [{ meta, questions }, { rows }, notes, streakData, notificationRows] =
+      await Promise.all([
+        api.getQuizBank().catch(() => ({
+          meta: null,
+          questions: [],
+        })),
+
+        api.getLeaderboard(5).catch(() => ({
+          rows: [],
+        })),
+
+        (isTeacher
+          ? api.getStudyMaterials()
+          : api.getPublishedNotes()
+        ).catch(() => ({
+          materials: [],
+        })),
+
+        !isTeacher
+          ? getUserStreak().catch(() => null)
+          : Promise.resolve(null),
+
+        api.getNotifications().catch(() => []),
       ]);
-      setQuizMeta(meta);
-      setQuizCount((questions || []).length);
-      setBoard(rows || []);
-      setNotesCount((notes.materials || []).length);
-    } catch {
-      /* keep last good state */
-    }
-  }, [isTeacher]);
+
+    setQuizMeta(meta);
+    setQuizCount((questions || []).length);
+    setBoard(rows || []);
+    setNotesCount((notes.materials || []).length);
+    setDailyStreak(streakData);
+    setNotifications(notificationRows || []);
+  } catch {
+    /* keep last good state */
+  }
+}, [isTeacher, getUserStreak]);
 
   useFocusEffect(useCallback(() => { load(); refreshUser?.(); }, [load, refreshUser]));
 
@@ -62,6 +89,30 @@ export default function HomeScreen({ navigation }) {
     await Promise.all([load(), refreshUser?.()]);
     setRefreshing(false);
   }, [load, refreshUser]);
+
+  const openNotifications = useCallback(async () => {
+    setNotificationsVisible(true);
+    setNotificationsLoading(true);
+    try {
+      setNotifications(await api.getNotifications());
+    } catch (error) {
+      Alert.alert('Could not load notifications', error.message);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, []);
+
+  const markNotificationRead = useCallback(async (notification) => {
+    if (notification.read_at) return;
+    try {
+      await api.markNotificationRead(notification.id);
+      setNotifications((items) => items.map((item) => item.id === notification.id
+        ? { ...item, read_at: new Date().toISOString() }
+        : item));
+    } catch (error) {
+      Alert.alert('Could not update notification', error.message);
+    }
+  }, []);
 
   const rank = board.findIndex((r) => r.user_id === user?.id) + 1;
   const currentLevel = Math.min(user?.unlockedLevel || 1, TOTAL_MAZE_LEVELS);
@@ -139,9 +190,10 @@ export default function HomeScreen({ navigation }) {
                 )}
               </View>
             </TouchableOpacity>
-            <View style={styles.bellButton}>
+            <TouchableOpacity style={styles.bellButton} onPress={openNotifications} activeOpacity={0.75} accessibilityLabel="Notifications">
               <Ionicons name="notifications-outline" size={20} color={COLORS.textPrimary} />
-            </View>
+              {notifications.some((notification) => !notification.read_at) && <View style={styles.notificationDot} />}
+            </TouchableOpacity>
           </View>
         </View>
       </ScreenHeader>
@@ -171,41 +223,66 @@ export default function HomeScreen({ navigation }) {
                   <Ionicons name="flame" size={20} color={COLORS.accent} />
                 </View>
                 <Text style={styles.streakText}>
-                  <Text style={styles.streakNumber}>{user?.streakDays ?? 0}</Text> day streak
+                  <Text style={styles.streakNumber}> {dailyStreak?.current_streak ?? 0} </Text> day streak
                 </Text>
               </View>
             )}
 
-            <View style={styles.pillRow}>
-              {isTeacher ? (
-                <>
-                  <View style={styles.pill}>
-                    <Ionicons name="people" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>{board.length} students</Text>
-                  </View>
-                  <View style={styles.pill}>
-                    <Ionicons name="document-text" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>{notesCount} notes</Text>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.pill}>
-                    <Ionicons name="star" size={14} color={COLORS.white} />
-                    <Text style={styles.pillText}>Level {currentLevel}</Text>
-                  </View>
-                  <View style={styles.pill}>
-                    <Text style={styles.pillCoin}>🪙</Text>
-                    <Text style={styles.pillText}>{(user?.coins ?? 0).toLocaleString()} coins</Text>
-                  </View>
-                </>
-              )}
-            </View>
+<View style={styles.pillRow}>
+  {isTeacher ? (
+    <>
+      <View style={styles.pill}>
+        <Ionicons
+          name="people"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          {board.length} students
+        </Text>
+      </View>
+
+      <View style={styles.pill}>
+        <Ionicons
+          name="document-text"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          {notesCount} notes
+        </Text>
+      </View>
+    </>
+  ) : (
+    <>
+      <View style={styles.pill}>
+        <Ionicons
+          name="trophy"
+          size={14}
+          color={COLORS.white}
+        />
+        <Text style={styles.pillText}>
+          Best {dailyStreak?.longest_streak ?? 0} days
+        </Text>
+      </View>
+
+      <View style={styles.pill}>
+        <Text style={styles.pillCoin}>
+          🪙
+        </Text>
+
+        <Text style={styles.pillText}>
+          {(user?.coins ?? 0).toLocaleString()} coins
+        </Text>
+      </View>
+    </>
+  )}
+</View>
 
             <TouchableOpacity
               style={styles.continueBtn}
               activeOpacity={0.85}
-              onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.navigate('Play'))}
+              onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.getParent()?.navigate('Streak'))}
             >
               <Text style={styles.continueBtnText}>Continue</Text>
               <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
@@ -352,6 +429,47 @@ export default function HomeScreen({ navigation }) {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={notificationsVisible} transparent animationType="slide" onRequestClose={() => setNotificationsVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.notificationsCard}>
+            <View style={styles.notificationsHeader}>
+              <Text style={styles.notificationsTitle}>Notifications</Text>
+              <TouchableOpacity onPress={() => setNotificationsVisible(false)} accessibilityLabel="Close notifications">
+                <Ionicons name="close" size={22} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            {notificationsLoading ? (
+              <Text style={styles.emptyNotifications}>Loading notifications...</Text>
+            ) : notifications.length === 0 ? (
+              <Text style={styles.emptyNotifications}>You have no notifications yet.</Text>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {notifications.map((notification) => (
+                  <TouchableOpacity
+                    key={notification.id}
+                    style={[styles.notificationItem, !notification.read_at && styles.notificationUnread]}
+                    onPress={() => markNotificationRead(notification)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={notification.category === 'earnings' ? 'cash-outline' : notification.category === 'announcement' ? 'megaphone-outline' : 'notifications-outline'}
+                      size={20}
+                      color={COLORS.primary}
+                    />
+                    <View style={styles.notificationCopy}>
+                      <Text style={styles.notificationTitle}>{notification.title}</Text>
+                      <Text style={styles.notificationMessage}>{notification.message}</Text>
+                      <Text style={styles.notificationDate}>{new Date(notification.created_at).toLocaleDateString()}</Text>
+                    </View>
+                    {!notification.read_at && <View style={styles.unreadDot} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -398,6 +516,19 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
     ...SHADOWS.small,
   },
+  notificationDot: { position: 'absolute', top: 7, right: 7, width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.error, borderWidth: 1, borderColor: COLORS.white },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  notificationsCard: { backgroundColor: COLORS.white, borderRadius: 20, padding: 20, width: '100%', maxHeight: '78%', ...SHADOWS.large },
+  notificationsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  notificationsTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
+  emptyNotifications: { color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 28, fontSize: 13 },
+  notificationItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, gap: 10 },
+  notificationUnread: { backgroundColor: COLORS.backgroundWarm },
+  notificationCopy: { flex: 1 },
+  notificationTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
+  notificationMessage: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  notificationDate: { color: COLORS.textTertiary, fontSize: 10, marginTop: 5 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primary, marginTop: 6 },
 
   greeting: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 16, letterSpacing: -0.4 },
   greetingName: { color: COLORS.primary },

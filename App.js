@@ -2,8 +2,10 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './src/context/AuthContext';
+import MainTabs from './src/navigation/MainTabs';
 import SplashScreen from './src/screens/SplashScreen';
 import AuthScreen from './src/screens/AuthScreen';
 import HubScreen from './src/screens/HubScreen';
@@ -20,7 +22,8 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
-    <AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
       <StatusBar style="light" />
       <NavigationContainer>
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Splash">
@@ -32,11 +35,13 @@ export default function App() {
           <Stack.Screen name="MazeResult" component={MazeResultScreen} />
           <Stack.Screen name="QuizRush" component={QuizRushScreen} />
           <Stack.Screen name="MemoryFlip" component={MemoryFlipScreen} />
+          <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="TeacherDashboard" component={TeacherDashboardScreen} />
           <Stack.Screen name="Shop" component={ShopScreen} />
           <Stack.Screen name="Streak" component={StreakScreen} />
         </Stack.Navigator>
       </NavigationContainer>
-    </AuthProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

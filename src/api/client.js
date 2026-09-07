@@ -97,7 +97,6 @@ export const api = {
     return { materials: data || [] };
   },
 
-<<<<<<< HEAD
   getPublishedNotes: async () => {
     const { data, error } = await supabase
       .from('study_materials')
@@ -107,8 +106,6 @@ export const api = {
     return { materials: data || [] };
   },
 
-=======
->>>>>>> origin/maze-updates
   createStudyMaterial: async ({ title, subject, grade, content }) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
@@ -134,7 +131,6 @@ export const api = {
     return { rows: data || [] };
   },
 
-<<<<<<< HEAD
   updateProfile: async (displayName) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
@@ -143,8 +139,58 @@ export const api = {
     return { ok: true };
   },
 
-=======
->>>>>>> origin/maze-updates
+  uploadProfileImage: async (asset) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    if (!asset?.uri) throw new Error('No image was selected.');
+
+    const extension = (asset.name?.split('.').pop() || asset.mimeType?.split('/').pop() || 'jpg').toLowerCase();
+    const contentType = asset.mimeType || `image/${extension === 'jpg' ? 'jpeg' : extension}`;
+    const path = `${user.id}/profile-${Date.now()}.${extension}`;
+    const response = await fetch(asset.uri);
+    if (!response.ok) throw new Error('Could not read the selected image.');
+    const imageData = await response.arrayBuffer();
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, imageData, { contentType, upsert: false });
+    if (uploadError) throw new Error(uploadError.message || 'Could not upload profile image.');
+
+    const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(path);
+    const imageUrl = `${publicData.publicUrl}?v=${Date.now()}`;
+    const { error: imageError } = await supabase.from('profile_images').upsert({
+      user_id: user.id,
+      storage_path: path,
+      image_url: imageUrl,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    if (imageError) throw new Error(imageError.message || 'Could not save profile image.');
+
+    const { error: profileError } = await supabase.from('profiles').update({ avatar_url: imageUrl }).eq('id', user.id);
+    if (profileError) throw new Error(profileError.message || 'Could not update profile image.');
+    return { imageUrl };
+  },
+
+  getNotifications: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('You must be signed in.');
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('id, category, title, message, data, read_at, created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message || 'Could not load notifications.');
+    return data || [];
+  },
+
+  markNotificationRead: async (id) => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw new Error(error.message || 'Could not update notification.');
+    return { ok: true };
+  },
+
   generateQuestions: async (files, topic) => {
     // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
     // If that function isn't deployed this fails clearly and the rest of the app is fine.
