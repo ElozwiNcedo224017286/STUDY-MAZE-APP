@@ -39,11 +39,17 @@ export default function AuthScreen({ navigation, route }) {
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const [termsVisible, setTermsVisible] = useState(true);
+  const [termsVisible, setTermsVisible] = useState(() => route?.params?.mode === 'register');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const nameValid = displayName.trim().length > 1;
   const emailValid = EMAIL_RE.test(email.trim());
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setMsg('');
+    if (nextMode === 'register' && !termsAccepted) setTermsVisible(true);
+  }
 
   useEffect(() => {
     if (!booting && user) navigation.replace('Main');
@@ -124,11 +130,11 @@ export default function AuthScreen({ navigation, route }) {
 
   const tabsRow = (
     <View style={styles.tabs}>
-      <TouchableOpacity style={[styles.tab, mode === 'login' && styles.tabActive]} onPress={() => setMode('login')}>
+      <TouchableOpacity style={[styles.tab, mode === 'login' && styles.tabActive]} onPress={() => switchMode('login')}>
         <Ionicons name="log-in-outline" size={16} color={mode === 'login' ? COLORS.primary : COLORS.textTertiary} />
         <Text style={[styles.tabText, mode === 'login' && styles.tabTextActive]}>Log in</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.tab, mode === 'register' && styles.tabActive]} onPress={() => setMode('register')}>
+      <TouchableOpacity style={[styles.tab, mode === 'register' && styles.tabActive]} onPress={() => switchMode('register')}>
         <Ionicons name="person-outline" size={16} color={mode === 'register' ? COLORS.primary : COLORS.textTertiary} />
         <Text style={[styles.tabText, mode === 'register' && styles.tabTextActive]}>Register</Text>
       </TouchableOpacity>
@@ -151,30 +157,35 @@ export default function AuthScreen({ navigation, route }) {
         <LinearGradient colors={[COLORS.backgroundSecondary, '#E4DBFA']} style={StyleSheet.absoluteFill} />
         {preloadImages}
 
-        <View style={[styles.regHero, { height: insets.top + 300 }]}>
-          <Image
-            source={require('../../assets/Artwork/register-students.png')}
-            style={styles.regImage}
-            resizeMode="contain"
-          />
+        <ScrollView
+          contentContainerStyle={styles.regScrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.regHero, { height: insets.top + 300 }]}>
+            <Image
+              source={require('../../assets/Artwork/register-students.png')}
+              style={styles.regImage}
+              resizeMode="contain"
+            />
 
-          <View style={[styles.heroContent, { paddingTop: insets.top + 12 }]}>
-            <View style={styles.heroBrand}>
-              <View style={styles.logoWrap}>
-                <Image source={require('../../assets/logo.png')} style={styles.logo} />
-              </View>
-              <View>
-                <Text style={styles.wordmark}>
-                  <Text style={styles.study}>Study</Text>
-                  <Text style={styles.maze}>Maze</Text>
-                </Text>
-                <Text style={styles.heroTagline}>Play. Learn. Earn.</Text>
+            <View style={[styles.heroContent, { paddingTop: insets.top + 12 }]}>
+              <View style={styles.heroBrand}>
+                <View style={styles.logoWrap}>
+                  <Image source={require('../../assets/logo.png')} style={styles.logo} />
+                </View>
+                <View>
+                  <Text style={styles.wordmark}>
+                    <Text style={styles.study}>Study</Text>
+                    <Text style={styles.maze}>Maze</Text>
+                  </Text>
+                  <Text style={styles.heroTagline}>Play. Learn. Earn.</Text>
+                </View>
               </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.regCard}>
+          <View style={styles.regCard}>
           <View style={styles.stepBadgeRow}>
             <View style={styles.stepBadge}>
               <Text style={styles.stepBadgeText}>Step 1 of 2</Text>
@@ -287,7 +298,8 @@ export default function AuthScreen({ navigation, route }) {
             <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.textTertiary} />
             <Text style={styles.footerText}>Securely powered by Supabase Auth</Text>
           </View>
-        </View>
+          </View>
+        </ScrollView>
         {termsModal}
       </KeyboardAvoidingView>
     );
@@ -659,6 +671,7 @@ const styles = StyleSheet.create({
   footerText: { color: COLORS.textTertiary, fontSize: 12 },
 
   regHero: { overflow: 'hidden' },
+  regScrollContent: { flexGrow: 1 },
   regHeading: {
     fontSize: 22,
     fontWeight: '900',
@@ -683,7 +696,7 @@ const styles = StyleSheet.create({
   },
 
   regCard: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: COLORS.white,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
