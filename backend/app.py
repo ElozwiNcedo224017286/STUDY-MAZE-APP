@@ -1,11 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from datetime import datetime
 import os
 import tempfile
 import time
 import base64
+import traceback
 from io import BytesIO
 from dotenv import load_dotenv
 import json
@@ -21,6 +23,15 @@ app = Flask(__name__)
 CORS(app)
 app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
 
+INLINE_LIMIT = 18 * 1024 * 1024
+# Same text model as NcedoCare (new Gemini keys cannot call gemini-2.5-flash).
+MODEL_NAME = (
+    os.getenv("GEMINI_TEXT_MODEL")
+    or os.getenv("GEMINI_MODEL")
+    or "gemini-3.6-flash"
+).strip()
+TITLE_MODEL = (os.getenv("GEMINI_TITLE_MODEL") or MODEL_NAME).strip()
+
 
 @app.errorhandler(RequestEntityTooLarge)
 def too_large(_error):
@@ -30,13 +41,16 @@ def too_large(_error):
         "status": "error",
     }), 413
 
+
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+client = None
 if not GEMINI_API_KEY:
     print("\n!!! WARNING: GEMINI_API_KEY is missing !!!")
     print("Add it to backend/.env then restart Flask.\n")
 else:
-    genai.configure(api_key=GEMINI_API_KEY)
+    client = genai.Client(api_key=GEMINI_API_KEY)
     print(f"Gemini API key loaded (ends with ...{GEMINI_API_KEY[-4:]})")
+    print(f"Gemini model: {MODEL_NAME}")
 
 instructions_path = os.path.join(_BACKEND_DIR, "system_instructions.txt")
 try:
@@ -49,12 +63,59 @@ except FileNotFoundError:
         "Stay on academic topics. Teach with clear steps."
     )
 
-model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash",
-    system_instruction=system_instruction,
-)
-
 chat_sessions = {}
+
+
+def require_client():
+    if client is None:
+        raise RuntimeError("GEMINI_API_KEY is missing. Add it to backend/.env and restart Flask.")
+    return client
+
+
+def chat_config(temperature=0.7, max_output_tokens=900, extra=None):
+    kwargs = {
+        "system_instruction": system_instruction,
+        "temperature": temperature,
+        "max_output_tokens": max_output_tokens,
+        "top_p": 0.95,
+        "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
+    }
+    if extra:
+        kwargs.update(extra)
+    return types.GenerateContentConfig(**kwargs)
+
+
+def new_chat():
+    return require_client().chats.create(model=MODEL_NAME, config=chat_config())
+
+
+def extract_text(response):
+    try:
+        text = getattr(response, "text", None)
+        if text:
+            return str(text).strip()
+    except Exception as error:
+        print(f"[gemini] response.text unavailable: {error}")
+
+    chunks = []
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            if getattr(part, "thought", False):
+                continue
+            value = getattr(part, "text", None)
+            if value:
+                chunks.append(value)
+    return "\n".join(chunks).strip()
+
+
+def finish_reason(response):
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        prompt = getattr(response, "prompt_feedback", None)
+        block = getattr(prompt, "block_reason", None) if prompt else None
+        return str(block or "NO_CANDIDATES")
+    return str(getattr(candidates[0], "finish_reason", "UNKNOWN"))
 
 
 def detect_image_mime(filename, initial_bytes):
@@ -158,27 +219,24 @@ def file_from_request(field_name):
     return FileStorage(stream=BytesIO(data), filename=filename, content_type=mime)
 
 
-def wait_until_active(uploaded, timeout=45):
-    current = uploaded
-    start = time.time()
-    while getattr(getattr(current, "state", None), "name", "") == "PROCESSING":
-        if time.time() - start > timeout:
-            break
-        time.sleep(0.4)
-        current = genai.get_file(current.name)
-    return current
+def part_from_storage(file_storage, mime_type, suffix):
+    file_storage.seek(0)
+    data = file_storage.read()
+    if not data:
+        return None
+    if len(data) <= INLINE_LIMIT:
+        return types.Part.from_bytes(data=data, mime_type=mime_type)
 
-
-def upload_temp_file(file_storage, suffix, mime_type):
     temp_path = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
-            file_storage.seek(0)
-            data = file_storage.read()
             temp_file.write(data)
             temp_path = temp_file.name
-        uploaded = genai.upload_file(path=temp_path, mime_type=mime_type)
-        return wait_until_active(uploaded)
+        uploaded = require_client().files.upload(
+            file=temp_path,
+            config=types.UploadFileConfig(mime_type=mime_type),
+        )
+        return uploaded
     finally:
         if temp_path and os.path.exists(temp_path):
             try:
@@ -206,28 +264,24 @@ def generate_conversation_title(user_input, ai_response_text, has_media, has_aud
     try:
         user_text = user_input.strip()[:100] if user_input else ""
         ai_text = (ai_response_text or "").strip()[:150]
-        prompt = (
-            "Based on this Study Maze tutoring conversation, generate a specific title in 2-4 words. "
-            f"Context: User: {user_text} | AI: {ai_text}"
-        )
-        title_model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-exp",
-            system_instruction=(
-                "You are a concise title generator for student study chats. "
-                "Output ONLY a 2-4 word title. Examples: 'Algebra Practice', "
-                "'Photosynthesis Recap', 'Quiz Rush Prep'."
+        response = require_client().models.generate_content(
+            model=TITLE_MODEL,
+            contents=(
+                "Based on this Study Maze tutoring conversation, generate a specific title in 2-4 words. "
+                f"Context: User: {user_text} | AI: {ai_text}"
             ),
-        )
-        response = title_model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "You are a concise title generator for student study chats. "
+                    "Output ONLY a 2-4 word title. Examples: 'Algebra Practice', "
+                    "'Photosynthesis Recap', 'Quiz Rush Prep'."
+                ),
                 temperature=0.0,
-                max_output_tokens=10,
+                max_output_tokens=64,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
-        if not response.parts:
-            raise Exception("Title generation returned empty response")
-        title = response.text.strip().strip('"').strip("'")
+        title = extract_text(response).strip().strip('"').strip("'")
         for char in ".:!?":
             title = title.replace(char, "")
         final_title = " ".join(title.split()[:4]).title()
@@ -251,10 +305,10 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
         header = image_file.read(12)
         image_file.seek(0)
         mime = detect_image_mime(image_file.filename, header)
-        uploaded = upload_temp_file(image_file, ".jpg", mime)
-        if not uploaded:
+        part = part_from_storage(image_file, mime, ".jpg")
+        if not part:
             raise ValueError("image_upload_failed")
-        content_parts.append(uploaded)
+        content_parts.append(part)
 
     if audio_file:
         audio_file.seek(0)
@@ -262,36 +316,32 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
         audio_file.seek(0)
         mime = detect_audio_mime(audio_file.filename, header)
         suffix = ".m4a" if mime == "audio/aac" else (os.path.splitext(audio_file.filename or "")[1] or ".m4a")
-        uploaded = upload_temp_file(audio_file, suffix, mime)
-        if not uploaded:
+        part = part_from_storage(audio_file, mime, suffix)
+        if not part:
             raise ValueError("audio_processing_failed")
         if not user_input:
             if image_file:
-                content_parts.insert(
-                    0,
-                    "Listen to the student and look at the attached image. Teach from both.",
-                )
+                content_parts.insert(0, "Listen to the student and look at the attached image. Teach from both.")
             else:
-                content_parts.insert(
-                    0,
-                    "Listen to this student voice note and reply as Maze Mentor. Stay on study goals.",
-                )
-        content_parts.append(uploaded)
+                content_parts.insert(0, "Listen to this student voice note and reply as Maze Mentor. Stay on study goals.")
+        content_parts.append(part)
 
     if document_file:
         filename = document_file.filename or "notes.pdf"
         suffix = os.path.splitext(filename)[1] or ".pdf"
         mime = detect_document_mime(filename)
-        uploaded = upload_temp_file(document_file, suffix, mime)
-        if not uploaded:
+        part = part_from_storage(document_file, mime, suffix)
+        if not part:
             raise ValueError("document_error")
-        content_parts.append(uploaded)
+        content_parts.append(part)
 
     if user_input:
         if (image_file or document_file) and not audio_file:
             content_parts.insert(0, f"Student question about the attached study content: {user_input}")
         elif not image_file and not audio_file and not document_file:
             content_parts.append(user_input)
+        elif audio_file:
+            content_parts.insert(0, user_input)
     elif image_file and not audio_file:
         if mode == "solver":
             content_parts.insert(
@@ -310,6 +360,25 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
         )
 
     return content_parts
+
+
+def public_error(error):
+    message = str(error).lower()
+    if "api key" in message or "permission" in message or "unauthenticated" in message:
+        return "Gemini rejected the API key. Check GEMINI_API_KEY in backend/.env."
+    if "quota" in message or "rate" in message or "resource exhausted" in message:
+        return "Maze Mentor is busy right now. Wait a moment and try again."
+    if "not found" in message or "is not found" in message:
+        return f"Gemini model {MODEL_NAME} is not available for this key. Set GEMINI_MODEL=gemini-3.6-flash in backend/.env."
+    if "network" in message or "connection" in message:
+        return "I cannot reach Gemini. Check the backend internet connection."
+    if "timeout" in message:
+        return "That took too long. Try a shorter message or a smaller file."
+    if "datapart" in message or "unsupported" in message or "mime" in message:
+        return "I could not read that attachment. Try another file format."
+    if "safety" in message or "blocked" in message:
+        return "Gemini blocked that request. Try a clearer study question."
+    return "Maze Mentor hit an unexpected issue. Check the Flask window for the error."
 
 
 def run_chat(mode="tutor"):
@@ -338,7 +407,7 @@ def run_chat(mode="tutor"):
 
         if conversation_id not in chat_sessions:
             chat_sessions[conversation_id] = {
-                "chat": model.start_chat(),
+                "chat": new_chat(),
                 "title": None,
                 "session_mode": session_mode,
             }
@@ -347,6 +416,8 @@ def run_chat(mode="tutor"):
         content_parts = build_content_parts(
             user_input, image_file, audio_file, document_file, mode
         )
+        if not content_parts:
+            raise ValueError("no_input")
 
         requested_max_tokens = request.form.get("max_tokens")
         max_tokens = 900 if mode == "tutor" else 1400
@@ -356,16 +427,22 @@ def run_chat(mode="tutor"):
             except (ValueError, TypeError):
                 pass
 
+        payload = content_parts[0] if len(content_parts) == 1 else content_parts
         response = session["chat"].send_message(
-            content=content_parts,
-            generation_config=genai.types.GenerationConfig(
+            payload,
+            config=types.GenerateContentConfig(
                 temperature=0.6 if mode == "solver" else 0.7,
                 max_output_tokens=max_tokens,
                 top_p=0.95,
-                top_k=40,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             ),
         )
-        response_text = response.text
+        response_text = extract_text(response)
+        if not response_text:
+            reason = finish_reason(response)
+            print(f"[chatbot] empty Gemini response finish_reason={reason}")
+            raise RuntimeError(f"Gemini returned no text ({reason})")
+
         processing_time = time.time() - start_time
         has_media = image_file is not None or document_file is not None
         has_audio = audio_file is not None
@@ -387,6 +464,7 @@ def run_chat(mode="tutor"):
     except ValueError as error:
         code = str(error)
         messages = {
+            "no_input": "Send a message, voice note, photo, or document to continue.",
             "image_upload_failed": "I could not read that image. Try JPEG or PNG.",
             "audio_upload_failed": "I could not process that voice note. Please try again.",
             "audio_processing_failed": "I could not process that voice note. Please try again.",
@@ -399,20 +477,11 @@ def run_chat(mode="tutor"):
             "status": "error",
         }), 400
     except Exception as error:
-        message = str(error).lower()
-        if "quota" in message or "rate" in message:
-            user_message = "Maze Mentor is busy right now. Wait a moment and try again."
-        elif "network" in message or "connection" in message:
-            user_message = "I cannot reach Gemini. Check the backend internet connection."
-        elif "timeout" in message:
-            user_message = "That took too long. Try a shorter message or a smaller file."
-        elif "datapart" in message or "unsupported" in message or "mime" in message:
-            user_message = "I could not read that voice note. Please record again and send it once more."
-        else:
-            user_message = "Maze Mentor hit an unexpected issue. Please try again."
+        traceback.print_exc()
+        print(f"[chatbot] ERROR {type(error).__name__}: {error}")
         return jsonify({
             "error": type(error).__name__,
-            "response": user_message,
+            "response": public_error(error),
             "status": "error",
             "processing_time": round(time.time() - start_time, 2),
         }), 500
@@ -423,7 +492,8 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "message": "Study Maze Smart Learn API is running",
-        "model": "gemini-2.5-flash",
+        "model": MODEL_NAME,
+        "sdk": "google-genai",
         "timestamp": datetime.now().isoformat(),
     }), 200
 
@@ -477,10 +547,10 @@ def solver_response():
             header = image_file.read(12)
             image_file.seek(0)
             mime = detect_image_mime(image_file.filename, header)
-            uploaded = upload_temp_file(image_file, ".jpg", mime)
-            if not uploaded:
+            part = part_from_storage(image_file, mime, ".jpg")
+            if not part:
                 raise ValueError("image_upload_failed")
-            parts.append(uploaded)
+            parts.append(part)
         parts.append(
             (user_input + "\n\n" if user_input else "")
             + "Solve the academic question. If more than one appears, solve the clearest one first. "
@@ -489,16 +559,21 @@ def solver_response():
             "final_answer, check, and tip."
         )
 
-        response = model.generate_content(
-            parts,
-            generation_config=genai.types.GenerationConfig(
+        response = require_client().models.generate_content(
+            model=MODEL_NAME,
+            contents=parts,
+            config=chat_config(
                 temperature=0.3,
                 max_output_tokens=1600,
-                response_mime_type="application/json",
-                response_schema=SOLVER_SCHEMA,
+                extra={
+                    "response_mime_type": "application/json",
+                    "response_schema": SOLVER_SCHEMA,
+                },
             ),
         )
-        raw = (response.text or "").strip()
+        raw = extract_text(response)
+        if not raw:
+            raise RuntimeError(f"Gemini returned no solver JSON ({finish_reason(response)})")
         try:
             parsed = json.loads(raw)
         except json.JSONDecodeError:
@@ -519,9 +594,11 @@ def solver_response():
             "status": "error",
         }), 400
     except Exception as error:
+        traceback.print_exc()
+        print(f"[solver] ERROR {type(error).__name__}: {error}")
         return jsonify({
             "error": type(error).__name__,
-            "response": "Smart Solver could not finish. Check Gemini and try again.",
+            "response": public_error(error),
             "status": "error",
             "processing_time": round(time.time() - start_time, 2),
         }), 500
