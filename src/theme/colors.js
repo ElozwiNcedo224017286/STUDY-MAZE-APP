@@ -6,6 +6,7 @@ export const COLORS = {
   primaryDark: '#4C1D95',
   primarySoft: 'rgba(109, 40, 217, 0.12)',
   primaryFaded: 'rgba(109, 40, 217, 0.06)',
+  primaryVeryLight: 'rgba(109, 40, 217, 0.10)',
 
   accent: '#F5C542',
   accentLight: '#FDE68A',

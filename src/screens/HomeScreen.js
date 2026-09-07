@@ -8,7 +8,6 @@ import {
   RefreshControl,
   TouchableOpacity,
   Image,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -38,7 +37,6 @@ export default function HomeScreen({ navigation }) {
   const [notesCount, setNotesCount] = useState(0);
   const [dailyStreak, setDailyStreak] = useState(null);
   const scrollRef = useRef(null);
-  const boardSectionY = useRef(0);
 
 const load = useCallback(async () => {
   try {
@@ -49,9 +47,9 @@ const load = useCallback(async () => {
           questions: [],
         })),
 
-        api.getLeaderboard(5).catch(() => ({
-          rows: [],
-        })),
+        isTeacher
+          ? api.getLeaderboard(5).catch(() => ({ rows: [] }))
+          : Promise.resolve({ rows: [] }),
 
         (isTeacher
           ? api.getStudyMaterials()
@@ -83,29 +81,20 @@ const load = useCallback(async () => {
     setRefreshing(false);
   }, [load, refreshUser]);
 
-  const rank = board.findIndex((r) => r.user_id === user?.id) + 1;
   const currentLevel = Math.min(user?.unlockedLevel || 1, TOTAL_MAZE_LEVELS);
   const levelsCleared = Math.max(0, currentLevel - 1);
   const mazePercent = Math.round((levelsCleared / TOTAL_MAZE_LEVELS) * 100);
 
-  function goToScoreboard() {
-    if (isTeacher) {
-      navigation.navigate('Class');
-    } else if (board.length > 0) {
-      scrollRef.current?.scrollTo({ y: Math.max(0, boardSectionY.current - 16), animated: true });
-    }
-  }
-
   const studentActions = [
     { key: 'maze', label: 'Maze', image: require('../../assets/Artwork/icon-maze.png'), onPress: () => navigation.getParent()?.navigate('MazeLevels') },
-    { key: 'scoreboard', label: 'Scoreboard', image: require('../../assets/Artwork/icon-scoreboard.png'), onPress: goToScoreboard },
-    { key: 'notes', label: 'Notes', image: require('../../assets/Artwork/icon-notes.png'), onPress: () => navigation.navigate('Learn') },
+    { key: 'smart', label: 'S.Learn', icon: 'sparkles-outline', onPress: () => navigation.navigate('Learn') },
+    { key: 'notes', label: 'Notes', image: require('../../assets/Artwork/icon-notes.png'), onPress: () => navigation.getParent()?.navigate('StudyNotes') },
     { key: 'shop', label: 'Rewards', image: require('../../assets/Artwork/icon-rewards.png'), onPress: () => navigation.navigate('Rewards') },
   ];
 
   const teacherActions = [
     { key: 'studio', label: 'Studio', icon: 'create-outline', onPress: () => navigation.navigate('Studio') },
-    { key: 'scoreboard', label: 'Scoreboard', image: require('../../assets/Artwork/icon-scoreboard.png'), onPress: goToScoreboard },
+    { key: 'scoreboard', label: 'Scoreboard', image: require('../../assets/Artwork/icon-scoreboard.png'), onPress: () => navigation.navigate('Class') },
     { key: 'notes', label: 'Notes', image: require('../../assets/Artwork/icon-notes.png'), onPress: () => navigation.navigate('Notes') },
     { key: 'preview', label: 'Preview', icon: 'game-controller-outline', onPress: () => navigation.getParent()?.navigate('MazeLevels') },
   ];
@@ -116,7 +105,7 @@ const load = useCallback(async () => {
     ? {
         title: notesCount ? `${notesCount} study notes posted` : 'Share a study note',
         description: notesCount
-          ? 'Students can read these in the Learn tab.'
+          ? 'Students can read these in Smart Learn → Revision Notes.'
           : 'Post a short summary so students can revise between games.',
         icon: 'book',
         color: '#6366F1',
@@ -126,11 +115,11 @@ const load = useCallback(async () => {
     : {
         title: notesCount ? `${notesCount} notes waiting` : 'Learn between rounds',
         description: notesCount
-          ? 'Your teacher posted study notes you can revise anytime.'
-          : 'Study notes from your teacher will show up in Learn.',
-        icon: 'book',
+          ? 'Your teacher posted study notes in Revision Notes.'
+          : 'Teacher notes and Maze Mentor live in Smart Learn.',
+        icon: 'sparkles',
         color: '#6366F1',
-        actionText: 'Open Learn',
+        actionText: 'Open Smart Learn',
         onPress: () => navigation.navigate('Learn'),
       };
 
@@ -286,13 +275,17 @@ const load = useCallback(async () => {
           onPress={() =>
             isTeacher
               ? navigation.navigate('Studio')
-              : Alert.alert('Coming soon', 'Personal uploads for students aren\'t available yet — ask your teacher to add material in Studio.')
+              : navigation.getParent()?.navigate('MentorHub')
           }
         >
           <Image source={require('../../assets/Artwork/icon-upload.png')} style={styles.uploadIcon} resizeMode="contain" />
           <View style={styles.uploadInfo}>
-            <Text style={styles.uploadTitle}>Upload study material</Text>
-            <Text style={styles.uploadDesc}>Add notes, PDFs or images to create quizzes and AI notes.</Text>
+            <Text style={styles.uploadTitle}>{isTeacher ? 'Upload study material' : 'Start with your notes'}</Text>
+            <Text style={styles.uploadDesc}>
+              {isTeacher
+                ? 'Add notes, PDFs or images to create quizzes and AI notes.'
+                : 'Open Maze Mentor to chat freely or study from PDF, Word, or PowerPoint.'}
+            </Text>
           </View>
           <View style={styles.uploadBtn}>
             <Text style={styles.uploadBtnText}>Upload</Text>
@@ -352,50 +345,29 @@ const load = useCallback(async () => {
           </View>
 
           <View style={[styles.recommendCard, { backgroundColor: '#FBF1E4' }]}>
-            <Image source={require('../../assets/Artwork/icon-scoreboard.png')} style={styles.recommendIcon} resizeMode="contain" />
+            <Image
+              source={require('../../assets/Artwork/icon-scoreboard.png')}
+              style={styles.recommendIcon}
+              resizeMode="contain"
+            />
             <Text style={styles.recommendTitle} numberOfLines={2}>
-              {isTeacher ? `${board.length} on the board` : rank ? `#${rank} this week` : 'Join the board'}
+              {isTeacher ? `${board.length} on the board` : 'Ask Maze Mentor'}
             </Text>
             <Text style={styles.recommendDesc} numberOfLines={2}>
-              {isTeacher
-                ? 'Live class standings.'
-                : rank
-                  ? "Keep going! You're climbing the leaderboard."
-                  : 'Finish a game to appear here.'}
+              {isTeacher ? 'Open the full class board anytime.' : 'Tutor, snap a question, or revise notes.'}
             </Text>
-            {isTeacher && (
-              <TouchableOpacity style={styles.recommendBtn} activeOpacity={0.85} onPress={() => navigation.navigate('Class')}>
-                <Text style={styles.recommendBtnText}>View class</Text>
-                <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={styles.recommendBtn}
+              activeOpacity={0.85}
+              onPress={() => (isTeacher ? navigation.navigate('Class') : navigation.navigate('Learn'))}
+            >
+              <Text style={styles.recommendBtnText}>{isTeacher ? 'View class' : 'Open Smart Learn'}</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+            </TouchableOpacity>
           </View>
         </View>
 
         <InsightCard {...notesInsight} />
-
-        {board.length > 0 && (
-          <View onLayout={(e) => { boardSectionY.current = e.nativeEvent.layout.y; }}>
-            <Text style={styles.sectionTitle}>Class standings — Top 5</Text>
-            <View style={styles.boardCard}>
-              {board.map((row, i) => (
-                <View key={row.user_id} style={[styles.boardRow, i === board.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={[styles.rankDot, i === 0 && styles.rankGold, i === 1 && styles.rankSilver, i === 2 && styles.rankBronze]}>
-                    <Text style={styles.rankText}>{i + 1}</Text>
-                  </View>
-                  <Text style={styles.boardName} numberOfLines={1}>{row.display_name}</Text>
-                  <Text style={styles.boardCoins}>{row.total_coins} 🪙</Text>
-                </View>
-              ))}
-              {isTeacher ? (
-                <TouchableOpacity onPress={() => navigation.navigate('Class')} style={styles.viewAll}>
-                  <Text style={styles.viewAllText}>View full class</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </View>
-        )}
       </ScrollView>
     </View>
   );
@@ -599,36 +571,4 @@ const styles = StyleSheet.create({
     ...SHADOWS.small,
   },
   recommendBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 12 },
-
-  boardCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingTop: 6,
-    ...SHADOWS.small,
-  },
-  boardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
-  },
-  rankDot: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.backgroundTertiary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  rankGold: { backgroundColor: COLORS.accent },
-  rankSilver: { backgroundColor: '#C7D0DC' },
-  rankBronze: { backgroundColor: '#E0A878' },
-  rankText: { fontWeight: '800', fontSize: 12, color: COLORS.textPrimary },
-  boardName: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
-  boardCoins: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
-  viewAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
-  viewAllText: { color: COLORS.primary, fontWeight: '700', fontSize: 13, marginRight: 2 },
 });

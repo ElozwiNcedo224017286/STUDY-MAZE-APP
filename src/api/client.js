@@ -161,5 +161,5 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Question generation failed.');
     return data;
-  }
+  },
 };

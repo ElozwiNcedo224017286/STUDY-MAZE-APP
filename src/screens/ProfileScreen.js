@@ -200,7 +200,7 @@ export default function ProfileScreen({ navigation }) {
             icon="book-outline"
             title="Notes"
             description={`${notesCount} note${notesCount === 1 ? '' : 's'}`}
-            onPress={() => navigation.navigate(isTeacher ? 'Notes' : 'Learn')}
+            onPress={() => (isTeacher ? navigation.navigate('Notes') : navigation.getParent()?.navigate('StudyNotes'))}
           />
           <ProfileMenuItem
             icon="game-controller-outline"

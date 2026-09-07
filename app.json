@@ -11,7 +11,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.studymaze.app"
+      "bundleIdentifier": "com.studymaze.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Study Maze uses the microphone so you can ask Maze Mentor by voice.",
+        "NSCameraUsageDescription": "Study Maze uses the camera so you can photograph a question for Smart Solver."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +25,27 @@
       "package": "com.studymaze.app"
     },
     "plugins": [
-      "expo-status-bar"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Study Maze uses your photos so Maze Mentor and Smart Solver can read a question.",
+          "cameraPermission": "Study Maze uses the camera so you can photograph a question."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Study Maze uses the microphone so you can ask Maze Mentor by voice."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Study Maze uses the camera so you can photograph a question for Smart Solver.",
+          "microphonePermission": "Study Maze uses the microphone so you can ask Maze Mentor by voice."
+        }
+      ]
     ]
   }
 }

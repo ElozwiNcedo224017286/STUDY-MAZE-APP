@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
@@ -87,8 +87,12 @@ export default function MainTabs() {
             name="Learn"
             component={LearnScreen}
             options={{
-              tabBarLabel: 'Learn',
-              tabBarIcon: tabIcon('book'),
+              tabBarLabel: ({ color }) => (
+                <Text style={[styles.smartLabel, { color }]} numberOfLines={2}>
+                  Smart Learn
+                </Text>
+              ),
+              tabBarIcon: tabIcon('sparkles'),
             }}
           />
           <Tab.Screen
@@ -127,5 +131,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginBottom: Platform.OS === 'ios' ? 0 : 4,
+  },
+  smartLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 11,
+    marginBottom: Platform.OS === 'ios' ? 0 : 2,
   },
 });
