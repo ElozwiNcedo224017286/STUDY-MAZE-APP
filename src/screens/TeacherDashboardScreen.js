@@ -197,7 +197,7 @@ function CreateTab({ user, navigation }) {
         <TouchableOpacity style={styles.btn} onPress={publish}><Text style={styles.btnText}>Publish to Students</Text></TouchableOpacity>
       )}
 
-      <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Hub')}><Text style={styles.btnGhostText}>🎮 Preview Student App</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>🎮 Preview Student App</Text></TouchableOpacity>
 
       <QuestionEditor visible={editorVisible} initial={editIndex == null ? null : drafts[editIndex]} onSave={saveEditor} onClose={() => setEditorVisible(false)} />
     </ScrollView>
