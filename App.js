@@ -8,7 +8,6 @@ import { AuthProvider } from './src/context/AuthContext';
 import MainTabs from './src/navigation/MainTabs';
 import SplashScreen from './src/screens/SplashScreen';
 import AuthScreen from './src/screens/AuthScreen';
-import HubScreen from './src/screens/HubScreen';
 import MazeLevelsScreen from './src/screens/MazeLevelsScreen';
 import MazeGameScreen from './src/screens/MazeGameScreen';
 import MazeResultScreen from './src/screens/MazeResultScreen';
@@ -29,7 +28,6 @@ export default function App() {
         <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Splash">
           <Stack.Screen name="Splash" component={SplashScreen} />
           <Stack.Screen name="Auth" component={AuthScreen} />
-          <Stack.Screen name="Hub" component={HubScreen} />
           <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
           <Stack.Screen name="MazeGame" component={MazeGameScreen} />
           <Stack.Screen name="MazeResult" component={MazeResultScreen} />
