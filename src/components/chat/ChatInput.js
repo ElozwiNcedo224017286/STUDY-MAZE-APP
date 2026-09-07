@@ -97,6 +97,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsMultipleSelection: true,
       quality: 0.8,
+      preferredAssetRepresentationMode: 'compatible',
     });
     if (!result.canceled) {
       setImages((current) => [...current, ...result.assets].slice(0, 4));
@@ -110,7 +111,10 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
       Alert.alert('Permission needed', 'Allow camera access to photograph a question.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.8,
+      preferredAssetRepresentationMode: 'compatible',
+    });
     if (!result.canceled) {
       setImages((current) => [...current, ...result.assets].slice(0, 4));
       closeMedia();

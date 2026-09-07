@@ -64,7 +64,12 @@ export default function AudioRecorder({ onStopRecording, onCancel }) {
   async function stop() {
     try {
       await recorder.stop();
-      onStopRecording(recorder.uri);
+      const uri = recorder.uri;
+      if (!uri) {
+        onCancel();
+        return;
+      }
+      onStopRecording(uri);
     } catch {
       onCancel();
     }

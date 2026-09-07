@@ -1,6 +1,9 @@
+import { File } from 'expo-file-system';
+import { mimeFromFileName } from '../constants/studyFiles';
+
 const API_CONFIG = {
   BASE_URL: process.env.EXPO_PUBLIC_FLASK_API_URL || inferFlaskUrl(),
-  TIMEOUT: 90000,
+  TIMEOUT: 120000,
 };
 
 const ENDPOINTS = {
@@ -40,20 +43,35 @@ function buildUrl(endpoint) {
   return `${API_CONFIG.BASE_URL}${endpoint}`;
 }
 
+function isNetworkFailure(error) {
+  const message = String(error?.message || error || '');
+  return /failed to fetch|network request failed|network error|network/i.test(message);
+}
+
 function parseError(error, response = null) {
-  if (error.message === 'Request timeout' || String(error.message || '').includes('timeout')) {
+  const message = String(error?.message || error || '');
+
+  if (message === 'Request timeout' || /timeout|aborted/i.test(message)) {
     return {
       type: ErrorTypes.TIMEOUT,
       message: 'The request took too long. Try a shorter voice note or a smaller file.',
-      technicalError: error.message,
+      technicalError: message,
     };
   }
 
-  if (error.message === 'Failed to fetch' || String(error.message || '').includes('Network') || !response) {
+  if (/could not read|attachment|missing from device|empty/i.test(message)) {
+    return {
+      type: ErrorTypes.VALIDATION,
+      message: message,
+      technicalError: message,
+    };
+  }
+
+  if (isNetworkFailure(error) || !response) {
     return {
       type: ErrorTypes.NETWORK,
       message: `Cannot reach Smart Learn at ${API_CONFIG.BASE_URL}. Start Flask and check the IP in .env.`,
-      technicalError: error.message,
+      technicalError: message,
     };
   }
 
@@ -62,7 +80,7 @@ function parseError(error, response = null) {
     case 400:
       return { type: ErrorTypes.VALIDATION, message: 'Invalid request. Check the photo or voice note and try again.', technicalError: 'Bad Request', statusCode: status };
     case 413:
-      return { type: ErrorTypes.VALIDATION, message: 'That file is too large. Try a shorter recording.', technicalError: 'Payload Too Large', statusCode: status };
+      return { type: ErrorTypes.VALIDATION, message: 'That file is too large. Try a shorter recording or a smaller file.', technicalError: 'Payload Too Large', statusCode: status };
     case 429:
       return { type: ErrorTypes.SERVER, message: 'Too many requests. Wait a moment and try again.', technicalError: 'Rate Limit Exceeded', statusCode: status };
     case 500:
@@ -87,21 +105,81 @@ function validateMessageData(messageData) {
   return true;
 }
 
-function getAudioFile(uri) {
-  const lower = String(uri || '').toLowerCase();
-  if (lower.includes('.wav')) {
-    return { uri, type: 'audio/wav', name: `audio_${Date.now()}.wav` };
+function normalizeFileUri(uri) {
+  if (!uri) return '';
+  const value = String(uri);
+  if (
+    value.startsWith('file://') ||
+    value.startsWith('content://') ||
+    value.startsWith('ph://') ||
+    value.startsWith('assets-library://') ||
+    value.startsWith('http://') ||
+    value.startsWith('https://')
+  ) {
+    return value;
   }
-  if (lower.includes('.mp3')) {
-    return { uri, type: 'audio/mpeg', name: `audio_${Date.now()}.mp3` };
-  }
-  if (lower.includes('.webm')) {
-    return { uri, type: 'audio/webm', name: `audio_${Date.now()}.webm` };
-  }
-  return { uri, type: 'audio/aac', name: `audio_${Date.now()}.m4a` };
+  if (value.startsWith('/')) return `file://${value}`;
+  return value;
 }
 
-function createChatFormData(messageData, conversationId, extras = {}) {
+function guessName(uri, fallback) {
+  try {
+    const part = String(uri).split('?')[0].split('/').pop();
+    if (part && part.includes('.')) return decodeURIComponent(part);
+  } catch {
+    /* keep fallback */
+  }
+  return fallback;
+}
+
+function normalizeMime(mime, name, fallback) {
+  const value = String(mime || '').toLowerCase();
+  if (value === 'image/jpg') return 'image/jpeg';
+  if (value && value !== 'application/octet-stream') return value;
+  return mimeFromFileName(name, fallback);
+}
+
+async function readAttachment(uri, name, mime, fallbackName, fallbackMime) {
+  const normalized = normalizeFileUri(uri);
+  if (!normalized) {
+    throw new Error('That attachment could not be read. Pick the file again.');
+  }
+
+  const finalName = name || guessName(normalized, fallbackName);
+  const finalMime = normalizeMime(mime, finalName, fallbackMime);
+
+  try {
+    const file = new File(normalized);
+    if (file.exists) {
+      const base64 = await file.base64();
+      if (!base64) throw new Error('That attachment is empty. Pick the file again.');
+      return { base64, name: finalName, mime: finalMime };
+    }
+  } catch (error) {
+    if (/empty/i.test(String(error?.message || ''))) throw error;
+  }
+
+  const FileSystem = require('expo-file-system/legacy');
+  const info = await FileSystem.getInfoAsync(normalized);
+  if (!info.exists) {
+    throw new Error('That attachment is missing from device storage. Pick it again.');
+  }
+  const base64 = await FileSystem.readAsStringAsync(normalized, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  if (!base64) {
+    throw new Error('That attachment is empty. Pick the file again.');
+  }
+  return { base64, name: finalName, mime: finalMime };
+}
+
+function appendEncodedFile(formData, field, attachment) {
+  formData.append(`${field}_base64`, attachment.base64);
+  formData.append(`${field}_name`, attachment.name);
+  formData.append(`${field}_mime`, attachment.mime);
+}
+
+async function createChatFormData(messageData, conversationId, extras = {}) {
   const formData = new FormData();
 
   if (conversationId) formData.append('conversation_id', conversationId);
@@ -109,64 +187,43 @@ function createChatFormData(messageData, conversationId, extras = {}) {
   if (extras.sessionMode) formData.append('session_mode', extras.sessionMode);
   if (messageData.text?.trim()) formData.append('message', messageData.text.trim());
 
-  switch (messageData.type) {
-    case 'image':
-      if (messageData.images?.[0]?.uri) {
-        const image = messageData.images[0];
-        formData.append('image', {
-          uri: image.uri,
-          type: image.mimeType || image.type || 'image/jpeg',
-          name: image.fileName || `image_${Date.now()}.jpg`,
-        });
-      }
-      break;
-
-    case 'audio':
-      if (messageData.audioUri) {
-        formData.append('audio', getAudioFile(messageData.audioUri));
-      }
-      break;
-
-    case 'multimodal':
-      if (messageData.images?.[0]?.uri) {
-        const image = messageData.images[0];
-        formData.append('image', {
-          uri: image.uri,
-          type: image.mimeType || image.type || 'image/jpeg',
-          name: image.fileName || `image_${Date.now()}.jpg`,
-        });
-      }
-      if (messageData.audioUri) {
-        formData.append('audio', getAudioFile(messageData.audioUri));
-      }
-      break;
-
-    case 'document':
-      if (messageData.documentUri) {
-        formData.append('document', {
-          uri: messageData.documentUri,
-          type: messageData.documentMimeType || 'application/pdf',
-          name: messageData.documentName || `notes_${Date.now()}.pdf`,
-        });
-      }
-      break;
-
-    default:
-      break;
+  if (messageData.images?.[0]?.uri) {
+    const image = messageData.images[0];
+    appendEncodedFile(formData, 'image', await readAttachment(
+      image.uri,
+      image.fileName || image.name,
+      image.mimeType || image.type,
+      `image_${Date.now()}.jpg`,
+      'image/jpeg'
+    ));
   }
 
-  if (messageData.audioUri && messageData.type !== 'audio' && messageData.type !== 'multimodal') {
-    formData.append('audio', getAudioFile(messageData.audioUri));
+  if (messageData.audioUri) {
+    appendEncodedFile(formData, 'audio', await readAttachment(
+      messageData.audioUri,
+      guessName(messageData.audioUri, `audio_${Date.now()}.m4a`),
+      'audio/aac',
+      `audio_${Date.now()}.m4a`,
+      'audio/aac'
+    ));
   }
-  if (messageData.documentUri && messageData.type !== 'document') {
-    formData.append('document', {
-      uri: messageData.documentUri,
-      type: messageData.documentMimeType || 'application/pdf',
-      name: messageData.documentName || `notes_${Date.now()}.pdf`,
-    });
+
+  if (messageData.documentUri) {
+    appendEncodedFile(formData, 'document', await readAttachment(
+      messageData.documentUri,
+      messageData.documentName,
+      messageData.documentMimeType,
+      `notes_${Date.now()}.pdf`,
+      'application/pdf'
+    ));
   }
 
   return formData;
+}
+
+async function parseJsonResponse(response) {
+  const data = await response.json().catch(() => ({}));
+  return data;
 }
 
 const ApiService = {
@@ -190,12 +247,12 @@ const ApiService = {
   sendChatMessage: async (messageData, conversationId, extras = {}) => {
     try {
       validateMessageData(messageData);
-      const formData = createChatFormData(messageData, conversationId, extras);
+      const formData = await createChatFormData(messageData, conversationId, extras);
       const response = await fetchWithTimeout(buildUrl(ENDPOINTS.CHATBOT), {
         method: 'POST',
         body: formData,
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await parseJsonResponse(response);
 
       if (!response.ok) {
         const parsedError = parseError(new Error(data.error || 'Request failed'), response);
@@ -249,12 +306,12 @@ const ApiService = {
     };
     try {
       validateMessageData(messageData);
-      const formData = createChatFormData(messageData, `solver_${Date.now()}`, { mode: 'solver' });
+      const formData = await createChatFormData(messageData, `solver_${Date.now()}`, { mode: 'solver' });
       const response = await fetchWithTimeout(buildUrl(ENDPOINTS.SOLVER), {
         method: 'POST',
         body: formData,
       });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await parseJsonResponse(response);
       if (!response.ok || payload.status === 'error' || !payload.data) {
         return {
           success: false,
@@ -277,7 +334,7 @@ const ApiService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversationId }),
       }, 8000);
-      const data = await response.json().catch(() => ({}));
+      const data = await parseJsonResponse(response);
       return { success: data.status === 'success', message: data.message };
     } catch (error) {
       return { success: false, message: parseError(error).message };

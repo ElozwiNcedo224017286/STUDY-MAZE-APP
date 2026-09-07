@@ -91,7 +91,8 @@ export default function SmartSolverScreen({ navigation }) {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: false,
-      quality: 1,
+      quality: 0.8,
+      preferredAssetRepresentationMode: 'compatible',
     });
     if (result.canceled) return;
     setSelectedImage({ uri: result.assets[0].uri });

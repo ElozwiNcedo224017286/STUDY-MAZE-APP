@@ -5,8 +5,12 @@ from datetime import datetime
 import os
 import tempfile
 import time
+import base64
+from io import BytesIO
 from dotenv import load_dotenv
 import json
+from werkzeug.datastructures import FileStorage
+from werkzeug.exceptions import RequestEntityTooLarge
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR = os.path.dirname(_BACKEND_DIR)
@@ -15,6 +19,16 @@ load_dotenv(os.path.join(_ROOT_DIR, ".env"), override=True)
 
 app = Flask(__name__)
 CORS(app)
+app.config["MAX_CONTENT_LENGTH"] = 40 * 1024 * 1024
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def too_large(_error):
+    return jsonify({
+        "error": "payload_too_large",
+        "response": "That file is too large. Try a shorter recording or a smaller file.",
+        "status": "error",
+    }), 413
 
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 if not GEMINI_API_KEY:
@@ -125,6 +139,36 @@ def detect_document_mime(filename):
     return "application/pdf"
 
 
+def file_from_request(field_name):
+    uploaded = request.files.get(field_name)
+    if uploaded and uploaded.filename:
+        return uploaded
+
+    raw = request.form.get(f"{field_name}_base64")
+    if not raw:
+        return None
+    try:
+        data = base64.b64decode(raw)
+    except Exception:
+        raise ValueError(f"{field_name}_upload_failed")
+    if not data:
+        return None
+    filename = request.form.get(f"{field_name}_name") or f"{field_name}.bin"
+    mime = request.form.get(f"{field_name}_mime") or "application/octet-stream"
+    return FileStorage(stream=BytesIO(data), filename=filename, content_type=mime)
+
+
+def wait_until_active(uploaded, timeout=45):
+    current = uploaded
+    start = time.time()
+    while getattr(getattr(current, "state", None), "name", "") == "PROCESSING":
+        if time.time() - start > timeout:
+            break
+        time.sleep(0.4)
+        current = genai.get_file(current.name)
+    return current
+
+
 def upload_temp_file(file_storage, suffix, mime_type):
     temp_path = None
     try:
@@ -134,7 +178,7 @@ def upload_temp_file(file_storage, suffix, mime_type):
             temp_file.write(data)
             temp_path = temp_file.name
         uploaded = genai.upload_file(path=temp_path, mime_type=mime_type)
-        return uploaded
+        return wait_until_active(uploaded)
     finally:
         if temp_path and os.path.exists(temp_path):
             try:
@@ -274,9 +318,13 @@ def run_chat(mode="tutor"):
         user_input = (request.form.get("message") or "").strip()
         conversation_id = request.form.get("conversation_id") or ""
         session_mode = request.form.get("session_mode") or "general"
-        audio_file = request.files.get("audio")
-        image_file = request.files.get("image")
-        document_file = request.files.get("document")
+        audio_file = file_from_request("audio")
+        image_file = file_from_request("image")
+        document_file = file_from_request("document")
+        print(
+            f"[chatbot] text={bool(user_input)} audio={bool(audio_file)} "
+            f"image={bool(image_file)} document={bool(document_file)}"
+        )
 
         if not user_input and not audio_file and not image_file and not document_file:
             return jsonify({
@@ -340,7 +388,9 @@ def run_chat(mode="tutor"):
         code = str(error)
         messages = {
             "image_upload_failed": "I could not read that image. Try JPEG or PNG.",
+            "audio_upload_failed": "I could not process that voice note. Please try again.",
             "audio_processing_failed": "I could not process that voice note. Please try again.",
+            "document_upload_failed": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
             "document_error": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
         }
         return jsonify({
@@ -413,7 +463,7 @@ def solver_response():
     start_time = time.time()
     try:
         user_input = (request.form.get("message") or "").strip()
-        image_file = request.files.get("image")
+        image_file = file_from_request("image")
         if not user_input and not image_file:
             return jsonify({
                 "error": "no_input",
@@ -489,4 +539,4 @@ def clear_session():
 
 if __name__ == "__main__":
     print("Study Maze Smart Learn backend → http://0.0.0.0:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)

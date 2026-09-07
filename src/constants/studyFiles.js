@@ -30,6 +30,18 @@ const MIME_BY_EXT = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   odt: 'application/vnd.oasis.opendocument.text',
   odp: 'application/vnd.oasis.opendocument.presentation',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+  m4a: 'audio/aac',
+  aac: 'audio/aac',
+  caf: 'audio/aac',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  mp4: 'audio/mp4',
 };
 
 export function mimeFromFileName(name, fallback = 'application/pdf') {
