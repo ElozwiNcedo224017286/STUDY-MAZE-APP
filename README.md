@@ -1,209 +1,46 @@
 # Study Maze
 
-Study Maze is an Expo / React Native learning app with student and teacher flows, learning games, AI study tools, and Supabase-backed progress.
+Study Maze is an Expo / React Native learning app. The mobile app is already expected to be set up on your machine. This README focuses on running the Python Flask backend correctly and making sure the app connects to it.
 
-The app includes:
+The Flask backend powers the AI features:
 
-- Student and teacher authentication
-- Maze Runner, Quiz Rush, and Memory Flip games
-- Coins, scores, streaks, and profile progress
-- Teacher-created quizzes
-- Study notes and class features
 - Maze Mentor chat
-- Smart Solver for photographed questions
-- Optional AI question generation from uploaded study material
+- Smart Solver
+- Image, audio, and document study help
 
-## Tech Stack
+## Backend Requirements
 
-- **Expo / React Native** for the mobile app
-- **Supabase** for Auth, Postgres, Storage, profiles, roles, scores, and quizzes
-- **Flask** for the local Smart Learn AI backend
-- **Gemini API** for Maze Mentor and Smart Solver
-- **Supabase Edge Functions** with OpenAI for optional quiz generation from slides
+Install Python first if you do not already have it:
 
-## Requirements
+- Python download: https://www.python.org/downloads/
+- pip installation guide: https://pip.pypa.io/en/stable/installation/
+- Gemini API key guide: https://ai.google.dev/gemini-api/docs/api-key
 
-Install these before running the project:
+Python 3.10 or newer is recommended.
 
-- Node.js and npm
-- Expo Go on your phone, or an Android emulator
-- Python 3.10 or newer
-- A Supabase project
-- A Gemini API key if you want AI tutor / solver features
-- An OpenAI API key if you want teacher slide-to-quiz generation
-
-## Project Structure
-
-```text
-.
-|-- App.js
-|-- app.json
-|-- package.json
-|-- src/
-|   |-- api/
-|   |-- components/
-|   |-- context/
-|   |-- navigation/
-|   |-- screens/
-|   `-- services/
-|-- backend/
-|   |-- app.py
-|   |-- requirements.txt
-|   `-- system_instructions.txt
-|-- supabase/
-|   |-- schema.sql
-|   `-- functions/
-`-- assets/
-```
-
-## 1. Clone Or Open The Project
-
-Open a terminal in the project folder:
+Check Python:
 
 ```powershell
-cd C:\PROJECTS\github\STUDY-MAZE-APP
+py --version
 ```
 
-## 2. Install App Dependencies
-
-Install the JavaScript dependencies:
+Check pip:
 
 ```powershell
-npm install
+py -m pip --version
 ```
 
-This installs Expo, React Native, Supabase, navigation, camera, audio, file picker, and other app dependencies.
+## 1. Open The Backend Folder
 
-## 3. Configure Environment Variables
-
-Create a `.env` file in the project root. You can copy `.env.example` and fill in your own values.
-
-```env
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
-EXPO_PUBLIC_TEACHER_CODE=TEACH2024
-
-EXPO_PUBLIC_FLASK_API_URL=http://YOUR_COMPUTER_IP:5000
-```
-
-### Important Notes
-
-- Expo only exposes environment variables that start with `EXPO_PUBLIC_`.
-- Restart Expo after changing `.env`.
-- Do not add a space before URLs.
-- If you are using a real phone, your phone and computer must be on the same Wi-Fi network.
-
-### Finding Your Computer IP On Windows
-
-Run:
-
-```powershell
-ipconfig
-```
-
-Find the `IPv4 Address`, then use it in `.env`:
-
-```env
-EXPO_PUBLIC_FLASK_API_URL=http://192.168.68.113:5000
-```
-
-For Android emulator, use:
-
-```env
-EXPO_PUBLIC_FLASK_API_URL=http://10.0.2.2:5000
-```
-
-For local web testing, use:
-
-```env
-EXPO_PUBLIC_FLASK_API_URL=http://127.0.0.1:5000
-```
-
-## 4. Set Up Supabase
-
-The app uses Supabase for:
-
-- Login and registration
-- Student / teacher roles
-- User profiles
-- Game scores
-- Coins and progress
-- Teacher quizzes
-- Test attempts
-- Avatar storage
-
-### Create The Database
-
-1. Create a Supabase project.
-2. Open the Supabase SQL Editor.
-3. Copy the contents of `supabase/schema.sql`.
-4. Run the SQL in your Supabase project.
-5. Copy your Supabase URL and anon key into `.env`.
-
-### Auth Settings
-
-The app uses email and password authentication.
-
-If email confirmation is enabled in Supabase, new users must confirm their email before logging in. For demos or local testing, you may want to disable email confirmation in:
-
-```text
-Supabase Dashboard > Authentication > Providers > Email
-```
-
-### Teacher Accounts
-
-Teacher registration is controlled by:
-
-```env
-EXPO_PUBLIC_TEACHER_CODE=TEACH2024
-```
-
-When registering as a teacher, enter that code in the app.
-
-## 5. Run The Expo App
-
-Start the Expo development server:
-
-```powershell
-npm start
-```
-
-or:
-
-```powershell
-npx expo start --clear
-```
-
-Expo will show a QR code and a command menu.
-
-Common options:
-
-- Scan the QR code with Expo Go on your phone
-- Press `a` to open Android
-- Press `w` to open web
-- Press `r` to reload the app
-
-The available npm scripts are:
-
-```powershell
-npm run android
-npm run web
-npm run ios
-```
-
-`npm run ios` requires macOS and an iOS simulator.
-
-## 6. Run The Flask Smart Learn Backend
-
-The AI tutor and solver features call the Flask backend in `backend/app.py`.
-
-Open a second terminal:
+From the project root:
 
 ```powershell
 cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
 ```
 
-Create a virtual environment:
+## 2. Create A Virtual Environment
+
+Create a local Python environment for the backend:
 
 ```powershell
 py -m venv .venv
@@ -215,87 +52,137 @@ Activate it:
 .\.venv\Scripts\Activate.ps1
 ```
 
-Install Python dependencies:
+After activation, your terminal should show `(.venv)` at the start of the line.
+
+If PowerShell blocks activation, run:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Then activate again:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+## 3. Install Python Dependencies
+
+Install everything listed in `backend/requirements.txt`:
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-Create `backend/.env` and add your Gemini key:
+This installs:
+
+- Flask
+- Flask CORS
+- Google GenAI SDK
+- python-dotenv
+
+## 4. Add The Gemini API Key
+
+Create a file called `.env` inside the `backend` folder:
+
+```text
+backend/.env
+```
+
+Add your Gemini key:
 
 ```env
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
-You may also place `GEMINI_API_KEY` in the root `.env`; the backend loads both `backend/.env` and the root `.env`.
+The backend will not run AI requests correctly without this key.
 
-Start the backend:
+## 5. Start The Flask Backend
+
+Make sure you are still inside the backend folder:
+
+```powershell
+cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
+```
+
+Start Flask:
 
 ```powershell
 py app.py
 ```
 
-The backend runs at:
+If it starts correctly, you should see something like:
 
 ```text
-http://0.0.0.0:5000
+Study Maze Smart Learn backend -> http://0.0.0.0:5000
 ```
 
-Test it:
+Keep this terminal open while using the app.
+
+## 6. Test The Backend
+
+Open a second terminal and run:
 
 ```powershell
 curl http://127.0.0.1:5000/health
 ```
 
-If it works, you should receive a JSON response showing that the Study Maze Smart Learn API is running.
+You should get a JSON response saying the Study Maze Smart Learn API is running.
 
-## 7. Optional: Deploy AI Question Generation
+If this works, the Flask backend is running correctly.
 
-The Teacher Dashboard can generate quiz questions from uploaded slides using the Supabase Edge Function:
+## 7. Connect The App To Flask
+
+The app reads the Flask URL from the root `.env` file:
 
 ```text
-supabase/functions/generate-questions/index.ts
+C:\PROJECTS\github\STUDY-MAZE-APP\.env
 ```
 
-This feature requires an OpenAI API key.
+Set this value:
 
-Install the Supabase CLI:
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://YOUR_COMPUTER_IP:5000
+```
+
+Example:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://192.168.68.113:5000
+```
+
+Important:
+
+- Do not put a space before `http`.
+- Your phone and computer must be on the same Wi-Fi.
+- Use your computer's IPv4 address, not `localhost`, when testing on a real phone.
+- Restart Expo after changing `.env`.
+
+Find your computer IP:
 
 ```powershell
-npm i -g supabase
+ipconfig
 ```
 
-Login:
+Use the `IPv4 Address`.
 
-```powershell
-supabase login
+For Android emulator, use:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://10.0.2.2:5000
 ```
 
-Link your Supabase project:
+For browser/web testing, use:
 
-```powershell
-supabase link --project-ref your-project-ref
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://127.0.0.1:5000
 ```
 
-Set the OpenAI secret:
-
-```powershell
-supabase secrets set OPENAI_API_KEY=sk-your-key
-```
-
-Deploy the function:
-
-```powershell
-supabase functions deploy generate-questions
-```
-
-Until this function is deployed, manual quiz creation still works, but AI generation from slides will not.
-
-## Quick Start
+## 8. Run The App And Backend Together
 
 Use two terminals.
 
-Terminal 1, start the AI backend:
+Terminal 1, run Flask:
 
 ```powershell
 cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
@@ -303,66 +190,84 @@ cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
 py app.py
 ```
 
-Terminal 2, start the mobile app:
+Terminal 2, run Expo:
 
 ```powershell
 cd C:\PROJECTS\github\STUDY-MAZE-APP
 npx expo start --clear
 ```
 
-Then scan the QR code with Expo Go or press `a` for Android.
+Then open the app with Expo Go or an emulator.
 
-## Troubleshooting
+The flow is:
 
-### Supabase Is Not Configured
-
-Check that `.env` contains:
-
-```env
-EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
+```text
+Study Maze app -> EXPO_PUBLIC_FLASK_API_URL -> Flask backend -> Gemini API
 ```
 
-Then restart Expo.
+So when a student uses Maze Mentor or Smart Solver:
 
-### Phone Cannot Reach Smart Learn
+1. The app sends the message, image, audio, or document to Flask.
+2. Flask sends the request to Gemini.
+3. Gemini returns the AI response.
+4. Flask sends the response back to the app.
 
-Check:
+## Common Problems
 
-- Flask is running
-- Your phone and computer are on the same Wi-Fi
-- `EXPO_PUBLIC_FLASK_API_URL` uses your computer IPv4 address
-- Windows Firewall allows Python
-- There is no extra space before the URL in `.env`
+### Flask Starts But AI Does Not Work
 
-### AI Tutor Or Solver Says API Key Is Missing
-
-Add this to `backend/.env`:
+Check `backend/.env`:
 
 ```env
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
-Then restart Flask.
+Restart Flask after editing the file.
 
-### New User Cannot Log In
+### App Says It Cannot Reach Smart Learn
 
-If Supabase email confirmation is enabled, confirm the email first or disable confirmation for local demos.
+Check that:
 
-### Environment Changes Are Not Working
+- Flask is still running
+- The root `.env` has the correct `EXPO_PUBLIC_FLASK_API_URL`
+- Your phone and computer are on the same Wi-Fi
+- You used your computer IPv4 address
+- Windows Firewall is not blocking Python
 
-Stop Expo and restart it:
+### Backend Health Check Fails
+
+Make sure Flask is running:
+
+```powershell
+py app.py
+```
+
+Then test again:
+
+```powershell
+curl http://127.0.0.1:5000/health
+```
+
+### Environment Changes Are Not Updating
+
+Restart Expo:
 
 ```powershell
 npx expo start --clear
 ```
 
-## Useful Files
+Restart Flask:
 
-- `src/api/supabase.js` - Supabase client setup
-- `src/api/client.js` - Quiz and Supabase data API
-- `src/api/ai.js` - Flask Smart Learn API client
-- `src/context/AuthContext.js` - Auth, roles, progress, and profile state
-- `backend/app.py` - Flask AI backend
-- `supabase/schema.sql` - Database schema
-- `supabase/functions/generate-questions/index.ts` - AI quiz generation function
+```powershell
+py app.py
+```
+
+## Main Files
+
+- `backend/app.py` - Flask backend
+- `backend/requirements.txt` - Python dependencies
+- `backend/system_instructions.txt` - AI tutor instructions
+- `src/api/ai.js` - Mobile app client that calls Flask
+- `.env` - App environment variables
+- `backend/.env` - Backend environment variables
+
