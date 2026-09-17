@@ -171,6 +171,166 @@ export const api = {
     return { imageUrl };
   },
 
+  uploadStudentSlides: async (file) => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error('You must be signed in.');
+    }
+
+    if (!file?.uri) {
+      throw new Error('No PDF was selected.');
+    }
+
+    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const storagePath = `${user.id}/${uploadId}.pdf`;
+
+    const response = await fetch(file.uri);
+
+    if (!response.ok) {
+      throw new Error('Could not read the selected PDF.');
+    }
+
+    const pdfData = await response.arrayBuffer();
+
+    const { error: uploadError } = await supabase.storage
+      .from('student-slides')
+      .upload(storagePath, pdfData, {
+        contentType: 'application/pdf',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(
+        uploadError.message || 'Could not upload your PDF.'
+      );
+    }
+
+    const { data, error: insertError } = await supabase
+      .from('student_uploads')
+      .insert({
+        student_id: user.id,
+        title: file.name || 'Study slides',
+        file_name: file.name || 'study-slides.pdf',
+        storage_path: storagePath,
+        file_size: file.size || null,
+        status: 'uploaded',
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      // Remove the uploaded file if the database record fails.
+      await supabase.storage
+        .from('student-slides')
+        .remove([storagePath]);
+
+      throw new Error(
+        insertError.message || 'Could not save your upload.'
+      );
+    }
+
+    return {
+      upload: data,
+      storagePath,
+    };
+  },
+
+    validateStudentUpload: async (uploadId) => {
+    if (!uploadId) {
+      throw new Error('Upload ID is required.');
+    }
+
+    const { data, error } = await supabase.functions.invoke(
+      'validate-student-upload',
+      {
+        body: {
+          upload_id: uploadId,
+        },
+      }
+    );
+
+    if (error) {
+      throw new Error(
+        error.message || 'Could not validate your PDF.'
+      );
+    }
+
+    if (!data?.valid) {
+      throw new Error(
+        data?.error || 'Your PDF did not pass validation.'
+      );
+    }
+
+    return data;
+  },
+
+  generateStudyNotes: async (uploadId) => {
+    if (!uploadId) {
+      throw new Error('Upload ID is required.');
+    }
+
+    const { data, error } = await supabase.functions.invoke(
+      'generate-study-notes',
+      {
+        body: {
+          upload_id: uploadId,
+        },
+      }
+    );
+
+    if (error) {
+      throw new Error(
+        error.message || 'Could not generate study notes.'
+      );
+    }
+
+    if (!data?.success) {
+      throw new Error(
+        data?.error || 'Could not generate study notes.'
+      );
+    }
+
+    return data;
+  },
+
+  getStudentStudyNotes: async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error('You must be signed in.');
+    }
+
+    const { data, error } = await supabase
+      .from('study_notes')
+      .select(`
+        id,
+        upload_id,
+        summary,
+        key_concepts,
+        examples,
+        revision_summary,
+        created_at,
+        student_uploads (
+          id,
+          title,
+          file_name,
+          page_count,
+          created_at
+        )
+      `)
+      .eq('student_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(
+        error.message || 'Could not load your study notes.'
+      );
+    }
+
+    return data || [];
+  },
+
   getNotifications: async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('You must be signed in.');
