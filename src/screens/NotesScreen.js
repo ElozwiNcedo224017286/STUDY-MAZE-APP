@@ -62,7 +62,7 @@ export default function NotesScreen() {
       <ScreenHeader
         title="Study"
         titleHighlight="Notes"
-        subtitle="Share short summaries students can revise in the Learn tab."
+        subtitle="Share short summaries students can revise in Smart Learn."
       />
       <ScrollView
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]}

@@ -16,6 +16,8 @@ import MemoryFlipScreen from './src/screens/MemoryFlipScreen';
 import TeacherDashboardScreen from './src/screens/TeacherDashboardScreen';
 import ShopScreen from './src/screens/ShopScreen';
 import StreakScreen from './src/screens/StreakScreen';
+import StudyNotesScreen from './src/screens/StudyNotesScreen';
+import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -23,22 +25,65 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-      <StatusBar style="light" />
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Splash">
-          <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Auth" component={AuthScreen} />
-          <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
-          <Stack.Screen name="MazeGame" component={MazeGameScreen} />
-          <Stack.Screen name="MazeResult" component={MazeResultScreen} />
-          <Stack.Screen name="QuizRush" component={QuizRushScreen} />
-          <Stack.Screen name="MemoryFlip" component={MemoryFlipScreen} />
-          <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen name="TeacherDashboard" component={TeacherDashboardScreen} />
-          <Stack.Screen name="Shop" component={ShopScreen} />
-          <Stack.Screen name="Streak" component={StreakScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
+        <StatusBar style="dark" />
+
+        <NavigationContainer>
+          <Stack.Navigator
+            screenOptions={{ headerShown: false }}
+            initialRouteName="Splash"
+          >
+            <Stack.Screen name="Splash" component={SplashScreen} />
+            <Stack.Screen name="Auth" component={AuthScreen} />
+
+            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="Streak" component={StreakScreen} />
+
+            <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
+            <Stack.Screen name="MazeGame" component={MazeGameScreen} />
+            <Stack.Screen name="MazeResult" component={MazeResultScreen} />
+
+            <Stack.Screen name="QuizRush" component={QuizRushScreen} />
+            <Stack.Screen name="MemoryFlip" component={MemoryFlipScreen} />
+
+            <Stack.Screen
+              name="TeacherDashboard"
+              component={TeacherDashboardScreen}
+            />
+
+            <Stack.Screen name="Shop" component={ShopScreen} />
+
+            <Stack.Screen
+              name="MentorHub"
+              getComponent={() =>
+                require('./src/screens/MentorHubScreen').default
+              }
+            />
+
+            <Stack.Screen
+              name="TutorChat"
+              getComponent={() =>
+                require('./src/screens/TutorChatScreen').default
+              }
+            />
+
+            <Stack.Screen
+              name="SmartSolver"
+              getComponent={() =>
+                require('./src/screens/SmartSolverScreen').default
+              }
+            />
+
+            <Stack.Screen
+              name="StudyNotes"
+              component={StudyNotesScreen}
+            />
+
+            <Stack.Screen
+              name="SpeakingPractice"
+              component={SpeakingPracticeScreen}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
       </AuthProvider>
     </SafeAreaProvider>
   );

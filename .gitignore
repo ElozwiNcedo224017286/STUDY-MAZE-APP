@@ -17,3 +17,6 @@ web-build/
 
 # Supabase CLI temporary files
 supabase/.temp/
+backend/.env
+backend/venv/
+backend/__pycache__/

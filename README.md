@@ -1,71 +1,273 @@
 # Study Maze
 
-An Expo / React Native learning-games app (maze runner, quiz rush, memory flip) with student and teacher roles, backed by **Supabase** (Auth + Postgres + Storage).
+Study Maze is an Expo / React Native learning app. The mobile app is already expected to be set up on your machine. This README focuses on running the Python Flask backend correctly and making sure the app connects to it.
 
-## Getting started
+The Flask backend powers the AI features:
 
-```bash
-npm install
-npm start
+- Maze Mentor chat
+- Smart Solver
+- Image, audio, and document study help
+
+## Backend Requirements
+
+Install Python first if you do not already have it:
+
+- Python download: https://www.python.org/downloads/
+- pip installation guide: https://pip.pypa.io/en/stable/installation/
+- Gemini API key guide: https://ai.google.dev/gemini-api/docs/api-key
+
+Python 3.10 or newer is recommended.
+
+Check Python:
+
+```powershell
+py --version
 ```
 
-## Supabase
+Check pip:
 
-The app talks to Supabase directly via `@supabase/supabase-js` — there is no separate backend server.
-
-### Environment variables
-
-Credentials live in `.env` (git-ignored). `EXPO_PUBLIC_*` vars are inlined by Expo at build time, so **restart the dev server after editing `.env`.**
-
-```
-EXPO_PUBLIC_SUPABASE_URL="https://<project>.supabase.co"
-EXPO_PUBLIC_SUPABASE_ANON_KEY="<anon-key>"
-EXPO_PUBLIC_TEACHER_CODE="TEACH2024"   # code required to register a teacher account
+```powershell
+py -m pip --version
 ```
 
-### Database
+## 1. Open The Backend Folder
 
-The schema (in [`supabase/schema.sql`](supabase/schema.sql)) is already provisioned in the connected project. It uses:
+From the project root:
 
-- **Supabase Auth** (`auth.users`) for identity — accounts are email + password.
-- `profiles` / `user_roles` — auto-created on signup by the `handle_new_user` trigger, which reads `display_name` and `role` from the sign-up metadata the app sends.
-- `game_scores` — append-only; **the single source of truth for coins and scores.** Each finished game inserts a row. Coins shown in the app are the *earned total* (also what the leaderboard sums), so the Rewards Shop unlocks items once enough is earned rather than deducting a balance.
-- `tests` / `test_attempts` — teacher-authored quizzes; the app's "publish quiz to students" writes a `tests` row and the games read the latest one.
-- `avatars` storage bucket for profile pictures.
-
-### Auth settings
-
-- **Teacher signup:** anyone entering the correct `EXPO_PUBLIC_TEACHER_CODE` at registration is granted the `teacher` role (passed in signup metadata → `user_roles`). This is a client-side gate.
-- **Email confirmation:** if it's enabled in your Supabase project (Authentication → Providers → Email), a new account can't log in until the email is confirmed — the app shows a "check your email" message. Disable it in the dashboard for a friction-free demo.
-
-## How the app maps to the schema
-
-| App concept | Supabase |
-|---|---|
-| Login / register | `supabase.auth` (email + password) |
-| Player role | `user_roles` (`student` / `teacher` / `admin`) |
-| Coins / high score / unlocked level | aggregated from `game_scores` on each load |
-| Teacher publishes questions | insert into `tests`; games read the latest row |
-| AI "generate questions from slides" | Supabase Edge Function `generate-questions` (optional, see below) |
-
-Key files: [`src/api/supabase.js`](src/api/supabase.js) (client), [`src/api/client.js`](src/api/client.js) (quiz-bank API over `tests`), [`src/context/AuthContext.js`](src/context/AuthContext.js) (auth + progress).
-
-## AI question generation (Edge Function)
-
-The Teacher Dashboard's "Generate Questions from Slides" calls a Supabase **Edge Function** named `generate-questions`, implemented in [`supabase/functions/generate-questions/index.ts`](supabase/functions/generate-questions/index.ts). It reads the uploaded files (PDFs are sent to the model as file inputs; `.txt` as text — export PPTX to PDF first), asks **OpenAI** for 10 multiple-choice questions via structured outputs (`response_format` json_schema), and returns `{ questions: [{ subject, q, opts, correct }] }`.
-
-### Deploy it
-
-Easiest (no install): Supabase Dashboard → **Edge Functions** → create a function named `generate-questions`, paste the file contents, **Deploy**, then add the `OPENAI_API_KEY` secret under Edge Functions → Secrets.
-
-Or via CLI:
-
-```bash
-npm i -g supabase
-supabase login
-supabase link --project-ref zqhhslrhglcdkotetjtv
-supabase secrets set OPENAI_API_KEY=sk-...
-supabase functions deploy generate-questions
+```powershell
+cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
 ```
 
-The function uses `gpt-4o-mini` (cheap, supports PDF + JSON schema). Change the `MODEL` constant to `gpt-4o` for higher quality. Until the function is deployed, the generate button returns a clear error and everything else (manual question builder, notes, published, class) works without any API key.
+## 2. Create A Virtual Environment
+
+Create a local Python environment for the backend:
+
+```powershell
+py -m venv .venv
+```
+
+Activate it:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+After activation, your terminal should show `(.venv)` at the start of the line.
+
+If PowerShell blocks activation, run:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+Then activate again:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+## 3. Install Python Dependencies
+
+Install everything listed in `backend/requirements.txt`:
+
+```powershell
+pip install -r requirements.txt
+```
+
+This installs:
+
+- Flask
+- Flask CORS
+- Google GenAI SDK
+- python-dotenv
+
+## 4. Add The Gemini API Key
+
+Create a file called `.env` inside the `backend` folder:
+
+```text
+backend/.env
+```
+
+Add your Gemini key:
+
+```env
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+The backend will not run AI requests correctly without this key.
+
+## 5. Start The Flask Backend
+
+Make sure you are still inside the backend folder:
+
+```powershell
+cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
+```
+
+Start Flask:
+
+```powershell
+py app.py
+```
+
+If it starts correctly, you should see something like:
+
+```text
+Study Maze Smart Learn backend -> http://0.0.0.0:5000
+```
+
+Keep this terminal open while using the app.
+
+## 6. Test The Backend
+
+Open a second terminal and run:
+
+```powershell
+curl http://127.0.0.1:5000/health
+```
+
+You should get a JSON response saying the Study Maze Smart Learn API is running.
+
+If this works, the Flask backend is running correctly.
+
+## 7. Connect The App To Flask
+
+The app reads the Flask URL from the root `.env` file:
+
+```text
+C:\PROJECTS\github\STUDY-MAZE-APP\.env
+```
+
+Set this value:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://YOUR_COMPUTER_IP:5000
+```
+
+Example:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://192.168.68.113:5000
+```
+
+Important:
+
+- Do not put a space before `http`.
+- Your phone and computer must be on the same Wi-Fi.
+- Use your computer's IPv4 address, not `localhost`, when testing on a real phone.
+- Restart Expo after changing `.env`.
+
+Find your computer IP:
+
+```powershell
+ipconfig
+```
+
+Use the `IPv4 Address`.
+
+For Android emulator, use:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://10.0.2.2:5000
+```
+
+For browser/web testing, use:
+
+```env
+EXPO_PUBLIC_FLASK_API_URL=http://127.0.0.1:5000
+```
+
+## 8. Run The App And Backend Together
+
+Use two terminals.
+
+Terminal 1, run Flask:
+
+```powershell
+cd C:\PROJECTS\github\STUDY-MAZE-APP\backend
+.\.venv\Scripts\Activate.ps1
+py app.py
+```
+
+Terminal 2, run Expo:
+
+```powershell
+cd C:\PROJECTS\github\STUDY-MAZE-APP
+npx expo start --clear
+```
+
+Then open the app with Expo Go or an emulator.
+
+The flow is:
+
+```text
+Study Maze app -> EXPO_PUBLIC_FLASK_API_URL -> Flask backend -> Gemini API
+```
+
+So when a student uses Maze Mentor or Smart Solver:
+
+1. The app sends the message, image, audio, or document to Flask.
+2. Flask sends the request to Gemini.
+3. Gemini returns the AI response.
+4. Flask sends the response back to the app.
+
+## Common Problems
+
+### Flask Starts But AI Does Not Work
+
+Check `backend/.env`:
+
+```env
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+Restart Flask after editing the file.
+
+### App Says It Cannot Reach Smart Learn
+
+Check that:
+
+- Flask is still running
+- The root `.env` has the correct `EXPO_PUBLIC_FLASK_API_URL`
+- Your phone and computer are on the same Wi-Fi
+- You used your computer IPv4 address
+- Windows Firewall is not blocking Python
+
+### Backend Health Check Fails
+
+Make sure Flask is running:
+
+```powershell
+py app.py
+```
+
+Then test again:
+
+```powershell
+curl http://127.0.0.1:5000/health
+```
+
+### Environment Changes Are Not Updating
+
+Restart Expo:
+
+```powershell
+npx expo start --clear
+```
+
+Restart Flask:
+
+```powershell
+py app.py
+```
+
+## Main Files
+
+- `backend/app.py` - Flask backend
+- `backend/requirements.txt` - Python dependencies
+- `backend/system_instructions.txt` - AI tutor instructions
+- `src/api/ai.js` - Mobile app client that calls Flask
+- `.env` - App environment variables
+- `backend/.env` - Backend environment variables
+
