@@ -10,7 +10,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#F6F4FB"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.studymaze.app"
@@ -21,6 +23,9 @@
         "backgroundColor": "#F6F4FB"
       },
       "package": "com.studymaze.app"
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

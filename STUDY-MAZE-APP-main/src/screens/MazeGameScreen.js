@@ -25,7 +25,6 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../api/client';
 
 import {
   SUBJECTS,
@@ -35,7 +34,11 @@ import {
 } from './mazeData.js';
 
 import { buildActiveQuestionPool } from './quizBank';
-import { searchQuizAPISubject } from '../api/questions';
+
+import {
+  searchQuizAPISubject,
+  getQuizBank,
+} from '../api/questions';
 
 
 /* ==========================================================
@@ -140,6 +143,7 @@ export default function MazeGameScreen({ route, navigation }) {
   /* Quiz pool is NEVER drained — we cycle through it. */
   const quizPoolRef = useRef([]);
   const quizIndexRef = useRef(0);
+  const quizLoadingRef = useRef(false);
 
   const coinsRemainingRef = useRef(0);
   const quizRemainingRef = useRef(0);
@@ -158,6 +162,7 @@ export default function MazeGameScreen({ route, navigation }) {
   const [paused, setPaused] = useState(false);
   const [quizVisible, setQuizVisible] = useState(false);
   const [quizQuestion, setQuizQuestion] = useState(null);
+  const [quizLoading, setQuizLoading] = useState(false);
   const [quizFeedback, setQuizFeedback] = useState('');
   const [gameFinished, setGameFinished] = useState(false);
 
@@ -366,6 +371,52 @@ export default function MazeGameScreen({ route, navigation }) {
 
 
   /* ========================================================
+     LOAD QUESTION POOL (QuizAPI first, quizBank.js fallback)
+
+     Returns an array of questions in the Study Maze shape:
+       { id?, q, opts: string[], correct: number, ... }
+  ======================================================== */
+
+  const loadQuestionPool = useCallback(async () => {
+    /* 1. Try QuizAPI via questions.js */
+    try {
+      const result = await getQuizBank({
+        subject: selectedSubject,
+        difficulty: selectedDifficulty,
+      });
+
+      const questions = result?.questions || [];
+
+      if (questions.length > 0) {
+        return questions;
+      }
+
+      console.log(
+        'QuizAPI returned no questions for',
+        selectedSubject,
+        selectedDifficulty
+      );
+    } catch (error) {
+      console.log('QuizAPI fetch failed, falling back to quizBank.js:', error);
+    }
+
+    /* 2. Fallback: local quizBank.js */
+    const fallback = buildActiveQuestionPool(
+      [],
+      subjectInfo.shortName || subjectInfo.name || selectedSubject,
+      selectedDifficulty
+    );
+
+    return Array.isArray(fallback) ? fallback : [];
+  }, [
+    selectedSubject,
+    selectedDifficulty,
+    subjectInfo.shortName,
+    subjectInfo.name,
+  ]);
+
+
+  /* ========================================================
      INITIALIZE GAME
   ======================================================== */
 
@@ -402,11 +453,6 @@ export default function MazeGameScreen({ route, navigation }) {
 
     coinsRemainingRef.current = totalCoins;
 
-    /*
-     * The number of questions the player will encounter is
-     * exactly the number of QUIZ cells on the map. This makes
-     * the HUD counter accurate.
-     */
     const totalQuizCells =
       gridRef.current
         .flat()
@@ -415,10 +461,7 @@ export default function MazeGameScreen({ route, navigation }) {
     quizTotalRef.current = totalQuizCells;
     quizRemainingRef.current = totalQuizCells;
 
-    /*
-     * Reset the quiz pool. It is filled by the questions loader
-     * effect below once the API responds.
-     */
+    /* Reset the quiz pool. It will be filled below. */
     quizPoolRef.current = [];
     quizIndexRef.current = 0;
 
@@ -436,7 +479,7 @@ export default function MazeGameScreen({ route, navigation }) {
 
 
   /* ========================================================
-     LOAD QUESTIONS
+     LOAD QUESTIONS WHEN GAME STARTS
   ======================================================== */
 
   useEffect(() => {
@@ -445,42 +488,27 @@ export default function MazeGameScreen({ route, navigation }) {
 
     let alive = true;
 
-    const loadQuestions = async () => {
-      try {
-        const result = await api.getQuizBank({
-          subject: selectedSubject,
-          difficulty: selectedDifficulty,
-        });
+    const load = async () => {
+      quizLoadingRef.current = true;
 
-        const questions = result?.questions || result || [];
+      const pool = await loadQuestionPool();
 
-        if (!alive) return;
+      if (!alive) return;
 
-        const pool = buildActiveQuestionPool(
-          questions,
-          subjectInfo.shortName || subjectInfo.name || selectedSubject,
-          selectedDifficulty
-        );
+      quizPoolRef.current = pool;
+      quizIndexRef.current = 0;
+      quizLoadingRef.current = false;
 
-        quizPoolRef.current = Array.isArray(pool) ? pool : [];
-        quizIndexRef.current = 0;
-      } catch (error) {
-        console.log('Could not load quiz bank:', error);
-
-        if (!alive) return;
-
-        const pool = buildActiveQuestionPool(
-          [],
-          subjectInfo.shortName || subjectInfo.name || selectedSubject,
-          selectedDifficulty
-        );
-
-        quizPoolRef.current = Array.isArray(pool) ? pool : [];
-        quizIndexRef.current = 0;
-      }
+      console.log(
+        'Quiz pool ready:',
+        pool.length,
+        'questions for',
+        selectedSubject,
+        selectedDifficulty
+      );
     };
 
-    loadQuestions();
+    load();
 
     return () => {
       alive = false;
@@ -489,34 +517,42 @@ export default function MazeGameScreen({ route, navigation }) {
     screenMode,
     selectedSubject,
     selectedDifficulty,
-    subjectInfo.shortName,
-    subjectInfo.name,
+    loadQuestionPool,
   ]);
 
 
   /* ========================================================
      NEXT QUESTION
 
-     This NEVER drains the pool. It cycles through the pool,
-     wrapping around when the end is reached. If the pool is
-     empty, it attempts to rebuild it once from the API data
-     already cached (or returns a generic fallback question).
+     Never drains the pool. Cycles through it. If empty,
+     tries quizBank.js synchronously and kicks off a
+     background QuizAPI refetch.
   ======================================================== */
 
   const nextQuestion = useCallback(() => {
-    /* If the pool is empty, try to rebuild it once. */
+    /* Pool empty? Use local quizBank.js so the game never blocks. */
     if (!quizPoolRef.current || quizPoolRef.current.length === 0) {
-      const rebuilt = buildActiveQuestionPool(
+      const fallback = buildActiveQuestionPool(
         [],
         subjectInfo.shortName || subjectInfo.name || selectedSubject,
         selectedDifficulty
       );
 
-      quizPoolRef.current = Array.isArray(rebuilt) ? rebuilt : [];
+      quizPoolRef.current = Array.isArray(fallback) ? fallback : [];
       quizIndexRef.current = 0;
+
+      /* Background refill from QuizAPI (fire-and-forget). */
+      loadQuestionPool()
+        .then(pool => {
+          if (pool && pool.length > 0) {
+            quizPoolRef.current = pool;
+            quizIndexRef.current = 0;
+          }
+        })
+        .catch(() => {});
     }
 
-    /* Still empty — give the player a safe fallback. */
+    /* Still empty — safe fallback. */
     if (!quizPoolRef.current || quizPoolRef.current.length === 0) {
       return {
         q: 'No questions available for this subject yet. Choose any answer to continue.',
@@ -528,11 +564,18 @@ export default function MazeGameScreen({ route, navigation }) {
     /* Wrap around when we reach the end. */
     if (quizIndexRef.current >= quizPoolRef.current.length) {
       quizIndexRef.current = 0;
+
+      /* Refresh from QuizAPI in the background for next nodes. */
+      loadQuestionPool()
+        .then(pool => {
+          if (pool && pool.length > 0) {
+            quizPoolRef.current = pool;
+          }
+        })
+        .catch(() => {});
     }
 
-    const question =
-      quizPoolRef.current[quizIndexRef.current];
-
+    const question = quizPoolRef.current[quizIndexRef.current];
     quizIndexRef.current += 1;
 
     return question;
@@ -541,6 +584,7 @@ export default function MazeGameScreen({ route, navigation }) {
     subjectInfo.name,
     selectedSubject,
     selectedDifficulty,
+    loadQuestionPool,
   ]);
 
 
@@ -549,7 +593,7 @@ export default function MazeGameScreen({ route, navigation }) {
   ======================================================== */
 
   const openQuiz = useCallback(
-    cell => {
+    async cell => {
       if (
         awaitingQuizRef.current ||
         quizVisible ||
@@ -558,21 +602,28 @@ export default function MazeGameScreen({ route, navigation }) {
         return;
       }
 
-      const question = nextQuestion();
+      awaitingQuizRef.current = true;
 
-      /*
-       * nextQuestion() now always returns a question
-       * (real or fallback), so this should never happen.
-       * The guard is kept as a safety net.
-       */
-      if (!question) {
-        console.warn(
-          'nextQuestion returned null for:',
-          selectedSubject,
-          selectedDifficulty
-        );
-        return;
+      /* Show loader while we resolve the question. */
+      setQuizFeedback('');
+      setQuizQuestion(null);
+      setQuizLoading(true);
+      setQuizVisible(true);
+
+      /* If the pool is empty, try QuizAPI on demand. */
+      if (!quizPoolRef.current || quizPoolRef.current.length === 0) {
+        try {
+          const pool = await loadQuestionPool();
+          if (pool && pool.length > 0) {
+            quizPoolRef.current = pool;
+            quizIndexRef.current = 0;
+          }
+        } catch (error) {
+          console.log('On-demand QuizAPI fetch failed:', error);
+        }
       }
+
+      const question = nextQuestion();
 
       /* Mark cell visited immediately so it can't re-trigger. */
       if (gridRef.current?.[cell.r]) {
@@ -580,16 +631,14 @@ export default function MazeGameScreen({ route, navigation }) {
       }
 
       currentQuizCellRef.current = cell;
-      awaitingQuizRef.current = true;
       setQuizQuestion(question);
       setQuizFeedback('');
-      setQuizVisible(true);
+      setQuizLoading(false);
     },
     [
       quizVisible,
       nextQuestion,
-      selectedSubject,
-      selectedDifficulty,
+      loadQuestionPool,
     ]
   );
 
@@ -644,17 +693,11 @@ export default function MazeGameScreen({ route, navigation }) {
 
   /* ========================================================
      CHECK WIN
-
-     The player wins when every coin has been collected.
-     Quiz cells are optional bonus challenges, and the player
-     can still answer every one of them without blocking the
-     win (they can also finish after collecting all coins).
   ======================================================== */
 
   const checkWin = useCallback(() => {
     if (gameFinishedRef.current) return;
 
-    /* Wait until the quiz modal closes. */
     if (quizVisible || awaitingQuizRef.current) return;
 
     if (coinsRemainingRef.current <= 0) {
@@ -1429,311 +1472,305 @@ export default function MazeGameScreen({ route, navigation }) {
      DIFFICULTY SCREEN
   ======================================================== */
 
-  
-
-if (screenMode === 'difficulty') {
-  return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={backToDashboard}
-          >
-            <Ionicons
-              name="chevron-back"
-              size={21}
-              color={COLORS.textPrimary}
-            />
-          </TouchableOpacity>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.title}>Maze Runner</Text>
-            <Text style={styles.subtitle}>
-              Choose your challenge
-            </Text>
-          </View>
-        </View>
-
-        {/* Selected Subject */}
-        <View style={styles.subjectCard}>
-          <View style={styles.subjectIconBox}>
-            <Text style={styles.subjectIcon}>
-              {subjectInfo.icon || DEFAULT_SUBJECT_ICON}
-            </Text>
-          </View>
-
-          <View style={styles.subjectInfo}>
-            <Text style={styles.subjectLabel}>
-              SELECTED SUBJECT
-            </Text>
-
-            <Text style={styles.subjectName}>
-              {subjectInfo.name || selectedSubject}
-            </Text>
-          </View>
-
-          <Ionicons
-            name="checkmark-circle"
-            size={22}
-            color={COLORS.success}
-          />
-        </View>
-
-        {/* Difficulty Introduction */}
-        <LinearGradient
-          colors={COLORS.gradients.hero}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.difficultyHero}
+  if (screenMode === 'difficulty') {
+    return (
+      <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
         >
-          <View style={styles.difficultyHeroIcon}>
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={backToDashboard}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={21}
+                color={COLORS.textPrimary}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.headerInfo}>
+              <Text style={styles.title}>Maze Runner</Text>
+              <Text style={styles.subtitle}>
+                Choose your challenge
+              </Text>
+            </View>
+          </View>
+
+          {/* Selected Subject */}
+          <View style={styles.subjectCard}>
+            <View style={styles.subjectIconBox}>
+              <Text style={styles.subjectIcon}>
+                {subjectInfo.icon || DEFAULT_SUBJECT_ICON}
+              </Text>
+            </View>
+
+            <View style={styles.subjectInfo}>
+              <Text style={styles.subjectLabel}>
+                SELECTED SUBJECT
+              </Text>
+
+              <Text style={styles.subjectName}>
+                {subjectInfo.name || selectedSubject}
+              </Text>
+            </View>
+
             <Ionicons
-              name="game-controller"
-              size={25}
-              color={COLORS.accent}
+              name="checkmark-circle"
+              size={22}
+              color={COLORS.success}
             />
           </View>
 
-          <View style={styles.difficultyHeroContent}>
-            <Text style={styles.difficultyHeroTitle}>
-              Choose Your Difficulty
+          {/* Difficulty Introduction */}
+          <LinearGradient
+            colors={COLORS.gradients.hero}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.difficultyHero}
+          >
+            <View style={styles.difficultyHeroIcon}>
+              <Ionicons
+                name="game-controller"
+                size={25}
+                color={COLORS.accent}
+              />
+            </View>
+
+            <View style={styles.difficultyHeroContent}>
+              <Text style={styles.difficultyHeroTitle}>
+                Choose Your Difficulty
+              </Text>
+
+              <Text style={styles.difficultyHeroText}>
+                The harder the maze, the faster the ghosts
+                and the greater your coin rewards.
+              </Text>
+            </View>
+
+            <View style={styles.difficultyHeroBadge}>
+              <Ionicons
+                name="trophy"
+                size={14}
+                color={COLORS.accent}
+              />
+
+              <Text style={styles.difficultyHeroBadgeText}>
+                PLAY • LEARN • EARN
+              </Text>
+            </View>
+          </LinearGradient>
+
+          {/* Difficulty Title */}
+          <View style={styles.titleSection}>
+            <Text style={styles.difficultyTitle}>
+              Select a difficulty
             </Text>
 
-            <Text style={styles.difficultyHeroText}>
-              The harder the maze, the faster the ghosts
-              and the greater your coin rewards.
+            <Text style={styles.difficultySubtitle}>
+              Choose the challenge that matches your skill level.
             </Text>
           </View>
 
-          <View style={styles.difficultyHeroBadge}>
-            <Ionicons
-              name="trophy"
-              size={14}
-              color={COLORS.accent}
-            />
+          {/* Difficulty Cards */}
+          <View style={styles.difficultyList}>
+            {DIFFICULTIES.map(difficulty => {
+              const difficultyTheme = {
+                easy: {
+                  color: COLORS.success,
+                  icon: difficulty.icon || '🟢',
+                  ionicon: 'leaf',
+                },
 
-            <Text style={styles.difficultyHeroBadgeText}>
-              PLAY • LEARN • EARN
-            </Text>
-          </View>
-        </LinearGradient>
+                medium: {
+                  color: COLORS.accent,
+                  icon: difficulty.icon || '🟡',
+                  ionicon: 'flash',
+                },
 
-        {/* Difficulty Title */}
-        <View style={styles.titleSection}>
-          <Text style={styles.difficultyTitle}>
-            Select a difficulty
-          </Text>
+                hard: {
+                  color: COLORS.error || '#E85D5D',
+                  icon: difficulty.icon || '🔴',
+                  ionicon: 'flame',
+                },
 
-          <Text style={styles.difficultySubtitle}>
-            Choose the challenge that matches your skill level.
-          </Text>
-        </View>
+                expert: {
+                  color: '#A98BFF',
+                  icon: difficulty.icon || '🟣',
+                  ionicon: 'skull',
+                },
+              }[difficulty.id] || {
+                color: COLORS.primary,
+                icon: difficulty.icon || '🎮',
+                ionicon: 'game-controller',
+              };
 
-        {/* Difficulty Cards */}
-        <View style={styles.difficultyList}>
-          {DIFFICULTIES.map(difficulty => {
-            const difficultyTheme = {
-              easy: {
-                color: COLORS.success,
-                icon: difficulty.icon || '🟢',
-                ionicon: 'leaf',
-              },
-
-              medium: {
-                color: COLORS.accent,
-                icon: difficulty.icon || '🟡',
-                ionicon: 'flash',
-              },
-
-              hard: {
-                color: COLORS.error || '#E85D5D',
-                icon: difficulty.icon || '🔴',
-                ionicon: 'flame',
-              },
-
-              expert: {
-                color: '#A98BFF',
-                icon: difficulty.icon || '🟣',
-                ionicon: 'skull',
-              },
-            }[difficulty.id] || {
-              color: COLORS.primary,
-              icon: difficulty.icon || '🎮',
-              ionicon: 'game-controller',
-            };
-
-            return (
-              <TouchableOpacity
-                key={difficulty.id}
-                activeOpacity={0.85}
-                style={[
-                  styles.difficultyCard,
-                  {
-                    borderColor: difficultyTheme.color,
-                  },
-                ]}
-                onPress={() => chooseDifficulty(difficulty)}
-              >
-                {/* Difficulty Icon */}
-                <View
+              return (
+                <TouchableOpacity
+                  key={difficulty.id}
+                  activeOpacity={0.85}
                   style={[
-                    styles.difficultyIconBox,
+                    styles.difficultyCard,
                     {
-                      backgroundColor: difficultyTheme.color,
+                      borderColor: difficultyTheme.color,
                     },
                   ]}
+                  onPress={() => chooseDifficulty(difficulty)}
                 >
-                  <Text style={styles.difficultyIcon}>
-                    {difficultyTheme.icon}
-                  </Text>
+                  <View
+                    style={[
+                      styles.difficultyIconBox,
+                      {
+                        backgroundColor: difficultyTheme.color,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.difficultyIcon}>
+                      {difficultyTheme.icon}
+                    </Text>
 
-                  <View style={styles.difficultyIonIcon}>
+                    <View style={styles.difficultyIonIcon}>
+                      <Ionicons
+                        name={difficultyTheme.ionicon}
+                        size={12}
+                        color={COLORS.white}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.difficultyInfo}>
+                    <View style={styles.difficultyNameRow}>
+                      <Text style={styles.difficultyName}>
+                        {difficulty.name}
+                      </Text>
+
+                      <View
+                        style={[
+                          styles.difficultyTag,
+                          {
+                            backgroundColor: difficultyTheme.color,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.difficultyTagText}>
+                          {difficulty.id.toUpperCase()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={styles.difficultyDescription}>
+                      {getDifficultyDescription(difficulty)}
+                    </Text>
+
+                    <View style={styles.statsRow}>
+                      <View style={styles.statPill}>
+                        <Ionicons
+                          name="skull"
+                          size={11}
+                          color={difficultyTheme.color}
+                        />
+
+                        <Text
+                          style={[
+                            styles.stat,
+                            {
+                              color: difficultyTheme.color,
+                            },
+                          ]}
+                        >
+                          Ghosts
+                        </Text>
+                      </View>
+
+                      <View style={styles.statPill}>
+                        <Text style={styles.statCoin}>
+                          🪙
+                        </Text>
+
+                        <Text
+                          style={[
+                            styles.stat,
+                            {
+                              color: difficultyTheme.color,
+                            },
+                          ]}
+                        >
+                          +{difficulty.coinReward || 2}
+                        </Text>
+                      </View>
+
+                      <View style={styles.statPill}>
+                        <Ionicons
+                          name="speedometer"
+                          size={11}
+                          color={difficultyTheme.color}
+                        />
+
+                        <Text
+                          style={[
+                            styles.stat,
+                            {
+                              color: difficultyTheme.color,
+                            },
+                          ]}
+                        >
+                          {difficulty.ghostSpeed || 650}ms
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.difficultyArrow,
+                      {
+                        backgroundColor: difficultyTheme.color,
+                      },
+                    ]}
+                  >
                     <Ionicons
-                      name={difficultyTheme.ionicon}
-                      size={12}
+                      name="chevron-forward"
+                      size={17}
                       color={COLORS.white}
                     />
                   </View>
-                </View>
-
-                {/* Information */}
-                <View style={styles.difficultyInfo}>
-                  <View style={styles.difficultyNameRow}>
-                    <Text style={styles.difficultyName}>
-                      {difficulty.name}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.difficultyTag,
-                        {
-                          backgroundColor: difficultyTheme.color,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.difficultyTagText}>
-                        {difficulty.id.toUpperCase()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={styles.difficultyDescription}>
-                    {getDifficultyDescription(difficulty)}
-                  </Text>
-
-                  {/* Stats */}
-                  <View style={styles.statsRow}>
-                    <View style={styles.statPill}>
-                      <Ionicons
-                        name="skull"
-                        size={11}
-                        color={difficultyTheme.color}
-                      />
-
-                      <Text
-                        style={[
-                          styles.stat,
-                          {
-                            color: difficultyTheme.color,
-                          },
-                        ]}
-                      >
-                        Ghosts
-                      </Text>
-                    </View>
-
-                    <View style={styles.statPill}>
-                      <Text style={styles.statCoin}>
-                        🪙
-                      </Text>
-
-                      <Text
-                        style={[
-                          styles.stat,
-                          {
-                            color: difficultyTheme.color,
-                          },
-                        ]}
-                      >
-                        +{difficulty.coinReward || 2}
-                      </Text>
-                    </View>
-
-                    <View style={styles.statPill}>
-                      <Ionicons
-                        name="speedometer"
-                        size={11}
-                        color={difficultyTheme.color}
-                      />
-
-                      <Text
-                        style={[
-                          styles.stat,
-                          {
-                            color: difficultyTheme.color,
-                          },
-                        ]}
-                      >
-                        {difficulty.ghostSpeed || 650}ms
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Play Arrow */}
-                <View
-                  style={[
-                    styles.difficultyArrow,
-                    {
-                      backgroundColor: difficultyTheme.color,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color={COLORS.white}
-                  />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Reward Banner */}
-        <View style={styles.difficultyRewardBanner}>
-          <View style={styles.rewardIconBox}>
-            <Ionicons
-              name="trophy"
-              size={24}
-              color={COLORS.accent}
-            />
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          <View style={styles.rewardBannerContent}>
-            <Text style={styles.rewardBannerTitle}>
-              Bigger challenge, bigger rewards
-            </Text>
+          {/* Reward Banner */}
+          <View style={styles.difficultyRewardBanner}>
+            <View style={styles.rewardIconBox}>
+              <Ionicons
+                name="trophy"
+                size={24}
+                color={COLORS.accent}
+              />
+            </View>
 
-            <Text style={styles.rewardBannerText}>
-              Complete quizzes and collect coins while
-              making your way through the maze.
+            <View style={styles.rewardBannerContent}>
+              <Text style={styles.rewardBannerTitle}>
+                Bigger challenge, bigger rewards
+              </Text>
+
+              <Text style={styles.rewardBannerText}>
+                Complete quizzes and collect coins while
+                making your way through the maze.
+              </Text>
+            </View>
+
+            <Text style={styles.rewardBannerCoin}>
+              🪙
             </Text>
           </View>
-
-          <Text style={styles.rewardBannerCoin}>
-            🪙
-          </Text>
-        </View>
-      </ScrollView>
-    </View>
-  );
-}
+        </ScrollView>
+      </View>
+    );
+  }
 
 
   /* ========================================================
@@ -2042,7 +2079,17 @@ if (screenMode === 'difficulty') {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.quizCard}>
-            {quizQuestion && (
+            {quizLoading || !quizQuestion ? (
+              <View style={styles.quizLoadingBox}>
+                <ActivityIndicator
+                  size="large"
+                  color={COLORS.primary}
+                />
+                <Text style={styles.quizLoadingText}>
+                  Loading question from QuizAPI...
+                </Text>
+              </View>
+            ) : (
               <>
                 <Text style={styles.quizHeader}>
                   {subjectInfo.icon} {subjectInfo.name}
@@ -2632,26 +2679,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.white,
     borderRadius: 18,
-    padding: 14,
+    padding: 13,
     borderWidth: 2,
     ...SHADOWS.small,
   },
 
   difficultyIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    position: 'relative',
   },
 
   difficultyIcon: {
-    fontSize: 23,
+    fontSize: 25,
+  },
+
+  difficultyIonIcon: {
+    position: 'absolute',
+    right: 3,
+    bottom: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(26,16,48,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   difficultyInfo: {
     flex: 1,
+  },
+
+  difficultyNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
   },
 
   difficultyName: {
@@ -2660,31 +2727,101 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
+  difficultyTag: {
+    borderRadius: 7,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginLeft: 5,
+  },
+
+  difficultyTagText: {
+    color: COLORS.white,
+    fontSize: 6,
+    fontWeight: '900',
+  },
+
   difficultyDescription: {
     color: COLORS.textSecondary,
     fontSize: 9,
     lineHeight: 14,
-    marginTop: 3,
+    marginTop: 2,
   },
 
   statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 6,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 7,
+  },
+
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
 
   stat: {
-    color: COLORS.accent,
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 8,
+    fontWeight: '900',
   },
 
-  arrow: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '900',
-    marginLeft: 6,
+  statCoin: {
+    fontSize: 9,
   },
+
+  difficultyArrow: {
+    width: 31,
+    height: 31,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+
+  difficultyRewardBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.inkDark,
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 10,
+    gap: 10,
+  },
+
+  rewardIconBox: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  rewardBannerContent: {
+    flex: 1,
+  },
+
+  rewardBannerTitle: {
+    color: COLORS.white,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+
+  rewardBannerText: {
+    color: 'rgba(255,255,255,0.68)',
+    fontSize: 8,
+    lineHeight: 12,
+    marginTop: 3,
+  },
+
+  rewardBannerCoin: {
+    fontSize: 20,
+  },
+
+  /* ========================================================
+     GAME SCREEN EXTRAS
+  ======================================================== */
 
   gameHeaderInfo: {
     flex: 1,
@@ -2894,6 +3031,19 @@ const styles = StyleSheet.create({
     ...SHADOWS.large,
   },
 
+  quizLoadingBox: {
+    paddingVertical: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  quizLoadingText: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    marginTop: 12,
+    fontWeight: '800',
+  },
+
   quizHeader: {
     color: COLORS.primary,
     fontSize: 13,
@@ -3050,202 +3200,57 @@ const styles = StyleSheet.create({
   },
 
   difficultyHero: {
-  minHeight: 145,
-  borderRadius: 22,
-  marginBottom: 20,
-  padding: 18,
-  overflow: 'hidden',
-  ...SHADOWS.medium,
-},
+    minHeight: 145,
+    borderRadius: 22,
+    marginBottom: 20,
+    padding: 18,
+    overflow: 'hidden',
+    ...SHADOWS.medium,
+  },
 
-difficultyHeroIcon: {
-  width: 48,
-  height: 48,
-  borderRadius: 15,
-  backgroundColor: 'rgba(255,255,255,0.14)',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 10,
-},
+  difficultyHeroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
 
-difficultyHeroContent: {
-  maxWidth: '82%',
-},
+  difficultyHeroContent: {
+    maxWidth: '82%',
+  },
 
-difficultyHeroTitle: {
-  color: COLORS.white,
-  fontSize: 20,
-  fontWeight: '900',
-},
+  difficultyHeroTitle: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: '900',
+  },
 
-difficultyHeroText: {
-  color: 'rgba(255,255,255,0.82)',
-  fontSize: 10,
-  lineHeight: 16,
-  marginTop: 5,
-},
+  difficultyHeroText: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 10,
+    lineHeight: 16,
+    marginTop: 5,
+  },
 
-difficultyHeroBadge: {
-  position: 'absolute',
-  right: 14,
-  bottom: 14,
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 5,
-  backgroundColor: 'rgba(26,16,48,0.55)',
-  borderRadius: 12,
-  paddingHorizontal: 9,
-  paddingVertical: 7,
-},
+  difficultyHeroBadge: {
+    position: 'absolute',
+    right: 14,
+    bottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(26,16,48,0.55)',
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+  },
 
-difficultyHeroBadgeText: {
-  color: COLORS.white,
-  fontSize: 8,
-  fontWeight: '900',
-},
-
-difficultyCard: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: COLORS.white,
-  borderRadius: 18,
-  padding: 13,
-  borderWidth: 2,
-  ...SHADOWS.small,
-},
-
-difficultyIconBox: {
-  width: 52,
-  height: 52,
-  borderRadius: 16,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: 12,
-  position: 'relative',
-},
-
-difficultyIcon: {
-  fontSize: 25,
-},
-
-difficultyIonIcon: {
-  position: 'absolute',
-  right: 3,
-  bottom: 3,
-  width: 18,
-  height: 18,
-  borderRadius: 9,
-  backgroundColor: 'rgba(26,16,48,0.45)',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-difficultyInfo: {
-  flex: 1,
-},
-
-difficultyNameRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 2,
-},
-
-difficultyName: {
-  color: COLORS.textPrimary,
-  fontSize: 15,
-  fontWeight: '900',
-},
-
-difficultyTag: {
-  borderRadius: 7,
-  paddingHorizontal: 6,
-  paddingVertical: 3,
-  marginLeft: 5,
-},
-
-difficultyTagText: {
-  color: COLORS.white,
-  fontSize: 6,
-  fontWeight: '900',
-},
-
-difficultyDescription: {
-  color: COLORS.textSecondary,
-  fontSize: 9,
-  lineHeight: 14,
-  marginTop: 2,
-},
-
-statsRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 8,
-  marginTop: 7,
-},
-
-statPill: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 3,
-},
-
-stat: {
-  fontSize: 8,
-  fontWeight: '900',
-},
-
-statCoin: {
-  fontSize: 9,
-},
-
-difficultyArrow: {
-  width: 31,
-  height: 31,
-  borderRadius: 10,
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginLeft: 8,
-},
-
-difficultyRewardBanner: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  backgroundColor: COLORS.inkDark,
-  borderRadius: 18,
-  padding: 14,
-  marginTop: 8,
-  marginBottom: 10,
-  gap: 10,
-},
-
-rewardIconBox: {
-  width: 46,
-  height: 46,
-  borderRadius: 14,
-  backgroundColor: 'rgba(255,255,255,0.10)',
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-
-rewardBannerContent: {
-  flex: 1,
-},
-
-rewardBannerTitle: {
-  color: COLORS.white,
-  fontSize: 11,
-  fontWeight: '900',
-},
-
-rewardBannerText: {
-  color: 'rgba(255,255,255,0.68)',
-  fontSize: 8,
-  lineHeight: 12,
-  marginTop: 3,
-},
-
-rewardBannerCoin: {
-  fontSize: 20,
-},
+  difficultyHeroBadgeText: {
+    color: COLORS.white,
+    fontSize: 8,
+    fontWeight: '900',
+  },
 });
