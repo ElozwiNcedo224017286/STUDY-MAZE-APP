@@ -8,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import HomeScreen from '../screens/HomeScreen';
 import PlayScreen from '../screens/PlayScreen';
 import LearnScreen from '../screens/LearnScreen';
-import ShopScreen from '../screens/ShopScreen';
+import MentorHubScreen from '../screens/MentorHubScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import StudioScreen from '../screens/StudioScreen';
 import ClassScreen from '../screens/ClassScreen';
@@ -96,11 +96,11 @@ export default function MainTabs() {
             }}
           />
           <Tab.Screen
-            name="Rewards"
-            component={ShopScreen}
+            name="Mentor"
+            component={MentorHubScreen}
             options={{
-              tabBarLabel: 'Rewards',
-              tabBarIcon: tabIcon('gift'),
+              tabBarLabel: 'Mentor',
+              tabBarIcon: tabIcon('chatbubbles'),
             }}
           />
         </>

@@ -174,7 +174,7 @@ export default function HomeScreen({ navigation }) {
     { key: 'maze', label: 'Maze', image: require('../../assets/Artwork/icon-maze.png'), onPress: () => navigation.getParent()?.navigate('MazeLevels') },
     { key: 'scoreboard', label: 'Scoreboard', image: require('../../assets/Artwork/icon-scoreboard.png'), onPress: goToScoreboard },
     { key: 'notes', label: 'Notes', image: require('../../assets/Artwork/icon-notes.png'), onPress: () => navigation.navigate('Learn') },
-    { key: 'shop', label: 'Rewards', image: require('../../assets/Artwork/icon-rewards.png'), onPress: () => navigation.navigate('Rewards') },
+    { key: 'shop', label: 'Rewards', image: require('../../assets/Artwork/icon-rewards.png'), onPress: () => navigation.navigate('Shop') },
   ];
 
   const teacherActions = [
@@ -449,7 +449,7 @@ export default function HomeScreen({ navigation }) {
           onPress={() =>
             isTeacher
               ? navigation.navigate('Studio')
-              : Alert.alert('Coming soon', 'Personal uploads for students aren\'t available yet — ask your teacher to add material in Studio.')
+              : navigation.navigate('Learn')
           }
         >
           <Image source={require('../../assets/Artwork/icon-upload.png')} style={styles.uploadIcon} resizeMode="contain" />
