@@ -368,6 +368,35 @@ export const api = {
     return { ok: true };
   },
 
+  createAnnouncement: async ({ title, message }) => {
+    const cleanTitle = title?.trim();
+    const cleanMessage = message?.trim();
+    if (!cleanTitle || !cleanMessage) {
+      throw new Error('Enter an announcement title and message.');
+    }
+    if (cleanTitle.length > 120 || cleanMessage.length > 2000) {
+      throw new Error('Keep the title under 120 characters and the message under 2,000 characters.');
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error('You must be signed in to send an announcement.');
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: null,
+        category: 'announcement',
+        title: cleanTitle,
+        message: cleanMessage,
+        created_by: user.id,
+      })
+      .select('id, title, message, created_at')
+      .single();
+
+    if (error) throw new Error(error.message || 'Could not publish the announcement.');
+    return data;
+  },
+
   generateQuestions: async (files, topic) => {
     // AI extraction from slides runs in a Supabase Edge Function ("generate-questions").
     // If that function isn't deployed this fails clearly and the rest of the app is fine.

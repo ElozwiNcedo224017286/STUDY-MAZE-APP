@@ -1,10 +1,11 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import ProfileMenuItem from '../components/ProfileMenuItem';
+import { supabase } from '../api/supabase';
 
 function Page({ navigation, title, subtitle, children }) {
   const insets = useSafeAreaInsets();
@@ -76,10 +77,41 @@ export function HelpSupportScreen({ navigation }) {
 }
 
 export function ProfileSettingsScreen({ navigation }) {
+  const [passwordVisible, setPasswordVisible] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [savingPassword, setSavingPassword] = React.useState(false);
+
+  async function changePassword() {
+    if (newPassword.length < 8) {
+      Alert.alert('Password too short', 'Use at least 8 characters for your new password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Enter the same new password in both fields.');
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setPasswordVisible(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      Alert.alert('Password updated', 'Your password has been changed.');
+    } catch (error) {
+      Alert.alert('Could not update password', error.message || 'Please try again.');
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
   return (
     <Page navigation={navigation} title="Settings" subtitle="Manage your account and find help.">
       <View style={styles.menuCard}>
         <ProfileMenuItem icon="person-outline" title="Personal details" description="View your account information" onPress={() => navigation.navigate('ProfileDetails')} />
+        <ProfileMenuItem icon="lock-closed-outline" title="Change password" description="Set a new password for your account" onPress={() => setPasswordVisible(true)} />
         <ProfileMenuItem icon="help-circle-outline" title="Help & support" description="Answers to common questions" onPress={() => navigation.navigate('HelpSupport')} />
       </View>
       <View style={styles.aboutCard}>
@@ -89,6 +121,40 @@ export function ProfileSettingsScreen({ navigation }) {
           <Text style={styles.infoLabel}>Learn, play, and track your progress.</Text>
         </View>
       </View>
+      <Modal visible={passwordVisible} transparent animationType="fade" onRequestClose={() => setPasswordVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.passwordCard}>
+            <Text style={styles.passwordTitle}>Change password</Text>
+            <Text style={styles.infoLabel}>Choose a new password with at least 8 characters.</Text>
+            <TextInput
+              style={styles.passwordInput}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              placeholder="New password"
+              placeholderTextColor={COLORS.textTertiary}
+            />
+            <TextInput
+              style={styles.passwordInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              autoCapitalize="none"
+              placeholder="Confirm new password"
+              placeholderTextColor={COLORS.textTertiary}
+            />
+            <View style={styles.passwordActions}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setPasswordVisible(false)} disabled={savingPassword}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveButton, savingPassword && styles.disabledButton]} onPress={changePassword} disabled={savingPassword}>
+                <Text style={styles.saveText}>{savingPassword ? 'Saving...' : 'Update password'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Page>
   );
 }
@@ -149,4 +215,14 @@ const styles = StyleSheet.create({
   achievementIconOn: { backgroundColor: COLORS.primarySoft },
   achievementState: { color: COLORS.textTertiary, fontSize: 11, fontWeight: '700', marginTop: 6 },
   achievementStateOn: { color: COLORS.primary },
+  modalOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(26,16,48,0.48)', padding: 22 },
+  passwordCard: { width: '100%', backgroundColor: COLORS.white, borderRadius: 20, padding: 22, ...SHADOWS.large },
+  passwordTitle: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '800', marginBottom: 6 },
+  passwordInput: { height: 48, borderWidth: 1, borderColor: COLORS.borderLight, backgroundColor: COLORS.backgroundSecondary, borderRadius: 12, paddingHorizontal: 14, color: COLORS.textPrimary, marginTop: 14 },
+  passwordActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 20 },
+  cancelButton: { paddingHorizontal: 14, paddingVertical: 12 },
+  cancelText: { color: COLORS.textSecondary, fontWeight: '700' },
+  saveButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12 },
+  saveText: { color: COLORS.white, fontWeight: '800' },
+  disabledButton: { opacity: 0.6 },
 });
