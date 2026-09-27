@@ -18,6 +18,12 @@ import ShopScreen from './src/screens/ShopScreen';
 import StreakScreen from './src/screens/StreakScreen';
 import StudyNotesScreen from './src/screens/StudyNotesScreen';
 import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
+import {
+  AchievementsScreen,
+  HelpSupportScreen,
+  ProfileDetailsScreen,
+  ProfileSettingsScreen,
+} from './src/screens/ProfilePages';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,6 +43,10 @@ export default function App() {
 
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Streak" component={StreakScreen} />
+            <Stack.Screen name="ProfileDetails" component={ProfileDetailsScreen} />
+            <Stack.Screen name="ProfileSettings" component={ProfileSettingsScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+            <Stack.Screen name="Achievements" component={AchievementsScreen} />
 
             <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
             <Stack.Screen name="MazeGame" component={MazeGameScreen} />

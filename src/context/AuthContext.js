@@ -47,7 +47,7 @@ async function loadUser(authUser) {
     }
   }
 
-  const displayName = profile?.display_name || authUser.email?.split('@')[0] || 'Player';
+  const displayName = profile?.display_name || authUser.email?.split('@')[0] || authUser.phone || 'Player';
 
   return {
     id: authUser.id,
@@ -223,20 +223,34 @@ const getDailyRewardDates = useCallback(async () => {
     if (role === 'teacher' && teacherCode !== TEACHER_CODE) {
       throw new Error('Invalid teacher access code.');
     }
+    const normalizedEmail = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.signUp({
-      email: email.trim(),
+      email: normalizedEmail,
       password,
       // Read by the handle_new_user() trigger to seed profiles + user_roles.
-      options: { data: { display_name: displayName?.trim() || email.split('@')[0], role: role || 'student' } }
+      options: { data: { display_name: displayName?.trim() || normalizedEmail.split('@')[0], role: role || 'student' } }
     });
     if (error) throw new Error(error.message);
 
     // With email confirmation enabled, signUp returns no session until the user confirms.
-    if (!data.session) return { user: null, needsConfirmation: true };
+    if (!data.session) {
+      if (!data.user || data.user.identities?.length === 0) {
+        throw new Error('An account may already exist with this email. Log in or request a new confirmation email.');
+      }
+      return { user: null, needsConfirmation: true, email: normalizedEmail };
+    }
 
     const u = await loadUser(data.user);
     setUser(u);
     return { user: u, needsConfirmation: false };
+  }, []);
+
+  const resendSignupConfirmation = useCallback(async (email) => {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.trim().toLowerCase(),
+    });
+    if (error) throw new Error(error.message);
   }, []);
 
   const logout = useCallback(async () => {
@@ -331,7 +345,7 @@ const hasClaimedDailyReward = useCallback(async () => {
 }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, booting, login, register, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

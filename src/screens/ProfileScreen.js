@@ -150,7 +150,7 @@ export default function ProfileScreen({ navigation }) {
           <TouchableOpacity
             style={styles.settingsBtn}
             activeOpacity={0.75}
-            onPress={() => Alert.alert('Coming soon', 'Settings aren\'t available yet.')}
+            onPress={() => navigation.getParent()?.navigate('ProfileSettings')}
           >
             <Ionicons name="settings-outline" size={20} color={COLORS.textPrimary} />
           </TouchableOpacity>
@@ -224,7 +224,7 @@ export default function ProfileScreen({ navigation }) {
 
         <View style={styles.achievementsHeader}>
           <Text style={styles.sectionTitle}>Achievements</Text>
-          <TouchableOpacity onPress={() => Alert.alert('Coming soon', 'A full achievements list isn\'t available yet.')}>
+          <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Achievements')}>
             <View style={styles.viewAllRow}>
               <Text style={styles.viewAllText}>View all</Text>
               <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
@@ -270,7 +270,7 @@ export default function ProfileScreen({ navigation }) {
             icon="person-outline"
             title="Personal details"
             description={user?.email}
-            onPress={() => Alert.alert('Personal details', `Name: ${user?.username || '—'}\nEmail: ${user?.email || '—'}\nRole: ${isTeacher ? 'Teacher' : 'Student'}`)}
+            onPress={() => navigation.getParent()?.navigate('ProfileDetails')}
           />
           <ProfileMenuItem
             icon="notifications-outline"
@@ -281,7 +281,7 @@ export default function ProfileScreen({ navigation }) {
           <ProfileMenuItem
             icon="help-circle-outline"
             title="Help & support"
-            onPress={() => Alert.alert('Help & support', 'Need a hand? Reach out to your teacher or school admin for now.')}
+            onPress={() => navigation.getParent()?.navigate('HelpSupport')}
           />
         </ProfileSection>
 

@@ -271,3 +271,55 @@ py app.py
 - `.env` - App environment variables
 - `backend/.env` - Backend environment variables
 
+## Generate Study Notes From a PDF
+
+The `generate-study-notes` Edge Function sends the validated PDF to Gemini.
+Set a Gemini API key in the Supabase project before using this feature. In the
+Supabase dashboard, open **Edge Functions → Secrets** and add
+`GEMINI_API_KEY`, or use the CLI from the project root:
+
+```powershell
+supabase link --project-ref <your-project-ref>
+supabase secrets set GEMINI_API_KEY="your-google-ai-studio-api-key"
+supabase functions deploy generate-study-notes
+```
+
+Keep the key in Supabase secrets; do not add it to the app's public `.env`.
+Supabase makes newly set secrets available to Edge Functions immediately. Deploy
+the function command above when you need to publish local function code changes.
+The app now displays the Edge Function's response message when note generation
+fails, which makes missing secrets and provider errors easier to identify.
+
+## Email Important Announcements
+
+Notifications already appear in the app. To also email announcements to
+`nelozwi@gmail.com`, the Supabase project needs a Resend account and a database
+webhook. Only rows with category `announcement` are emailed; other app notices
+are unchanged.
+
+1. Verify a sender domain or sender address in Resend and create a Resend API
+   key. Resend requires the sender address to be verified.
+2. Generate a long random webhook secret. In PowerShell, you can generate one
+   with:
+
+   ```powershell
+   [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+   ```
+
+3. From the project root, set the function secrets (replace the placeholders):
+
+   ```powershell
+   supabase secrets set RESEND_API_KEY="re_..." ANNOUNCEMENT_EMAIL="nelozwi@gmail.com" ANNOUNCEMENT_FROM_EMAIL="Study Maze <announcements@your-verified-domain.com>" ANNOUNCEMENT_WEBHOOK_SECRET="your-generated-random-secret"
+   supabase functions deploy email-announcement --no-verify-jwt
+   ```
+
+4. In the Supabase dashboard, create a Database Webhook for `public.notifications`
+   on **Insert**. Set its URL to
+   `https://<project-ref>.supabase.co/functions/v1/email-announcement`, method
+   `POST`, and add the header `x-announcement-secret` with the same generated
+   secret. The webhook sends the inserted row as `record`; the function ignores
+   rows whose category is not `announcement`.
+
+Once configured, each announcement remains in the app notification list and is
+also emailed to the address above. Keep the Resend API key and webhook secret in
+Supabase secrets; do not put them in the app's `.env` file.\n

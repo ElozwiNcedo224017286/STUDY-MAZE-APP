@@ -29,7 +29,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AuthScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { login, register, user, booting } = useAuth();
+  const { login, register, resendSignupConfirmation, user, booting } = useAuth();
   const [mode, setMode] = useState(route?.params?.mode === 'register' ? 'register' : 'login');
   const [role, setRole] = useState('student');
   const [displayName, setDisplayName] = useState('');
@@ -38,6 +38,7 @@ export default function AuthScreen({ navigation, route }) {
   const [teacherCode, setTeacherCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState('');
+  const [confirmationEmail, setConfirmationEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [termsVisible, setTermsVisible] = useState(() => route?.params?.mode === 'register');
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -56,15 +57,18 @@ export default function AuthScreen({ navigation, route }) {
   }, [booting, user, navigation]);
 
   async function submit() {
-    if (!termsAccepted) return;
     setMsg('');
-    if (!email.trim() || !password) { setMsg('Enter an email and password.'); return; }
+    if (mode === 'register' && !termsAccepted) { setMsg('Please accept the Terms and Conditions to continue.'); return; }
+    if (mode === 'register' && !nameValid) { setMsg('Enter a display name with at least 2 characters.'); return; }
+    if (!emailValid) { setMsg('Enter a valid email address.'); return; }
+    if (!password) { setMsg('Enter a password.'); return; }
     setBusy(true);
     try {
       if (mode === 'register') {
         const { user: u, needsConfirmation } = await register(email, password, displayName, role, teacherCode.trim());
         if (needsConfirmation) {
-          setMsg('Account created. Check your email to confirm, then log in.');
+          setConfirmationEmail(email.trim().toLowerCase());
+          setMsg(`Account created. Check ${email.trim()} for a confirmation link, then log in.`);
           setMode('login');
           setBusy(false);
           return;
@@ -78,6 +82,19 @@ export default function AuthScreen({ navigation, route }) {
       setMsg(e.message);
     }
     setBusy(false);
+  }
+
+  async function resendConfirmation() {
+    setBusy(true);
+    setMsg('');
+    try {
+      await resendSignupConfirmation(confirmationEmail);
+      setMsg(`A new confirmation link was sent to ${confirmationEmail}.`);
+    } catch (error) {
+      setMsg(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   const termsModal = (
@@ -411,14 +428,13 @@ export default function AuthScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.forgotRow}
-            onPress={() => setMsg("Password reset isn't set up yet — ask your teacher for help.")}
-          >
-            <Text style={styles.forgotText}>Forgot password?</Text>
-          </TouchableOpacity>
-
           {!!msg && <Text style={styles.msg}>{msg}</Text>}
+
+          {!!confirmationEmail && (
+            <TouchableOpacity style={styles.forgotRow} disabled={busy} onPress={resendConfirmation}>
+              <Text style={styles.forgotText}>{busy ? 'Sending…' : 'Resend confirmation email'}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity activeOpacity={0.9} disabled={busy} onPress={submit}>
             <LinearGradient
