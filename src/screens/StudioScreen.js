@@ -19,15 +19,17 @@ import QuestionEditor from '../components/QuestionEditor';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 
 export default function StudioScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [segment, setSegment] = useState('create');
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
       <ScreenHeader
         title="Quiz"
         titleHighlight="Studio"

@@ -19,6 +19,7 @@ import InsightCard from '../components/InsightCard';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 
 const TOTAL_MAZE_LEVELS = 3;
 
@@ -30,6 +31,7 @@ function greetingWord() {
 }
 
 export default function HomeScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
   const { user, refreshUser, getUserStreak, hasClaimedDailyReward, claimDailyReward } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [refreshing, setRefreshing] = useState(false);
@@ -297,8 +299,8 @@ export default function HomeScreen({ navigation }) {
       </View>
     </Modal>
 
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
 
       <ScreenHeader>
         <View style={styles.headerRow}>
@@ -307,8 +309,8 @@ export default function HomeScreen({ navigation }) {
               <Image source={require('../../assets/logo.png')} style={styles.brandLogo} />
             </View>
             <Text style={styles.brandText}>
-              <Text style={styles.brandStudy}>Study</Text>
-              <Text style={styles.brandMaze}>Maze</Text>
+              <Text style={[styles.brandStudy, { color: colors.textPrimary }]}>Study</Text>
+              <Text style={[styles.brandMaze, { color: colors.primaryText }]}>Maze</Text>
             </Text>
           </View>
           <View style={styles.headerActions}>
@@ -322,7 +324,7 @@ export default function HomeScreen({ navigation }) {
               </View>
             </TouchableOpacity>
             <TouchableOpacity style={styles.bellButton} onPress={openNotifications} activeOpacity={0.75} accessibilityLabel="Notifications">
-              <Ionicons name="notifications-outline" size={20} color={COLORS.textPrimary} />
+              <Ionicons name="notifications-outline" size={20} color={colors.textPrimary} />
               {notifications.some((notification) => !notification.read_at) && <View style={styles.notificationDot} />}
             </TouchableOpacity>
           </View>
@@ -338,8 +340,8 @@ export default function HomeScreen({ navigation }) {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} tintColor={COLORS.primary} />
         }
       >
-        <Text style={styles.greeting}>
-          {greetingWord()}, <Text style={styles.greetingName}>{user?.username || 'Player'}</Text>
+        <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+          {greetingWord()}, <Text style={[styles.greetingName, { color: colors.primaryText }]}>{user?.username || 'Player'}</Text>
         </Text>
 
         <LinearGradient colors={COLORS.gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
@@ -442,7 +444,7 @@ export default function HomeScreen({ navigation }) {
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>Study materials</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Study materials</Text>
         <TouchableOpacity
           style={styles.uploadCard}
           activeOpacity={0.85}
@@ -464,7 +466,7 @@ export default function HomeScreen({ navigation }) {
 
         {!isTeacher && (
           <>
-            <Text style={styles.sectionTitle}>Continue learning</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Continue learning</Text>
             <TouchableOpacity
               style={styles.continueCard}
               activeOpacity={0.85}
@@ -490,7 +492,7 @@ export default function HomeScreen({ navigation }) {
           </>
         )}
 
-        <Text style={styles.sectionTitle}>Recommended for you</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recommended for you</Text>
         <View style={styles.recommendRow}>
           <View style={[styles.recommendCard, { backgroundColor: COLORS.primaryFaded }]}>
             <Image source={require('../../assets/Artwork/icon-notes.png')} style={styles.recommendIcon} resizeMode="contain" />
@@ -539,7 +541,7 @@ export default function HomeScreen({ navigation }) {
 
         {board.length > 0 && (
           <View onLayout={(e) => { boardSectionY.current = e.nativeEvent.layout.y; }}>
-            <Text style={styles.sectionTitle}>Class standings — Top 5</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Class standings — Top 5</Text>
             <View style={styles.boardCard}>
               {board.map((row, i) => (
                 <View key={row.user_id} style={[styles.boardRow, i === board.length - 1 && { borderBottomWidth: 0 }]}>

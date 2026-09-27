@@ -17,15 +17,17 @@ import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { api } from '../api/client';
 import { validatePdf } from '../utils/pdfValidation';
+import { useTheme } from '../context/ThemeContext';
 
 export default function LearnScreen() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [segment, setSegment] = useState('teacher-notes');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar
-        barStyle="dark-content"
+        barStyle={isDark ? 'light-content' : 'dark-content'}
         backgroundColor={COLORS.backgroundSecondary}
       />
 
@@ -312,7 +314,7 @@ function OwnNotesPane({ insets }) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionTitle}>Your notes</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your notes</Text>
 
           {savedNotesLoading ? (
             <ActivityIndicator

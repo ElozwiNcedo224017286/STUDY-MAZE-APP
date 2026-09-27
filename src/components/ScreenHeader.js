@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 export default function ScreenHeader({
   title,
@@ -11,6 +12,7 @@ export default function ScreenHeader({
   children,
 }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   if (children) {
     return (
@@ -27,17 +29,17 @@ export default function ScreenHeader({
           {(title || titleHighlight) ? (
             <Text style={styles.titleRow}>
               {title ? (
-                <Text style={styles.titlePart}>
+                <Text style={[styles.titlePart, { color: colors.textPrimary }]}>
                   {title}
                   {titleHighlight ? ' ' : ''}
                 </Text>
               ) : null}
               {titleHighlight ? (
-                <Text style={styles.titleHighlightPart}>{titleHighlight}</Text>
+                <Text style={[styles.titleHighlightPart, { color: colors.primaryText }]}>{titleHighlight}</Text>
               ) : null}
             </Text>
           ) : null}
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}
       </View>

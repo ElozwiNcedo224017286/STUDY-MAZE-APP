@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 import HomeScreen from '../screens/HomeScreen';
 import PlayScreen from '../screens/PlayScreen';
@@ -22,18 +23,19 @@ function tabIcon(name) {
 
 export default function MainTabs() {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const isTeacher = user?.role === 'teacher';
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textTertiary,
+        tabBarActiveTintColor: colors.primaryText,
+        tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { backgroundColor: colors.surface, borderTopColor: colors.border }],
         tabBarBackground: () => (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.white }]} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
         ),
       }}
     >

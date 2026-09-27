@@ -254,7 +254,8 @@ const getDailyRewardDates = useCallback(async () => {
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw new Error(error.message || 'Could not sign out.');
     setUser(null);
   }, []);
 
