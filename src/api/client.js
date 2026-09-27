@@ -657,9 +657,7 @@ export const api = {
     );
 
     if (error) {
-      throw new Error(
-        error.message || 'Could not validate your PDF.'
-      );
+      throw new Error(await getEdgeFunctionErrorMessage(error, 'Could not validate your PDF.'));
     }
 
     if (!data?.valid) {
