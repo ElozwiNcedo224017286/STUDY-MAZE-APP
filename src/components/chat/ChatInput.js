@@ -16,19 +16,32 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../../theme/colors';
-import { STUDY_MATERIAL_TYPES, mimeFromFileName } from '../../constants/studyFiles';
+import { STUDY_MATERIAL_TYPES, mimeFromFileName, videoMimeFromFileName } from '../../constants/studyFiles';
+
+const DEFAULT_MEDIA_OPTIONS = ['gallery', 'camera', 'document'];
+const VOICE_MEDIA_LIMIT_BYTES = 15 * 1024 * 1024;
 
 function VoiceRecorder(props) {
   const AudioRecorder = require('./AudioRecorder').default;
   return <AudioRecorder {...props} />;
 }
 
-export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Mentor…' }) {
+export default function ChatInput({
+  onSend,
+  disabled,
+  placeholder = 'Ask Maze Mentor…',
+  allowAudio = true,
+  allowMedia = true,
+  mediaOptions = DEFAULT_MEDIA_OPTIONS,
+}) {
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [images, setImages] = useState([]);
   const [recording, setRecording] = useState(false);
   const [audioUri, setAudioUri] = useState(null);
+  const [audioName, setAudioName] = useState(null);
+  const [audioMimeType, setAudioMimeType] = useState(null);
+  const [video, setVideo] = useState(null);
   const [document, setDocument] = useState(null);
   const [showMedia, setShowMedia] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
@@ -45,8 +58,18 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
 
   function buildPayload() {
     const payload = { text: text.trim() };
-    if (audioUri && images.length) return { type: 'multimodal', ...payload, audioUri, images };
-    if (audioUri) return { type: 'audio', ...payload, audioUri };
+    const audio = audioUri ? { audioUri, audioName, audioMimeType } : {};
+    if (audioUri && images.length) return { type: 'multimodal', ...payload, ...audio, images };
+    if (audioUri) return { type: 'audio', ...payload, ...audio };
+    if (video) {
+      return {
+        type: 'video',
+        ...payload,
+        videoUri: video.uri,
+        videoName: video.name,
+        videoMimeType: video.mimeType,
+      };
+    }
     if (images.length) return { type: 'image', ...payload, images };
     if (document) {
       return {
@@ -64,6 +87,9 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
     setText('');
     setImages([]);
     setAudioUri(null);
+    setAudioName(null);
+    setAudioMimeType(null);
+    setVideo(null);
     setDocument(null);
     setShowMedia(false);
     Animated.spring(rotate, { toValue: 0, useNativeDriver: true, tension: 50, friction: 5 }).start();
@@ -71,7 +97,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
   }
 
   async function send() {
-    if (disabled || (!text.trim() && !images.length && !audioUri && !document)) return;
+    if (disabled || (!text.trim() && !images.length && !audioUri && !video && !document)) return;
     const payload = buildPayload();
     reset();
     await onSend(payload);
@@ -137,8 +163,42 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
     }
   }
 
+  async function pickVoiceMedia(kind) {
+    const isAudio = kind === 'audio';
+    const result = await DocumentPicker.getDocumentAsync({
+      type: isAudio ? 'audio/*' : 'video/*',
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const file = result.assets[0];
+    if (file.size && file.size > VOICE_MEDIA_LIMIT_BYTES) {
+      Alert.alert('File too large', 'Choose an audio or video clip smaller than 15 MB.');
+      return;
+    }
+
+    if (isAudio) {
+      setVideo(null);
+      setAudioUri(file.uri);
+      setAudioName(file.name || 'Uploaded audio');
+      setAudioMimeType(file.mimeType || mimeFromFileName(file.name, 'audio/aac'));
+    } else {
+      setAudioUri(null);
+      setAudioName(null);
+      setAudioMimeType(null);
+      setVideo({
+        uri: file.uri,
+        name: file.name || 'Uploaded video',
+        mimeType: file.mimeType || videoMimeFromFileName(file.name),
+      });
+    }
+    closeMedia();
+  }
+
   function stopRecording(uri) {
     setRecording(false);
+    setVideo(null);
     if (!text.trim() && images.length === 0) {
       onSend({ type: 'audio', audioUri: uri, text: '' });
       return;
@@ -146,8 +206,9 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
     setAudioUri(uri);
   }
 
-  const canSend = !disabled && (text.trim() || images.length || audioUri || document);
-  const showMic = !recording && !text.trim() && !audioUri;
+  const canSend = !disabled && (text.trim() || images.length || audioUri || video || document);
+  const showMic = allowAudio && !recording && !text.trim() && !audioUri && !video;
+  const showMediaButton = allowMedia && mediaOptions.length > 0;
 
   return (
     <>
@@ -167,8 +228,18 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
       {audioUri && !recording ? (
         <View style={styles.attachStrip}>
           <Ionicons name="mic-circle" size={20} color={COLORS.primary} />
-          <Text style={styles.attachText}>Voice note ready</Text>
-          <TouchableOpacity onPress={() => setAudioUri(null)}>
+          <Text style={styles.attachText} numberOfLines={1}>{audioName || 'Voice note ready'}</Text>
+          <TouchableOpacity onPress={() => { setAudioUri(null); setAudioName(null); setAudioMimeType(null); }}>
+            <Ionicons name="close-circle" size={18} color={COLORS.error} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {video ? (
+        <View style={styles.attachStrip}>
+          <Ionicons name="videocam" size={19} color={COLORS.primary} />
+          <Text style={styles.attachText} numberOfLines={1}>{video.name}</Text>
+          <TouchableOpacity onPress={() => setVideo(null)}>
             <Ionicons name="close-circle" size={18} color={COLORS.error} />
           </TouchableOpacity>
         </View>
@@ -190,7 +261,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
 
       <View style={[styles.bar, { paddingBottom: (keyboardOpen ? 10 : insets.bottom + 8) }]}>
         <View style={styles.field}>
-          {!recording ? (
+          {!recording && showMediaButton ? (
             <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
               <TouchableOpacity style={styles.iconBtn} onPress={toggleMedia} disabled={disabled}>
                 <Ionicons name="add" size={24} color={COLORS.primary} />
@@ -222,26 +293,38 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
           ) : null}
         </View>
 
-        {showMedia ? (
+        {showMedia && showMediaButton ? (
           <View style={styles.mediaRow}>
-            <TouchableOpacity style={styles.mediaItem} onPress={pickImages}>
+            {mediaOptions.includes('gallery') ? <TouchableOpacity style={styles.mediaItem} onPress={pickImages}>
               <View style={[styles.mediaIcon, { backgroundColor: COLORS.primary }]}>
                 <Ionicons name="image" size={20} color={COLORS.white} />
               </View>
               <Text style={styles.mediaLabel}>Gallery</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaItem} onPress={takePhoto}>
+            </TouchableOpacity> : null}
+            {mediaOptions.includes('camera') ? <TouchableOpacity style={styles.mediaItem} onPress={takePhoto}>
               <View style={[styles.mediaIcon, { backgroundColor: '#EF4444' }]}>
                 <Ionicons name="camera" size={20} color={COLORS.white} />
               </View>
               <Text style={styles.mediaLabel}>Camera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mediaItem} onPress={pickDocument}>
+            </TouchableOpacity> : null}
+            {mediaOptions.includes('document') ? <TouchableOpacity style={styles.mediaItem} onPress={pickDocument}>
               <View style={[styles.mediaIcon, { backgroundColor: '#F59E0B' }]}>
                 <Ionicons name="document-text" size={20} color={COLORS.white} />
               </View>
               <Text style={styles.mediaLabel}>Document</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> : null}
+            {mediaOptions.includes('audio') ? <TouchableOpacity style={styles.mediaItem} onPress={() => pickVoiceMedia('audio')}>
+              <View style={[styles.mediaIcon, { backgroundColor: '#0F766E' }]}>
+                <Ionicons name="musical-note" size={20} color={COLORS.white} />
+              </View>
+              <Text style={styles.mediaLabel}>Audio</Text>
+            </TouchableOpacity> : null}
+            {mediaOptions.includes('video') ? <TouchableOpacity style={styles.mediaItem} onPress={() => pickVoiceMedia('video')}>
+              <View style={[styles.mediaIcon, { backgroundColor: '#DC2626' }]}>
+                <Ionicons name="videocam" size={20} color={COLORS.white} />
+              </View>
+              <Text style={styles.mediaLabel}>Video</Text>
+            </TouchableOpacity> : null}
           </View>
         ) : null}
       </View>

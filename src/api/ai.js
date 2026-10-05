@@ -1,8 +1,8 @@
 import { File } from 'expo-file-system';
-import { mimeFromFileName } from '../constants/studyFiles';
+import { mimeFromFileName, videoMimeFromFileName } from '../constants/studyFiles';
 
 const API_CONFIG = {
-  BASE_URL: process.env.EXPO_PUBLIC_FLASK_API_URL || inferFlaskUrl(),
+  BASE_URL: (process.env.EXPO_PUBLIC_FLASK_API_URL || inferFlaskUrl()).trim().replace(/\/+$/, ''),
   TIMEOUT: 120000,
 };
 
@@ -67,6 +67,14 @@ function parseError(error, response = null) {
     };
   }
 
+  if (/audio storage|save the audio reply/i.test(message)) {
+    return {
+      type: ErrorTypes.VALIDATION,
+      message,
+      technicalError: message,
+    };
+  }
+
   if (isNetworkFailure(error) || !response) {
     return {
       type: ErrorTypes.NETWORK,
@@ -98,9 +106,10 @@ function validateMessageData(messageData) {
   const hasText = messageData.text && messageData.text.trim().length > 0;
   const hasImages = messageData.images && messageData.images.length > 0;
   const hasAudio = Boolean(messageData.audioUri);
+  const hasVideo = Boolean(messageData.videoUri);
   const hasDocument = Boolean(messageData.documentUri);
-  if (!hasText && !hasImages && !hasAudio && !hasDocument) {
-    throw new Error('Send text, a photo, a voice note, or a document.');
+  if (!hasText && !hasImages && !hasAudio && !hasVideo && !hasDocument) {
+    throw new Error('Send text, a photo, an audio or video clip, or a document.');
   }
   return true;
 }
@@ -185,6 +194,7 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
   if (conversationId) formData.append('conversation_id', conversationId);
   if (extras.mode) formData.append('mode', extras.mode);
   if (extras.sessionMode) formData.append('session_mode', extras.sessionMode);
+  if (extras.responseAudio) formData.append('response_audio', 'true');
   if (messageData.text?.trim()) formData.append('message', messageData.text.trim());
 
   if (messageData.images?.[0]?.uri) {
@@ -201,10 +211,22 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
   if (messageData.audioUri) {
     appendEncodedFile(formData, 'audio', await readAttachment(
       messageData.audioUri,
-      guessName(messageData.audioUri, `audio_${Date.now()}.m4a`),
-      'audio/aac',
+      messageData.audioName || guessName(messageData.audioUri, `audio_${Date.now()}.m4a`),
+      messageData.audioMimeType || 'audio/aac',
       `audio_${Date.now()}.m4a`,
       'audio/aac'
+    ));
+  }
+
+  if (messageData.videoUri) {
+    const fallbackName = `video_${Date.now()}.mp4`;
+    const videoName = messageData.videoName || guessName(messageData.videoUri, fallbackName);
+    appendEncodedFile(formData, 'video', await readAttachment(
+      messageData.videoUri,
+      videoName,
+      messageData.videoMimeType || videoMimeFromFileName(videoName),
+      fallbackName,
+      'video/mp4'
     ));
   }
 
@@ -224,6 +246,28 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
 async function parseJsonResponse(response) {
   const data = await response.json().catch(() => ({}));
   return data;
+}
+
+async function cacheResponseAudio(payload, conversationId) {
+  if (!payload?.response_audio_base64) return null;
+
+  const FileSystem = require('expo-file-system/legacy');
+  if (!FileSystem.cacheDirectory) {
+    throw new Error('Voice Lab could not access audio storage on this device.');
+  }
+
+  const safeId = String(conversationId || 'voice')
+    .replace(/[^a-z0-9_-]/gi, '_')
+    .slice(0, 48);
+  const uri = `${FileSystem.cacheDirectory}voice_lab_${safeId}_${Date.now()}.wav`;
+  try {
+    await FileSystem.writeAsStringAsync(uri, payload.response_audio_base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } catch {
+    throw new Error('Voice Lab could not save the audio reply on this device.');
+  }
+  return uri;
 }
 
 const ApiService = {
@@ -275,10 +319,13 @@ const ApiService = {
         };
       }
 
+      const responseAudioUri = await cacheResponseAudio(data, conversationId);
+
       return {
         success: true,
         data: {
           response: data.response,
+          response_audio_uri: responseAudioUri,
           conversation_id: data.conversation_id,
           conversation_title: data.conversation_title,
           processing_time: data.processing_time,

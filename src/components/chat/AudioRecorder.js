@@ -65,6 +65,10 @@ export default function AudioRecorder({ onStopRecording, onCancel }) {
     try {
       await recorder.stop();
       const uri = recorder.uri;
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
       if (!uri) {
         onCancel();
         return;

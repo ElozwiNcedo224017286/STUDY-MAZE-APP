@@ -4,10 +4,11 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 
-export default function AudioPlayer({ uri, isUser }) {
+export default function AudioPlayer({ uri, isUser, autoPlay = false }) {
   const player = useAudioPlayer(uri ? { uri } : null);
   const status = useAudioPlayerStatus(player);
   const progress = useRef(new Animated.Value(0)).current;
+  const didAutoPlay = useRef(false);
 
   const position = (status?.currentTime || 0) * 1000;
   const duration = (status?.duration || 0) * 1000;
@@ -17,6 +18,12 @@ export default function AudioPlayer({ uri, isUser }) {
     const ratio = duration ? position / duration : 0;
     progress.setValue(Math.min(1, Math.max(0, ratio)));
   }, [position, duration, progress]);
+
+  useEffect(() => {
+    if (!autoPlay || !status?.isLoaded || didAutoPlay.current) return;
+    didAutoPlay.current = true;
+    player.play();
+  }, [autoPlay, player, status?.isLoaded]);
 
   function toggle() {
     if (!player) return;

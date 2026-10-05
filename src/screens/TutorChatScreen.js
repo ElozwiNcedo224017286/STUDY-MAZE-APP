@@ -168,7 +168,7 @@ export default function TutorChatScreen({ navigation, route }) {
         <Text style={styles.emptyText}>
           {mode === 'guided'
             ? 'Your file is attached. Ask about it, or wait for Mentor to summarise the key ideas.'
-            : 'Type or speak anytime. You can also attach extra study files from the chat bar.'}
+            : 'Type anytime. You can also attach extra study files from the chat bar.'}
         </Text>
         <View style={styles.chips}>
           {prompts.map((prompt) => (
@@ -233,7 +233,11 @@ export default function TutorChatScreen({ navigation, route }) {
             if (messages.length) listRef.current?.scrollToEnd({ animated: false });
           }}
         />
-        <ChatInput onSend={handleSend} disabled={typing} />
+        <ChatInput
+          onSend={handleSend}
+          disabled={typing}
+          allowAudio={false}
+        />
       </KeyboardAvoidingView>
     </View>
   );

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../../theme/colors';
 import MarkdownText from './MarkdownText';
 import AudioPlayer from './AudioPlayer';
+import ChatVideoPlayer from './ChatVideoPlayer';
 
 export default function MessageBubble({ message, isFirstInGroup }) {
   const isUser = message.sender === 'user';
@@ -36,7 +37,10 @@ export default function MessageBubble({ message, isFirstInGroup }) {
             </Text>
           </View>
         ) : null}
-        {message.audioUri ? <AudioPlayer uri={message.audioUri} isUser={isUser} /> : null}
+        {message.audioUri ? (
+          <AudioPlayer uri={message.audioUri} isUser={isUser} autoPlay={message.autoPlay} />
+        ) : null}
+        {message.videoUri ? <ChatVideoPlayer uri={message.videoUri} /> : null}
         {message.text ? <MarkdownText text={message.text} isUser={isUser} /> : null}
         {message.isError ? (
           <View style={styles.errorRow}>

@@ -53,9 +53,8 @@ const FEATURES = [
     icon: 'mic',
     colors: ['#7C3AED', '#A78BFA'],
     actionColor: '#7C3AED',
-    actionText: 'Coming soon',
+    actionText: 'Open lab',
     route: 'SpeakingPractice',
-    soon: true,
   },
 ];
 

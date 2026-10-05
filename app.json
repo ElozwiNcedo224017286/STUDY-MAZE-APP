@@ -13,7 +13,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.studymaze.app",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "Study Maze uses the microphone so you can ask Maze Mentor by voice.",
+        "NSMicrophoneUsageDescription": "Study Maze uses the microphone for Voice Lab speaking practice.",
         "NSCameraUsageDescription": "Study Maze uses the camera so you can photograph a question for Smart Solver."
       }
     },
@@ -36,16 +36,18 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Study Maze uses the microphone so you can ask Maze Mentor by voice."
+          "microphonePermission": "Study Maze uses the microphone for Voice Lab speaking practice."
         }
       ],
       [
         "expo-camera",
         {
           "cameraPermission": "Study Maze uses the camera so you can photograph a question for Smart Solver.",
-          "microphonePermission": "Study Maze uses the microphone so you can ask Maze Mentor by voice."
+          "microphonePermission": "Study Maze uses the microphone for Voice Lab speaking practice."
         }
-      ]
+      ],
+      "expo-video",
+      "expo-sharing"
     ]
   }
 }

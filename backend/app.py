@@ -13,6 +13,7 @@ from io import BytesIO
 from xml.etree import ElementTree as ET
 from dotenv import load_dotenv
 import json
+import wave
 from werkzeug.datastructures import FileStorage
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -34,6 +35,8 @@ MODEL_NAME = (
     or "gemini-3.6-flash"
 ).strip()
 TITLE_MODEL = (os.getenv("GEMINI_TITLE_MODEL") or MODEL_NAME).strip()
+TTS_MODEL = (os.getenv("GEMINI_TTS_MODEL") or "gemini-3.1-flash-tts-preview").strip()
+TTS_VOICE = (os.getenv("GEMINI_TTS_VOICE") or "Kore").strip()
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -120,6 +123,50 @@ def extract_text(response):
     return "\n".join(chunks).strip()
 
 
+def generate_speech(response_text):
+    prompt = (
+        "Speak the following Study Maze tutor reply in a warm, clear, encouraging voice. "
+        "Read the meaning naturally without saying markdown symbols.\n\n"
+        f"{response_text}"
+    )
+    response = require_client().models.generate_content(
+        model=TTS_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=TTS_VOICE,
+                    )
+                )
+            ),
+        ),
+    )
+
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            inline_data = getattr(part, "inline_data", None)
+            audio_data = getattr(inline_data, "data", None) if inline_data else None
+            if not audio_data:
+                continue
+            if isinstance(audio_data, str):
+                audio_data = base64.b64decode(audio_data)
+            if audio_data[:4] == b"RIFF":
+                return audio_data
+
+            output = BytesIO()
+            with wave.open(output, "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(24000)
+                wav_file.writeframes(audio_data)
+            return output.getvalue()
+
+    raise RuntimeError("Gemini TTS returned no audio")
+
+
 def finish_reason(response):
     candidates = getattr(response, "candidates", None) or []
     if not candidates:
@@ -180,6 +227,31 @@ def detect_audio_mime(filename, initial_bytes=b""):
     if name.endswith(".webm"):
         return "audio/webm"
     return "audio/aac"
+
+
+def detect_video_mime(filename, initial_bytes=b""):
+    name = (filename or "").lower()
+    extensions = {
+        ".mp4": "video/mp4",
+        ".mpeg": "video/mpeg",
+        ".mpg": "video/mpg",
+        ".mov": "video/mov",
+        ".avi": "video/avi",
+        ".flv": "video/x-flv",
+        ".webm": "video/webm",
+        ".wmv": "video/wmv",
+        ".3gp": "video/3gpp",
+    }
+    for extension, mime in extensions.items():
+        if name.endswith(extension):
+            return mime
+
+    header = initial_bytes or b""
+    if len(header) >= 8 and header[4:8] == b"ftyp":
+        return "video/mp4"
+    if header.startswith(b"\x1a\x45\xdf\xa3"):
+        return "video/webm"
+    return "video/mp4"
 
 
 def detect_document_mime(filename):
@@ -256,6 +328,21 @@ def gemini_audio_mime(mime):
     if value in {"audio/aac", "audio/mp3", "audio/wav", "audio/ogg", "audio/flac", "audio/aiff"}:
         return value
     return "audio/aac"
+
+
+def gemini_video_mime(mime):
+    value = (mime or "video/mp4").split(";")[0].strip().lower()
+    aliases = {
+        "video/quicktime": "video/mov",
+        "video/x-msvideo": "video/avi",
+        "video/x-ms-wmv": "video/wmv",
+    }
+    value = aliases.get(value, value)
+    supported = {
+        "video/mp4", "video/mpeg", "video/mov", "video/avi", "video/x-flv",
+        "video/mpg", "video/webm", "video/wmv", "video/3gpp",
+    }
+    return value if value in supported else "video/mp4"
 
 
 def read_storage_bytes(file_storage):
@@ -385,7 +472,7 @@ def generate_conversation_title(user_input, ai_response_text, has_media, has_aud
     return (user_input or "Study session").strip()[:30].title() or "New Conversation"
 
 
-def build_content_parts(user_input, image_file, audio_file, document_file, mode):
+def build_content_parts(user_input, image_file, audio_file, video_file, document_file, mode):
     content_parts = []
 
     if image_file:
@@ -412,6 +499,21 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
                 content_parts.insert(0, "Listen to this student voice note and reply as Maze Mentor. Stay on study goals.")
         content_parts.append(part)
 
+    if video_file:
+        header = read_storage_bytes(video_file)[:16]
+        mime = gemini_video_mime(detect_video_mime(video_file.filename, header))
+        suffix = os.path.splitext(video_file.filename or "")[1].lower() or ".mp4"
+        print(f"[chatbot] video mime={mime}")
+        part = part_from_storage(video_file, mime, suffix)
+        if not part:
+            raise ValueError("video_processing_failed")
+        if not user_input:
+            content_parts.insert(
+                0,
+                "Watch and listen to this student video. Respond with concise, supportive speaking feedback.",
+            )
+        content_parts.append(part)
+
     if document_file:
         part = document_part(document_file)
         if not part:
@@ -419,13 +521,13 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
         content_parts.append(part)
 
     if user_input:
-        if (image_file or document_file) and not audio_file:
-            content_parts.insert(0, f"Student question about the attached study content: {user_input}")
-        elif not image_file and not audio_file and not document_file:
-            content_parts.append(user_input)
-        elif audio_file:
+        if audio_file or video_file:
             content_parts.insert(0, user_input)
-    elif image_file and not audio_file:
+        elif image_file or document_file:
+            content_parts.insert(0, f"Student question about the attached study content: {user_input}")
+        elif not image_file and not audio_file and not video_file and not document_file:
+            content_parts.append(user_input)
+    elif image_file and not audio_file and not video_file:
         if mode == "solver":
             content_parts.insert(
                 0,
@@ -436,7 +538,7 @@ def build_content_parts(user_input, image_file, audio_file, document_file, mode)
                 0,
                 "Study this image with the student. If it is a question, teach the method. If it is notes, summarise and quiz them.",
             )
-    elif document_file and not audio_file:
+    elif document_file and not audio_file and not video_file:
         content_parts.insert(
             0,
             "Use this uploaded study material as session context. Summarise the key ideas and ask one check question.",
@@ -451,8 +553,12 @@ def public_error(error):
         return "Gemini rejected the API key. Check GEMINI_API_KEY in backend/.env."
     if "quota" in message or "rate" in message or "resource exhausted" in message:
         return "Maze Mentor is busy right now. Wait a moment and try again."
+    if "tts" in message and ("not found" in message or "is not found" in message):
+        return f"Gemini TTS model {TTS_MODEL} is not available for this key. Check GEMINI_TTS_MODEL in backend/.env."
     if "not found" in message or "is not found" in message:
         return f"Gemini model {MODEL_NAME} is not available for this key. Set GEMINI_MODEL=gemini-3.6-flash in backend/.env."
+    if "tts" in message or "speech" in message:
+        return "Voice Lab could not create an audio reply. Check the Flask window for the TTS error."
     if "network" in message or "connection" in message:
         return "I cannot reach Gemini. Check the backend internet connection."
     if "timeout" in message:
@@ -470,18 +576,20 @@ def run_chat(mode="tutor"):
         user_input = (request.form.get("message") or "").strip()
         conversation_id = request.form.get("conversation_id") or ""
         session_mode = request.form.get("session_mode") or "general"
+        wants_audio_response = (request.form.get("response_audio") or "").lower() == "true"
         audio_file = file_from_request("audio")
+        video_file = file_from_request("video")
         image_file = file_from_request("image")
         document_file = file_from_request("document")
         print(
-            f"[chatbot] text={bool(user_input)} audio={bool(audio_file)} "
+            f"[chatbot] text={bool(user_input)} audio={bool(audio_file)} video={bool(video_file)} "
             f"image={bool(image_file)} document={bool(document_file)}"
         )
 
-        if not user_input and not audio_file and not image_file and not document_file:
+        if not user_input and not audio_file and not video_file and not image_file and not document_file:
             return jsonify({
                 "error": "no_input",
-                "response": "Send a message, voice note, photo, or document to continue.",
+                "response": "Send a message, audio or video clip, photo, or document to continue.",
                 "status": "error",
             }), 400
 
@@ -497,13 +605,13 @@ def run_chat(mode="tutor"):
 
         session = chat_sessions[conversation_id]
         content_parts = build_content_parts(
-            user_input, image_file, audio_file, document_file, mode
+            user_input, image_file, audio_file, video_file, document_file, mode
         )
         if not content_parts:
             raise ValueError("no_input")
 
         requested_max_tokens = request.form.get("max_tokens")
-        max_tokens = 800
+        max_tokens = 300 if wants_audio_response else 800
         if requested_max_tokens:
             try:
                 max_tokens = min(int(requested_max_tokens), 2048)
@@ -527,10 +635,14 @@ def run_chat(mode="tutor"):
             print(f"[chatbot] empty Gemini response finish_reason={reason}")
             raise RuntimeError(f"Gemini returned no text ({reason})")
 
+        has_media = image_file is not None or video_file is not None or document_file is not None
+        has_audio = audio_file is not None
+        response_audio = None
+        if wants_audio_response:
+            response_audio = base64.b64encode(generate_speech(response_text)).decode("ascii")
+
         processing_time = time.time() - start_time
         print(f"[chatbot] reply {len(response_text)} chars in {processing_time:.2f}s")
-        has_media = image_file is not None or document_file is not None
-        has_audio = audio_file is not None
 
         conversation_title = session["title"]
         if conversation_title is None and is_substantive_message(user_input, has_media or has_audio):
@@ -539,20 +651,26 @@ def run_chat(mode="tutor"):
             )
             session["title"] = conversation_title
 
-        return jsonify({
+        payload = {
             "response": response_text,
             "conversation_id": conversation_id,
             "conversation_title": conversation_title,
             "status": "success",
             "processing_time": round(processing_time, 2),
-        }), 200
+        }
+        if response_audio:
+            payload["response_audio_base64"] = response_audio
+            payload["response_audio_mime"] = "audio/wav"
+        return jsonify(payload), 200
     except ValueError as error:
         code = str(error)
         messages = {
-            "no_input": "Send a message, voice note, photo, or document to continue.",
+            "no_input": "Send a message, audio or video clip, photo, or document to continue.",
             "image_upload_failed": "I could not read that image. Try JPEG or PNG.",
             "audio_upload_failed": "I could not process that voice note. Please try again.",
             "audio_processing_failed": "I could not process that voice note. Please try again.",
+            "video_upload_failed": "I could not process that video. Try MP4, MOV, or WebM.",
+            "video_processing_failed": "I could not process that video. Try a shorter MP4, MOV, or WebM clip.",
             "document_upload_failed": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
             "document_error": "I could not read that file. Try PDF, Word, PowerPoint, or TXT.",
             "document_unsupported": "That older file format is not supported. Save it as PDF, DOCX, or PPTX and try again.",
@@ -580,7 +698,7 @@ def health_check():
         "message": "Study Maze Smart Learn API is running",
         "model": MODEL_NAME,
         "sdk": "google-genai",
-        "inputs": ["text", "image", "audio", "pdf"],
+        "inputs": ["text", "image", "audio", "video", "pdf"],
         "timestamp": datetime.now().isoformat(),
     }), 200
 
