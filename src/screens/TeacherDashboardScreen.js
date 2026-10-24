@@ -117,7 +117,7 @@ function CreateTab({ user, navigation }) {
       multiple: true,
       copyToCacheDirectory: true,
     });
-    if (result.canceled) return;
+    console.log('Selected teacher files:', result.assets);
     setFiles((prev) => [...prev, ...result.assets]);
   }
 

@@ -20,11 +20,13 @@ import ProfileSection from '../components/ProfileSection';
 import ProfileMenuItem from '../components/ProfileMenuItem';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 
 const TOTAL_MAZE_LEVELS = 3;
 
 export default function ProfileScreen({ navigation }) {
+  const { balanceLabel } = useTrustedCoinBalance();
   const insets = useSafeAreaInsets();
   const { user, logout, refreshUser } = useAuth();
   const isTeacher = user?.role === 'teacher';
@@ -198,7 +200,7 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statCoin}>🪙</Text>
-              <Text style={styles.statText}>{(user?.coins ?? 0).toLocaleString()} coins</Text>
+              <Text style={styles.statText}>{balanceLabel} coins</Text>
             </View>
           </View>
         </LinearGradient>

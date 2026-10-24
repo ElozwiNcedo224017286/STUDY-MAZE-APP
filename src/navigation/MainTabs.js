@@ -14,6 +14,12 @@ import StudioScreen from '../screens/StudioScreen';
 import ClassScreen from '../screens/ClassScreen';
 import NotesScreen from '../screens/NotesScreen';
 
+import AdminDashboardScreen from '../screens/AdminDashboardScreen';
+import AdminClassesScreen from '../screens/AdminClassesScreen';
+import AdminChallengesScreen from '../screens/AdminChallengesScreen';
+
+import AdminRewardsScreen from '../screens/AdminRewardsScreen';
+
 const Tab = createBottomTabNavigator();
 
 function tabIcon(name) {
@@ -37,6 +43,15 @@ export default function MainTabs() {
         ),
       }}
     >
+      {user?.role === 'admin' ? (
+        <>
+          <Tab.Screen name="AdminOverview" component={AdminDashboardScreen} options={{ tabBarLabel: 'Overview', tabBarIcon: tabIcon('grid') }} />
+          <Tab.Screen name="AdminClasses" component={AdminClassesScreen} options={{ tabBarLabel: 'Classes', tabBarIcon: tabIcon('people') }} />
+          <Tab.Screen name="AdminChallenges" component={AdminChallengesScreen} options={{ tabBarLabel: 'Challenges', tabBarIcon: tabIcon('trophy') }} />
+          <Tab.Screen name="AdminRewards" component={AdminRewardsScreen} options={{ tabBarLabel: 'Rewards', tabBarIcon: tabIcon('gift') }} />
+        </>
+      ) : (
+        <>
       <Tab.Screen
         name="Home"
         component={HomeScreen}
@@ -114,6 +129,8 @@ export default function MainTabs() {
           tabBarIcon: tabIcon('person'),
         }}
       />
+        </>
+      )}
     </Tab.Navigator>
   );
 }

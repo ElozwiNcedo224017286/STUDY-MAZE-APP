@@ -10,6 +10,7 @@ import {
   Image,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,6 +19,7 @@ import ScreenHeader from '../components/ScreenHeader';
 import InsightCard from '../components/InsightCard';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 
 const TOTAL_MAZE_LEVELS = 3;
@@ -30,12 +32,44 @@ function greetingWord() {
 }
 
 export default function HomeScreen({ navigation }) {
+  const { balanceLabel, refreshBalance } = useTrustedCoinBalance();
   const { user, refreshUser, getUserStreak, hasClaimedDailyReward, claimDailyReward } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [refreshing, setRefreshing] = useState(false);
   const [quizMeta, setQuizMeta] = useState(null);
   const [quizCount, setQuizCount] = useState(0);
-  const [board, setBoard] = useState([]);
+  const [challengeState, setChallengeState] = useState({ ownerId: null, challenge: null, rows: [], loading: true, error: '' });
+  const challengeRequestRef = useRef(0);
+  const challenge = challengeState.ownerId === user?.id ? challengeState.challenge : null;
+  const board = challengeState.ownerId === user?.id ? challengeState.rows : [];
+  const boardLoading = challengeState.ownerId !== user?.id || challengeState.loading;
+  const boardError = challengeState.ownerId === user?.id ? challengeState.error : '';
+
+  const loadChallenge = useCallback(async () => {
+    const request = ++challengeRequestRef.current;
+    const ownerId = user?.id;
+    setChallengeState({ ownerId, challenge: null, rows: [], loading: true, error: '' });
+    if (!ownerId || user?.role !== 'student') {
+      setChallengeState({ ownerId, challenge: null, rows: [], loading: false, error: '' });
+      return;
+    }
+    try {
+      const active = await api.getActiveChallenge();
+      const rows = active ? (await api.getChallengeLeaderboard(active.id)).rows : [];
+      if (request === challengeRequestRef.current) {
+        setChallengeState({ ownerId, challenge: active, rows, loading: false, error: '' });
+      }
+    } catch (error) {
+      if (request === challengeRequestRef.current) {
+        setChallengeState({ ownerId, challenge: null, rows: [], loading: false, error: error.message || 'Could not load challenge standings.' });
+      }
+    }
+  }, [user?.id, user?.role]);
+
+  useFocusEffect(useCallback(() => {
+    loadChallenge();
+    return () => { challengeRequestRef.current += 1; };
+  }, [loadChallenge]));
   const [notesCount, setNotesCount] = useState(0);
   const [dailyStreak, setDailyStreak] = useState(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
@@ -49,15 +83,11 @@ export default function HomeScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const [{ meta, questions }, { rows }, notes, streakData, notificationRows] =
+      const [{ meta, questions }, notes, streakData, notificationRows] =
         await Promise.all([
           api.getQuizBank().catch(() => ({
             meta: null,
             questions: [],
-          })),
-
-          api.getLeaderboard(5).catch(() => ({
-            rows: [],
           })),
 
           (isTeacher
@@ -75,7 +105,6 @@ export default function HomeScreen({ navigation }) {
 
       setQuizMeta(meta);
       setQuizCount((questions || []).length);
-      setBoard(rows || []);
       setNotesCount((notes.materials || []).length);
       setDailyStreak(streakData);
       setNotifications(notificationRows || []);
@@ -107,6 +136,7 @@ export default function HomeScreen({ navigation }) {
       setClaimingReward(true);
 
       const result = await claimDailyReward();
+      await refreshBalance();
 
       if (result.claimed) {
         setRewardClaimed(true);
@@ -129,9 +159,9 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([load(), refreshUser?.()]);
+    await Promise.all([load(), loadChallenge(), refreshUser?.(), refreshBalance()]);
     setRefreshing(false);
-  }, [load, refreshUser]);
+  }, [load, loadChallenge, refreshUser, refreshBalance]);
 
   const openNotifications = useCallback(async () => {
     setNotificationsVisible(true);
@@ -157,7 +187,29 @@ export default function HomeScreen({ navigation }) {
     }
   }, []);
 
-  const rank = board.findIndex((r) => r.user_id === user?.id) + 1;
+  const topFive = board.slice(0, 5);
+  const ownRow = board.find((row) => row.user_id === user?.id);
+  const ownOutsideTopFive = ownRow && !topFive.some((row) => row.user_id === user?.id);
+  const rank = ownRow?.rank;
+
+  function openChallengeLeaderboard() {
+    if (challenge) navigation.getParent()?.navigate('ChallengeLeaderboard', { challengeId: challenge.id, challenge });
+  }
+
+  function renderChallengeRow(row, last = false) {
+    const mine = row.user_id === user?.id;
+    return (
+      <View key={row.user_id} style={[styles.boardRow, mine && styles.boardOwn, last && { borderBottomWidth: 0 }]}>
+        <View style={[styles.rankDot, Number(row.rank) === 1 && styles.rankGold, Number(row.rank) === 2 && styles.rankSilver, Number(row.rank) === 3 && styles.rankBronze]}>
+          <Text style={styles.rankText}>{row.rank}</Text>
+        </View>
+        {row.avatar_url ? <Image source={{ uri: row.avatar_url }} style={styles.boardAvatar} /> :
+          <Ionicons name="person-circle-outline" size={28} color={COLORS.textTertiary} style={{ marginRight: 8 }} />}
+        <Text style={styles.boardName} numberOfLines={1}>{row.display_name || 'Player'}{mine ? ' (You)' : ''}</Text>
+        <Text style={styles.boardXp}>{row.total_xp} XP</Text>
+      </View>
+    );
+  }
   const currentLevel = Math.min(user?.unlockedLevel || 1, TOTAL_MAZE_LEVELS);
   const levelsCleared = Math.max(0, currentLevel - 1);
   const mazePercent = Math.round((levelsCleared / TOTAL_MAZE_LEVELS) * 100);
@@ -165,7 +217,7 @@ export default function HomeScreen({ navigation }) {
   function goToScoreboard() {
     if (isTeacher) {
       navigation.navigate('Class');
-    } else if (board.length > 0) {
+    } else {
       scrollRef.current?.scrollTo({ y: Math.max(0, boardSectionY.current - 16), animated: true });
     }
   }
@@ -369,7 +421,7 @@ export default function HomeScreen({ navigation }) {
                     color={COLORS.white}
                   />
                   <Text style={styles.pillText}>
-                    {board.length} students
+                    Class standings
                   </Text>
                 </View>
 
@@ -403,7 +455,7 @@ export default function HomeScreen({ navigation }) {
                   </Text>
 
                   <Text style={styles.pillText}>
-                    {(user?.coins ?? 0).toLocaleString()} coins
+                    {balanceLabel} coins
                   </Text>
                 </View>
               </>
@@ -517,14 +569,14 @@ export default function HomeScreen({ navigation }) {
           <View style={[styles.recommendCard, { backgroundColor: '#FBF1E4' }]}>
             <Image source={require('../../assets/Artwork/icon-scoreboard.png')} style={styles.recommendIcon} resizeMode="contain" />
             <Text style={styles.recommendTitle} numberOfLines={2}>
-              {isTeacher ? `${board.length} on the board` : rank ? `#${rank} this week` : 'Join the board'}
+              {isTeacher ? 'Class standings' : rank ? `#${rank} in your challenge` : 'Challenge standings'}
             </Text>
             <Text style={styles.recommendDesc} numberOfLines={2}>
               {isTeacher
                 ? 'Live class standings.'
                 : rank
                   ? "Keep going! You're climbing the leaderboard."
-                  : 'Finish a game to appear here.'}
+                  : challenge ? 'Play games to earn challenge XP.' : 'Your next challenge will appear here.'}
             </Text>
             {isTeacher && (
               <TouchableOpacity style={styles.recommendBtn} activeOpacity={0.85} onPress={() => navigation.navigate('Class')}>
@@ -537,25 +589,28 @@ export default function HomeScreen({ navigation }) {
 
         <InsightCard {...notesInsight} />
 
-        {board.length > 0 && (
+        {user?.role === 'student' && (
           <View onLayout={(e) => { boardSectionY.current = e.nativeEvent.layout.y; }}>
-            <Text style={styles.sectionTitle}>Class standings — Top 5</Text>
+            <Text style={styles.sectionTitle}>{challenge?.title || 'Challenge standings'} - Top 5</Text>
             <View style={styles.boardCard}>
-              {board.map((row, i) => (
-                <View key={row.user_id} style={[styles.boardRow, i === board.length - 1 && { borderBottomWidth: 0 }]}>
-                  <View style={[styles.rankDot, i === 0 && styles.rankGold, i === 1 && styles.rankSilver, i === 2 && styles.rankBronze]}>
-                    <Text style={styles.rankText}>{i + 1}</Text>
-                  </View>
-                  <Text style={styles.boardName} numberOfLines={1}>{row.display_name}</Text>
-                  <Text style={styles.boardCoins}>{row.total_coins} 🪙</Text>
-                </View>
-              ))}
-              {isTeacher ? (
-                <TouchableOpacity onPress={() => navigation.navigate('Class')} style={styles.viewAll}>
-                  <Text style={styles.viewAllText}>View full class</Text>
-                  <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
-                </TouchableOpacity>
-              ) : null}
+              {boardLoading ? <ActivityIndicator color={COLORS.primary} style={styles.boardMessage} /> :
+                boardError ? <View style={styles.boardMessage}>
+                  <Text style={{ color: COLORS.error }}>{boardError}</Text>
+                  <TouchableOpacity onPress={loadChallenge} style={styles.viewAll}><Text style={styles.viewAllText}>Retry</Text></TouchableOpacity>
+                </View> : !challenge ? <Text style={styles.boardMessage}>No active challenge right now. Check back soon.</Text> : (
+                  <>
+                    {board.length === 0 && <Text style={styles.boardMessage}>No standings yet.</Text>}
+                    {topFive.map((row, index) => renderChallengeRow(row, index === topFive.length - 1 && !ownOutsideTopFive))}
+                    {!!ownOutsideTopFive && <>
+                      <Text style={styles.boardSeparator}>Your position</Text>
+                      {renderChallengeRow(ownRow, true)}
+                    </>}
+                    <TouchableOpacity onPress={openChallengeLeaderboard} style={styles.viewAll}>
+                      <Text style={styles.viewAllText}>View All</Text>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+                    </TouchableOpacity>
+                  </>
+                )}
             </View>
           </View>
         )}
@@ -922,6 +977,10 @@ const styles = StyleSheet.create({
   },
   recommendBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 12 },
 
+  boardAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+  boardOwn: { backgroundColor: COLORS.primaryFaded },
+  boardMessage: { paddingVertical: 18, color: COLORS.textSecondary },
+  boardSeparator: { paddingTop: 12, color: COLORS.textSecondary, fontSize: 12 },
   boardCard: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
@@ -950,7 +1009,7 @@ const styles = StyleSheet.create({
   rankBronze: { backgroundColor: '#E0A878' },
   rankText: { fontWeight: '800', fontSize: 12, color: COLORS.textPrimary },
   boardName: { flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary },
-  boardCoins: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  boardXp: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
   viewAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12 },
   viewAllText: { color: COLORS.primary, fontWeight: '700', fontSize: 13, marginRight: 2 },
 });

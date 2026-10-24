@@ -20,7 +20,8 @@ async function loadUser(authUser) {
   ]);
 
   const roleNames = (roles || []).map((r) => r.role);
-  const role = roleNames.includes('teacher') || roleNames.includes('admin') ? 'teacher' : 'student';
+  const role = roleNames.includes('admin') ? 'admin' : roleNames.includes('teacher') ? 'teacher' : 'student';
+
 
   // Aggregate progress from the score rows: coins are earned-total, high score is the
   // best single run, and the unlocked maze level follows the best completed level.

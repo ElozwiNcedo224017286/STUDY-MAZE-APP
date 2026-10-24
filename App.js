@@ -15,6 +15,7 @@ import QuizRushScreen from './src/screens/QuizRushScreen';
 import MemoryFlipScreen from './src/screens/MemoryFlipScreen';
 import TeacherDashboardScreen from './src/screens/TeacherDashboardScreen';
 import ShopScreen from './src/screens/ShopScreen';
+import ChallengeLeaderboardScreen from './src/screens/ChallengeLeaderboardScreen';
 import StreakScreen from './src/screens/StreakScreen';
 import StudyNotesScreen from './src/screens/StudyNotesScreen';
 import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
@@ -51,6 +52,7 @@ export default function App() {
             />
 
             <Stack.Screen name="Shop" component={ShopScreen} />
+            <Stack.Screen name="ChallengeLeaderboard" component={ChallengeLeaderboardScreen} />
 
             <Stack.Screen
               name="MentorHub"

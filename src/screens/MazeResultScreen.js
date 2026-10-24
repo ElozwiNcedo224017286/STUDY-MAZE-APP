@@ -15,8 +15,8 @@ export default function MazeResultScreen({ route, navigation }) {
         <Text style={[styles.title, !isWin && styles.titleLose]}>{isWin ? 'Level complete!' : 'Game over'}</Text>
         <Text style={styles.sub}>
           {isWin
-            ? `Total coins: ${coins} · Score: ${score}`
-            : `The ghosts got you. Coins kept: ${coins}`}
+            ? `Coins earned: +${coins} · Score: ${score}`
+            : `The ghosts got you. Coins earned: ${coins}`}
         </Text>
 
         {isWin ? (

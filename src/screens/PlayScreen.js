@@ -6,14 +6,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 import { LEVELS } from './mazeData';
 
-// Every quiz node ('2') in a level's grid is worth 30 coins if answered correctly.
-const MAZE_TOTAL_REWARD = LEVELS.reduce(
-  (sum, lvl) => sum + lvl.grid.reduce((s, row) => s + row.split('').filter((ch) => ch === '2').length, 0) * 30,
-  0
-);
+// Each accepted Maze level win awards 100 trusted coins.
+const MAZE_TOTAL_REWARD = LEVELS.length * 100;
 
 const GAMES = [
   {
@@ -46,6 +44,7 @@ const GAMES = [
 ];
 
 export default function PlayScreen({ navigation }) {
+  const { balanceLabel, refreshBalance } = useTrustedCoinBalance();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [quizMeta, setQuizMeta] = useState(null);
@@ -74,7 +73,7 @@ export default function PlayScreen({ navigation }) {
         </View>
         <View style={styles.statPill}>
           <Text style={styles.statCoin}>🪙</Text>
-          <Text style={styles.statText}>{(user?.coins ?? 0).toLocaleString()}</Text>
+          <Text style={styles.statText}>{balanceLabel}</Text>
           <View style={styles.statDivider} />
           <Ionicons name="flame" size={15} color="#F97316" />
           <Text style={styles.statText}>{user?.streakDays ?? 0}</Text>
@@ -85,7 +84,7 @@ export default function PlayScreen({ navigation }) {
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} colors={[COLORS.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([load(), refreshBalance()]); setRefreshing(false); }} colors={[COLORS.primary]} />
         }
       >
         <LinearGradient colors={COLORS.gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>

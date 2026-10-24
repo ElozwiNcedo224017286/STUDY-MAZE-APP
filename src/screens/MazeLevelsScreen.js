@@ -5,19 +5,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { LEVELS } from './mazeData';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_IMAGE_SIZE = Math.min(SCREEN_WIDTH * 0.62, 230);
 
-// Every quiz node ('2') in a level's grid is worth 30 coins if answered correctly —
-// this is the real, deterministic max coin reward for clearing that level.
-function levelReward(level) {
-  const quizNodes = level.grid.reduce((sum, row) => sum + row.split('').filter((ch) => ch === '2').length, 0);
-  return quizNodes * 30;
+// Each accepted level win awards 100 trusted coins.
+function levelReward() {
+  return 100;
 }
 
 export default function MazeLevelsScreen({ navigation }) {
+  const { balanceLabel } = useTrustedCoinBalance();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const unlocked = user?.unlockedLevel || 1;
@@ -41,7 +41,7 @@ export default function MazeLevelsScreen({ navigation }) {
         </View>
         <View style={styles.heroCoinPill}>
           <Text style={styles.heroCoin}>🪙</Text>
-          <Text style={styles.heroCoinText}>{(user?.coins ?? 0).toLocaleString()}</Text>
+          <Text style={styles.heroCoinText}>{balanceLabel}</Text>
         </View>
       </LinearGradient>
 

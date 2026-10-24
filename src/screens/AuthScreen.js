@@ -48,7 +48,7 @@ export default function AuthScreen({ navigation, route }) {
   function switchMode(nextMode) {
     setMode(nextMode);
     setMsg('');
-    if (nextMode === 'register' && !termsAccepted) setTermsVisible(true);
+    setTermsVisible(nextMode === 'register' && !termsAccepted);
   }
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function AuthScreen({ navigation, route }) {
   }, [booting, user, navigation]);
 
   async function submit() {
-    if (!termsAccepted) return;
+    if (mode === 'register' && !termsAccepted) return;
     setMsg('');
     if (!email.trim() || !password) { setMsg('Enter an email and password.'); return; }
     setBusy(true);
@@ -81,7 +81,7 @@ export default function AuthScreen({ navigation, route }) {
   }
 
   const termsModal = (
-    <Modal visible={termsVisible} transparent animationType="fade" onRequestClose={() => {}}>
+    <Modal visible={mode === 'register' && termsVisible} transparent animationType="fade" onRequestClose={() => {}}>
       <View style={styles.modalBackdrop}>
         <View style={styles.termsCard}>
           <View style={styles.termsHeader}>

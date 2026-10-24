@@ -13,6 +13,21 @@ const FLEX_PADDING = 12;
 const MAZE_WRAP_PADDING = 6;
 
 export default function MazeGameScreen({ route, navigation }) {
+  const levelIndex = route?.params?.levelIndex;
+  if (!Number.isInteger(levelIndex) || levelIndex < 0 || levelIndex >= LEVELS.length) {
+    return (
+      <View style={styles.flex}>
+        <Text style={styles.title}>Invalid Maze level</Text>
+        <TouchableOpacity style={styles.ctrlBtn} onPress={() => navigation.goBack()}>
+          <Text>Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  return <MazeRun key={levelIndex} route={route} navigation={navigation} />;
+}
+
+function MazeRun({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { levelIndex } = route.params;
   const level = LEVELS[levelIndex];
@@ -32,7 +47,17 @@ export default function MazeGameScreen({ route, navigation }) {
   const quizPoolRef = useRef([]);
   const currentQuizCellRef = useRef(null);
   const coinsRef = useRef(0); // coins EARNED this run — added to the player's total on finish
-  const runningRef = useRef(true);
+  const runningRef = useRef(false);
+  const scoreRef = useRef(0);
+  const livesRef = useRef(3);
+  const pausedRef = useRef(false);
+  const mountedRef = useRef(false);
+  const leavingRef = useRef(false);
+  const attemptIdRef = useRef(null);
+  const startPromiseRef = useRef(null);
+  const startPendingRef = useRef(false);
+  const terminalRef = useRef(null);
+  const callbacksRef = useRef(new Set());
 
   const [, forceRender] = useReducer((x) => x + 1, 0);
   const [lives, setLives] = useState(3);
@@ -42,6 +67,64 @@ export default function MazeGameScreen({ route, navigation }) {
   const [quizVisible, setQuizVisible] = useState(false);
   const [quizQuestion, setQuizQuestion] = useState(null);
   const [quizFeedback, setQuizFeedback] = useState('');
+  const [boundary, setBoundary] = useState({ stage: 'starting', error: '' });
+
+  function clearCallbacks() {
+    callbacksRef.current.forEach(clearTimeout);
+    callbacksRef.current.clear();
+  }
+
+  function later(callback, delay) {
+    const timer = setTimeout(() => {
+      callbacksRef.current.delete(timer);
+      if (mountedRef.current && !leavingRef.current && !terminalRef.current) callback();
+    }, delay);
+    callbacksRef.current.add(timer);
+  }
+
+  function leaveMaze() {
+    leavingRef.current = true;
+    runningRef.current = false;
+    clearCallbacks();
+    navigation.goBack();
+  }
+
+  async function startMaze(retry = false) {
+    if (attemptIdRef.current || leavingRef.current || terminalRef.current) return;
+    if (retry && startPendingRef.current) return;
+    if (retry) startPromiseRef.current = null;
+    setBoundary({ stage: 'starting', error: '' });
+    if (!startPromiseRef.current) {
+      startPendingRef.current = true;
+      // Retain the promise across Strict Mode effect cleanup/setup.
+      startPromiseRef.current = api.startMazeAttempt(level.id);
+    }
+    try {
+      const attempt = await startPromiseRef.current;
+      if (!mountedRef.current || leavingRef.current || terminalRef.current || attemptIdRef.current) return;
+      attemptIdRef.current = attempt.attempt_id;
+      runningRef.current = true;
+      setBoundary(null);
+    } catch (error) {
+      if (mountedRef.current && !leavingRef.current) {
+        setBoundary({ stage: 'start-error', error: error.message || 'Could not start Maze.' });
+      }
+    } finally {
+      startPendingRef.current = false;
+    }
+  }
+
+  useEffect(() => {
+    mountedRef.current = true;
+    if (attemptIdRef.current && !terminalRef.current && !leavingRef.current) {
+      runningRef.current = !pausedRef.current;
+    } else startMaze();
+    return () => {
+      mountedRef.current = false;
+      runningRef.current = false;
+      clearCallbacks();
+    };
+  }, []);
 
   const totalDots = level.grid.reduce((s, row) => s + row.split('').filter((ch) => ch === '0').length, 0);
   const totalQuizNodes = level.grid.reduce((s, row) => s + row.split('').filter((ch) => ch === '2').length, 0);
@@ -63,7 +146,7 @@ export default function MazeGameScreen({ route, navigation }) {
 
   useEffect(() => {
     const ghostTimer = setInterval(() => {
-      if (!runningRef.current || awaitingQuizRef.current) return;
+      if (!runningRef.current || !attemptIdRef.current || terminalRef.current || leavingRef.current || awaitingQuizRef.current) return;
       moveGhosts();
       checkGhostCollision();
       forceRender();
@@ -111,49 +194,89 @@ export default function MazeGameScreen({ route, navigation }) {
   }
 
   function togglePause() {
-    setPaused((prev) => {
-      const next = !prev;
-      runningRef.current = !next;
-      return next;
-    });
+    if (!attemptIdRef.current || terminalRef.current || leavingRef.current) return;
+    pausedRef.current = !pausedRef.current;
+    setPaused(pausedRef.current);
+    runningRef.current = !pausedRef.current;
   }
 
   function loseLife() {
-    setLives((prev) => {
-      const next = prev - 1;
-      if (next <= 0) {
-        runningRef.current = false;
-        gameOver();
-      } else {
-        runningRef.current = false;
-        setTimeout(() => {
-          playerRef.current = { r: 1, c: 1 };
-          ghostsRef.current = level.ghostStarts.map((g) => ({ ...g }));
-          runningRef.current = true;
-          forceRender();
-        }, 500);
+    if (!runningRef.current || terminalRef.current || leavingRef.current) return;
+    livesRef.current -= 1;
+    setLives(livesRef.current);
+    runningRef.current = false;
+    if (livesRef.current <= 0) {
+      finishMaze('lost');
+    } else {
+      later(() => {
+        playerRef.current = { r: 1, c: 1 };
+        ghostsRef.current = level.ghostStarts.map((g) => ({ ...g }));
+        runningRef.current = !pausedRef.current;
+        forceRender();
+      }, 500);
+    }
+  }
+
+  async function completeTerminal() {
+    const terminal = terminalRef.current;
+    if (!terminal || terminal.inFlight || terminal.navigated || !mountedRef.current || leavingRef.current) return;
+    terminal.inFlight = true;
+    setBoundary({ stage: 'finishing', error: '' });
+    try {
+      if (!terminal.serverResult) {
+        terminal.serverResult = await api.completeMazeAttempt(terminal.attemptId, terminal.outcome);
       }
-      return next;
-    });
+      if (!mountedRef.current || leavingRef.current) return;
+      // Presentation/history mirrors the accepted trusted reward; gameplay score stays local.
+      const awardedCoins = terminal.outcome === 'won' ? 100 : 0;
+      if (!terminal.legacyStarted) {
+        terminal.legacyStarted = true;
+        try {
+          await recordGame('quiz_maze', {
+            coinsEarned: awardedCoins, score: terminal.score,
+            ...(terminal.outcome === 'won' ? { level: level.id } : {}),
+          });
+        } catch (error) {
+          // Do not retry an uncertain legacy INSERT or invalidate confirmed XP.
+          console.warn('Maze legacy result could not refresh:', error.message);
+        }
+      }
+      if (!mountedRef.current || leavingRef.current || terminal.navigated) return;
+      terminal.navigated = true;
+      navigation.replace('MazeResult', {
+        outcome: terminal.outcome === 'won' ? 'win' : 'lose',
+        coins: awardedCoins, score: terminal.score, levelIndex,
+        xp_awarded: terminal.serverResult.xp_awarded,
+      });
+    } catch (error) {
+      if (mountedRef.current && !leavingRef.current) {
+        setBoundary({ stage: 'finish-error', error: error.message || 'Could not finalize Maze.' });
+      }
+    } finally {
+      terminal.inFlight = false;
+    }
   }
 
-  async function gameOver() {
-    // Loss: record coins earned + score, but no level (so the unlock doesn't advance).
-    await recordGame('quiz_maze', { coinsEarned: coinsRef.current, score });
-    navigation.replace('MazeResult', { outcome: 'lose', coins: coinsRef.current, score, levelIndex });
+  function finishMaze(outcome) {
+    if (terminalRef.current || !attemptIdRef.current || !mountedRef.current || leavingRef.current) return;
+    terminalRef.current = {
+      attemptId: attemptIdRef.current, outcome, score: scoreRef.current, coins: coinsRef.current,
+      inFlight: false, serverResult: null, legacyStarted: false, navigated: false,
+    };
+    runningRef.current = false;
+    clearCallbacks();
+    setQuizVisible(false);
+    completeTerminal();
   }
 
-  async function checkWin() {
-    if (dotsRemainingRef.current <= 0) {
-      runningRef.current = false;
-      // Win: record the completed level so game_scores drives the unlocked-level total.
-      await recordGame('quiz_maze', { coinsEarned: coinsRef.current, score, level: level.id });
-      navigation.replace('MazeResult', { outcome: 'win', coins: coinsRef.current, score, levelIndex });
+  function checkWin() {
+    if (attemptIdRef.current && !terminalRef.current && !leavingRef.current && dotsRemainingRef.current <= 0) {
+      finishMaze('won');
     }
   }
 
   function tryMove(dr, dc) {
-    if (!runningRef.current || awaitingQuizRef.current) return;
+    if (!runningRef.current || !attemptIdRef.current || terminalRef.current || leavingRef.current || awaitingQuizRef.current) return;
     const p = playerRef.current;
     const nr = p.r + dr, nc = p.c + dc;
     if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) return;
@@ -163,7 +286,8 @@ export default function MazeGameScreen({ route, navigation }) {
     if (cell === 0) {
       gridRef.current[nr][nc] = 3;
       dotsRemainingRef.current -= 1;
-      setScore((s) => s + 10);
+      scoreRef.current += 10;
+      setScore(scoreRef.current);
     } else if (cell === 2) {
       currentQuizCellRef.current = { r: nr, c: nc };
       openQuiz();
@@ -181,7 +305,7 @@ export default function MazeGameScreen({ route, navigation }) {
   }
 
   function answerQuiz(i) {
-    if (!quizQuestion) return;
+    if (!quizQuestion || !attemptIdRef.current || terminalRef.current || leavingRef.current) return;
     if (i === quizQuestion.correct) {
       coinsRef.current += 30;
       setQuizFeedback('✔ Correct! +30 coins');
@@ -190,7 +314,7 @@ export default function MazeGameScreen({ route, navigation }) {
       setQuizFeedback(`✘ Not quite — the answer was "${quizQuestion.opts[quizQuestion.correct]}"`);
     }
     setCoins(coinsRef.current);
-    setTimeout(() => {
+    later(() => {
       setQuizVisible(false);
       awaitingQuizRef.current = false;
       const cell = currentQuizCellRef.current;
@@ -208,7 +332,7 @@ export default function MazeGameScreen({ route, navigation }) {
   return (
     <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
       <View style={styles.topnav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => { runningRef.current = false; navigation.goBack(); }}>
+        <TouchableOpacity style={styles.backBtn} onPress={leaveMaze}>
           <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>{level.name}</Text>
@@ -286,6 +410,24 @@ export default function MazeGameScreen({ route, navigation }) {
           <Text style={styles.pausedText}>Paused</Text>
         </View>
       )}
+
+      <Modal visible={!!boundary} transparent animationType="fade" onRequestClose={leaveMaze}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.quizCard}>
+            <Text style={styles.quizQ}>{boundary?.stage === 'starting' ? 'Starting Maze...' :
+              boundary?.stage === 'finishing' ? 'Saving Maze result...' : 'Maze request failed'}</Text>
+            {!!boundary?.error && <Text style={styles.quizFeedback}>{boundary.error}</Text>}
+            {(boundary?.stage === 'start-error' || boundary?.stage === 'finish-error') && (
+              <TouchableOpacity style={styles.quizOpt} onPress={() => boundary.stage === 'start-error' ? startMaze(true) : completeTerminal()}>
+                <Text style={styles.quizOptText}>Retry</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.quizOpt} onPress={leaveMaze}>
+              <Text style={styles.quizOptText}>Back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={quizVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
