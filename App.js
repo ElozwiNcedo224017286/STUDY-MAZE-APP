@@ -1,10 +1,11 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import MainTabs from './src/navigation/MainTabs';
 import SplashScreen from './src/screens/SplashScreen';
 import AuthScreen from './src/screens/AuthScreen';
@@ -19,16 +20,35 @@ import ChallengeLeaderboardScreen from './src/screens/ChallengeLeaderboardScreen
 import StreakScreen from './src/screens/StreakScreen';
 import StudyNotesScreen from './src/screens/StudyNotesScreen';
 import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
+import { PrivacyPolicyScreen, TermsOfServiceScreen } from './src/screens/LegalScreens';
+import {
+  AchievementsScreen,
+  HelpSupportScreen,
+  ProfileDetailsScreen,
+} from './src/screens/ProfilePages';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
+      <ThemeProvider>
+        <AppShell />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
 
-        <NavigationContainer>
+function AppShell() {
+  const { isDark } = useTheme();
+  const navigationTheme = isDark ? DarkTheme : DefaultTheme;
+
+  return (
+      <AuthProvider>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+
+        <NavigationContainer theme={navigationTheme}>
           <Stack.Navigator
             screenOptions={{ headerShown: false }}
             initialRouteName="Splash"
@@ -38,6 +58,12 @@ export default function App() {
 
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Streak" component={StreakScreen} />
+            <Stack.Screen name="ProfileDetails" component={ProfileDetailsScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+            <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
+            <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+            <Stack.Screen name="Achievements" component={AchievementsScreen} />
 
             <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
             <Stack.Screen name="MazeGame" component={MazeGameScreen} />
@@ -87,6 +113,5 @@ export default function App() {
           </Stack.Navigator>
         </NavigationContainer>
       </AuthProvider>
-    </SafeAreaProvider>
   );
 }

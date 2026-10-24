@@ -1,6 +1,25 @@
 import { supabase, SUPABASE_FUNCTIONS_URL } from './supabase';
 import { File } from 'expo-file-system';
 
+async function getEdgeFunctionErrorMessage(error, fallback) {
+  const response = error?.context;
+  if (response && typeof response.clone === 'function') {
+    try {
+      const payload = await response.clone().json();
+      const message = payload?.error || payload?.message || payload?.msg;
+      if (typeof message === 'string' && message.trim()) return message;
+    } catch {
+      try {
+        const body = await response.clone().text();
+        if (body.trim()) return body.slice(0, 500);
+      } catch {
+        // Fall back to the SDK error when the response body is unavailable.
+      }
+    }
+  }
+  return error?.message || fallback;
+}
+
 // The games speak in { subject, q, opts, correct }; the `tests` table stores questions
 // as { q, choices, answer } (+ subject). Convert at the boundary in both directions.
 function toAppQuestion(row) {
@@ -565,9 +584,7 @@ export const api = {
     );
 
     if (error) {
-      throw new Error(
-        error.message || 'Could not generate study notes.'
-      );
+      throw new Error(await getEdgeFunctionErrorMessage(error, 'Could not generate study notes.'));
     }
 
     if (!data?.success) {
@@ -634,6 +651,35 @@ export const api = {
       .eq('id', id);
     if (error) throw new Error(error.message || 'Could not update notification.');
     return { ok: true };
+  },
+
+  createAnnouncement: async ({ title, message }) => {
+    const cleanTitle = title?.trim();
+    const cleanMessage = message?.trim();
+    if (!cleanTitle || !cleanMessage) {
+      throw new Error('Enter an announcement title and message.');
+    }
+    if (cleanTitle.length > 120 || cleanMessage.length > 2000) {
+      throw new Error('Keep the title under 120 characters and the message under 2,000 characters.');
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error('You must be signed in to send an announcement.');
+
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: null,
+        category: 'announcement',
+        title: cleanTitle,
+        message: cleanMessage,
+        created_by: user.id,
+      })
+      .select('id, title, message, created_at')
+      .single();
+
+    if (error) throw new Error(error.message || 'Could not publish the announcement.');
+    return data;
   },
 
   generateQuestions: async (files, topic) => {

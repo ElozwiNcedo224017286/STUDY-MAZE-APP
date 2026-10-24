@@ -15,6 +15,7 @@ import FeatureTabBar from '../components/history/FeatureTabBar';
 import FeatureHistoryTab from '../components/history/FeatureHistoryTab';
 import { chatStorage } from '../services/chatStorage';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 const TOOL = {
   title: 'Maze Mentor',
@@ -24,6 +25,7 @@ const TOOL = {
 };
 
 export default function MentorHubScreen({ navigation }) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('start');
   const [history, setHistory] = useState([]);
@@ -56,7 +58,7 @@ export default function MentorHubScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar
         barStyle="dark-content"
         backgroundColor="transparent"

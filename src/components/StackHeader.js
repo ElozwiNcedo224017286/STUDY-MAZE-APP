@@ -3,19 +3,21 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
+import { useTheme } from '../context/ThemeContext';
 
 export default function StackHeader({ title, subtitle, onBack, right }) {
   const insets = useSafeAreaInsets();
+  const { colors } = useTheme();
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 8 }]}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 8, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.back} onPress={onBack} activeOpacity={0.75}>
-          <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
+        <TouchableOpacity style={[styles.back, { backgroundColor: colors.backgroundTertiary }]} onPress={onBack} activeOpacity={0.75}>
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.text}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{title}</Text>
+          {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text> : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : <View style={styles.back} />}
       </View>

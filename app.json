@@ -4,7 +4,7 @@
     "slug": "study-maze",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",

@@ -20,3 +20,6 @@ supabase/.temp/
 backend/.env
 backend/venv/
 backend/__pycache__/
+
+.tmp-theme-contrast-check/
+.tmp-theme-contrast-final/

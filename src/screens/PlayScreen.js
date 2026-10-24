@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 import { LEVELS } from './mazeData';
+import { useTheme } from '../context/ThemeContext';
 
 // Each accepted Maze level win awards 100 trusted coins.
 const MAZE_TOTAL_REWARD = LEVELS.length * 100;
@@ -45,6 +46,7 @@ const GAMES = [
 
 export default function PlayScreen({ navigation }) {
   const { balanceLabel, refreshBalance } = useTrustedCoinBalance();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [quizMeta, setQuizMeta] = useState(null);
@@ -60,16 +62,16 @@ export default function PlayScreen({ navigation }) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
 
       <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>
-            <Text style={styles.headerPlay}>Play </Text>
-            <Text style={styles.headerZone}>Zone</Text>
+            <Text style={[styles.headerPlay, { color: colors.textPrimary }]}>Play </Text>
+            <Text style={[styles.headerZone, { color: colors.primaryText }]}>Zone</Text>
           </Text>
-          <Text style={styles.headerSub}>Three games. One quiz bank. Earn coins as you learn.</Text>
+          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Three games. One quiz bank. Earn coins as you learn.</Text>
         </View>
         <View style={styles.statPill}>
           <Text style={styles.statCoin}>🪙</Text>
@@ -107,7 +109,7 @@ export default function PlayScreen({ navigation }) {
         </LinearGradient>
 
         <Text style={styles.eyebrow}>GAMES</Text>
-        <Text style={styles.sectionTitle}>Choose how you want to learn</Text>
+        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Choose how you want to learn</Text>
 
         {GAMES.map((game) => (
           <TouchableOpacity

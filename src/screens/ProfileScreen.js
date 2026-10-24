@@ -22,11 +22,13 @@ import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 
 const TOTAL_MAZE_LEVELS = 3;
 
 export default function ProfileScreen({ navigation }) {
   const { balanceLabel } = useTrustedCoinBalance();
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { user, logout, refreshUser } = useAuth();
   const isTeacher = user?.role === 'teacher';
@@ -132,8 +134,8 @@ export default function ProfileScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
 
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <View style={styles.headerSide}>
@@ -142,19 +144,19 @@ export default function ProfileScreen({ navigation }) {
               <Image source={require('../../assets/logo.png')} style={styles.brandLogo} />
             </View>
             <Text style={styles.brandText}>
-              <Text style={styles.brandStudy}>Study</Text>
-              <Text style={styles.brandMaze}>Maze</Text>
+              <Text style={[styles.brandStudy, { color: colors.textPrimary }]}>Study</Text>
+              <Text style={[styles.brandMaze, { color: colors.primaryText }]}>Maze</Text>
             </Text>
           </View>
         </View>
-        <Text style={styles.headerTitle}>Profile</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Profile</Text>
         <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
           <TouchableOpacity
             style={styles.settingsBtn}
             activeOpacity={0.75}
-            onPress={() => Alert.alert('Coming soon', 'Settings aren\'t available yet.')}
+            onPress={() => navigation.getParent()?.navigate('Settings')}
           >
-            <Ionicons name="settings-outline" size={20} color={COLORS.textPrimary} />
+            <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -225,8 +227,8 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         <View style={styles.achievementsHeader}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <TouchableOpacity onPress={() => Alert.alert('Coming soon', 'A full achievements list isn\'t available yet.')}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Achievements</Text>
+          <TouchableOpacity onPress={() => navigation.getParent()?.navigate('Achievements')}>
             <View style={styles.viewAllRow}>
               <Text style={styles.viewAllText}>View all</Text>
               <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
@@ -272,7 +274,7 @@ export default function ProfileScreen({ navigation }) {
             icon="person-outline"
             title="Personal details"
             description={user?.email}
-            onPress={() => Alert.alert('Personal details', `Name: ${user?.username || '—'}\nEmail: ${user?.email || '—'}\nRole: ${isTeacher ? 'Teacher' : 'Student'}`)}
+            onPress={() => navigation.getParent()?.navigate('ProfileDetails')}
           />
           <ProfileMenuItem
             icon="notifications-outline"
@@ -283,7 +285,7 @@ export default function ProfileScreen({ navigation }) {
           <ProfileMenuItem
             icon="help-circle-outline"
             title="Help & support"
-            onPress={() => Alert.alert('Help & support', 'Need a hand? Reach out to your teacher or school admin for now.')}
+            onPress={() => navigation.getParent()?.navigate('HelpSupport')}
           />
         </ProfileSection>
 

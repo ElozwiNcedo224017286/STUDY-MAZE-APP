@@ -16,8 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { api } from '../api/client';
+import { useTheme } from '../context/ThemeContext';
 
 export default function NotesScreen() {
+  const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,8 +59,8 @@ export default function NotesScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
       <ScreenHeader
         title="Study"
         titleHighlight="Notes"
