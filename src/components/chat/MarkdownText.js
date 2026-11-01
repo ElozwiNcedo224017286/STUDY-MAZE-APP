@@ -4,10 +4,10 @@ import { COLORS } from '../../theme/colors';
 import { splitMarkdownAndMath } from './math';
 import MathView from './MathView';
 
-export default function MarkdownText({ text, isUser = false }) {
+export default function MarkdownText({ text, isUser = false, textColor: overrideColor }) {
   if (!text) return null;
 
-  const textColor = isUser ? COLORS.white : COLORS.textPrimary;
+  const textColor = overrideColor || (isUser ? COLORS.white : COLORS.textPrimary);
   const baseText = { fontSize: 15, lineHeight: 22, color: textColor };
 
   const parseInline = (line, style, keyPrefix = '') => {
@@ -76,7 +76,7 @@ export default function MarkdownText({ text, isUser = false }) {
         i += 1;
         elements.push(
           <View key={`${keyPrefix}cb${key++}`} style={styles.codeBlock}>
-            <Text style={[baseText, styles.codeBlockText]}>{codeLines.join('\n')}</Text>
+            <Text style={[baseText, styles.codeBlockText, { color: textColor }]}>{codeLines.join('\n')}</Text>
           </View>
         );
         continue;

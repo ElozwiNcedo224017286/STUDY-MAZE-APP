@@ -7,6 +7,7 @@ import os
 import tempfile
 import time
 import base64
+import wave
 import zipfile
 import traceback
 from io import BytesIO
@@ -34,6 +35,8 @@ MODEL_NAME = (
     or "gemini-3.6-flash"
 ).strip()
 TITLE_MODEL = (os.getenv("GEMINI_TITLE_MODEL") or MODEL_NAME).strip()
+TTS_MODEL = (os.getenv("GEMINI_TTS_MODEL") or "gemini-3.1-flash-tts-preview").strip()
+TTS_VOICE = (os.getenv("GEMINI_TTS_VOICE") or "Kore").strip()
 
 
 @app.errorhandler(RequestEntityTooLarge)
@@ -118,6 +121,50 @@ def extract_text(response):
             if value:
                 chunks.append(value)
     return "\n".join(chunks).strip()
+
+
+def generate_speech(response_text):
+    prompt = (
+        "Speak the following Study Maze tutor reply in a warm, clear, encouraging voice. "
+        "Read the meaning naturally without saying markdown symbols.\n\n"
+        f"{response_text}"
+    )
+    response = require_client().models.generate_content(
+        model=TTS_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=TTS_VOICE,
+                    )
+                )
+            ),
+        ),
+    )
+
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            inline_data = getattr(part, "inline_data", None)
+            audio_data = getattr(inline_data, "data", None) if inline_data else None
+            if not audio_data:
+                continue
+            if isinstance(audio_data, str):
+                audio_data = base64.b64decode(audio_data)
+            if audio_data[:4] == b"RIFF":
+                return audio_data
+
+            output = BytesIO()
+            with wave.open(output, "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(24000)
+                wav_file.writeframes(audio_data)
+            return output.getvalue()
+
+    raise RuntimeError("Gemini TTS returned no audio")
 
 
 def finish_reason(response):
@@ -470,6 +517,7 @@ def run_chat(mode="tutor"):
         user_input = (request.form.get("message") or "").strip()
         conversation_id = request.form.get("conversation_id") or ""
         session_mode = request.form.get("session_mode") or "general"
+        response_audio = (request.form.get("response_audio") or "").lower() == "true"
         audio_file = file_from_request("audio")
         image_file = file_from_request("image")
         document_file = file_from_request("document")
@@ -502,8 +550,15 @@ def run_chat(mode="tutor"):
         if not content_parts:
             raise ValueError("no_input")
 
+        if session_mode == "speaking":
+            content_parts.insert(0,
+                "This is conversational speaking practice. Help the student explain study ideas "
+                "and rehearse oral answers. Keep replies brief and encouraging, and ask one follow-up "
+                "question. Do not give pronunciation scores, accent scores, or fluency grades."
+            )
+
         requested_max_tokens = request.form.get("max_tokens")
-        max_tokens = 800
+        max_tokens = 300 if response_audio else 800
         if requested_max_tokens:
             try:
                 max_tokens = min(int(requested_max_tokens), 2048)
@@ -539,13 +594,22 @@ def run_chat(mode="tutor"):
             )
             session["title"] = conversation_title
 
-        return jsonify({
+        result = {
             "response": response_text,
             "conversation_id": conversation_id,
             "conversation_title": conversation_title,
             "status": "success",
             "processing_time": round(processing_time, 2),
-        }), 200
+        }
+        if response_audio:
+            try:
+                audio = generate_speech(response_text)
+                result["response_audio_base64"] = base64.b64encode(audio).decode("ascii")
+                result["response_audio_mime"] = "audio/wav"
+            except Exception:
+                # Speech is optional: preserve the successful text reply.
+                app.logger.warning("Optional reply speech unavailable; returning text only.")
+        return jsonify(result), 200
     except ValueError as error:
         code = str(error)
         messages = {

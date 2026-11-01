@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SHADOWS } from '../../theme/colors';
+import { COLORS as DEFAULT_COLORS, SHADOWS } from '../../theme/colors';
 import MarkdownText from './MarkdownText';
 import AudioPlayer from './AudioPlayer';
 
-export default function MessageBubble({ message, isFirstInGroup }) {
+export default function MessageBubble({ message, isFirstInGroup, themeColors }) {
+  const COLORS = themeColors || DEFAULT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const isUser = message.sender === 'user';
   const time = new Date(message.timestamp || Date.now()).toLocaleTimeString([], {
     hour: '2-digit',
@@ -36,8 +38,8 @@ export default function MessageBubble({ message, isFirstInGroup }) {
             </Text>
           </View>
         ) : null}
-        {message.audioUri ? <AudioPlayer uri={message.audioUri} isUser={isUser} /> : null}
-        {message.text ? <MarkdownText text={message.text} isUser={isUser} /> : null}
+        {message.audioUri ? <AudioPlayer uri={message.audioUri} isUser={isUser} autoPlay={message.autoPlay} themeColors={themeColors} /> : null}
+        {message.text ? <MarkdownText text={message.text} isUser={isUser} textColor={themeColors && (isUser ? COLORS.white : COLORS.textPrimary)} /> : null}
         {message.isError ? (
           <View style={styles.errorRow}>
             <Ionicons name="warning" size={13} color={COLORS.error} />
@@ -50,7 +52,7 @@ export default function MessageBubble({ message, isFirstInGroup }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   row: { flexDirection: 'row', marginBottom: 8, maxWidth: '100%' },
   groupGap: { marginTop: 8 },
   userRow: { justifyContent: 'flex-end', paddingLeft: 48 },
@@ -76,7 +78,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 6,
   },
   aiBubble: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface || COLORS.white,
     borderBottomLeftRadius: 6,
     ...SHADOWS.small,
   },

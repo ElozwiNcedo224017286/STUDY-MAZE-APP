@@ -185,6 +185,7 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
   if (conversationId) formData.append('conversation_id', conversationId);
   if (extras.mode) formData.append('mode', extras.mode);
   if (extras.sessionMode) formData.append('session_mode', extras.sessionMode);
+  if (extras.responseAudio) formData.append('response_audio', 'true');
   if (messageData.text?.trim()) formData.append('message', messageData.text.trim());
 
   if (messageData.images?.[0]?.uri) {
@@ -219,6 +220,33 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
   }
 
   return formData;
+}
+
+// Reply speech is disposable cache data; storage failures must preserve the text reply.
+async function cacheResponseAudio(data) {
+  if (!data.response_audio_base64 || data.response_audio_mime !== 'audio/wav') return null;
+  let uri;
+  try {
+    const fs = require('expo-file-system/legacy');
+    if (!fs.cacheDirectory) return null;
+    uri = `${fs.cacheDirectory}voice_lab_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`;
+    await fs.writeAsStringAsync(uri, data.response_audio_base64, { encoding: fs.EncodingType.Base64 });
+    return uri;
+  } catch {
+    if (uri) await removeResponseAudio(uri);
+    return null;
+  }
+}
+
+export async function removeResponseAudio(uri) {
+  try {
+    const fs = require('expo-file-system/legacy');
+    if (fs.cacheDirectory && uri?.startsWith(`${fs.cacheDirectory}voice_lab_`) && uri.endsWith('.wav')) {
+      await fs.deleteAsync(uri, { idempotent: true });
+    }
+  } catch {
+    // Best effort: the OS may also evict app-cache files.
+  }
 }
 
 async function parseJsonResponse(response) {
@@ -279,6 +307,8 @@ const ApiService = {
         success: true,
         data: {
           response: data.response,
+          response_audio_uri: extras.responseAudio ? await cacheResponseAudio(data) : null,
+          response_audio_mime: data.response_audio_mime,
           conversation_id: data.conversation_id,
           conversation_title: data.conversation_title,
           processing_time: data.processing_time,

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import {
   useAudioRecorder,
@@ -8,9 +8,11 @@ import {
 } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../../theme/colors';
+import { COLORS as DEFAULT_COLORS } from '../../theme/colors';
 
-export default function AudioRecorder({ onStopRecording, onCancel }) {
+export default function AudioRecorder({ onStopRecording, onCancel, themeColors }) {
+  const COLORS = themeColors || DEFAULT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const [duration, setDuration] = useState(0);
   const waves = useRef([...Array(16)].map(() => new Animated.Value(0.3))).current;
@@ -58,6 +60,7 @@ export default function AudioRecorder({ onStopRecording, onCancel }) {
     return () => {
       cancelled = true;
       if (interval) clearInterval(interval);
+      setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     };
   }, []);
 
@@ -65,6 +68,7 @@ export default function AudioRecorder({ onStopRecording, onCancel }) {
     try {
       await recorder.stop();
       const uri = recorder.uri;
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
       if (!uri) {
         onCancel();
         return;
@@ -106,9 +110,9 @@ export default function AudioRecorder({ onStopRecording, onCancel }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   wrap: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface || COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     padding: 14,

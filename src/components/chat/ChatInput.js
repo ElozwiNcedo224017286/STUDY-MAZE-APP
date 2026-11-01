@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS, SHADOWS } from '../../theme/colors';
+import { COLORS as DEFAULT_COLORS, SHADOWS } from '../../theme/colors';
 import { STUDY_MATERIAL_TYPES, mimeFromFileName } from '../../constants/studyFiles';
 
 function VoiceRecorder(props) {
@@ -23,7 +23,9 @@ function VoiceRecorder(props) {
   return <AudioRecorder {...props} />;
 }
 
-export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Mentor…' }) {
+export default function ChatInput({ onSend, disabled, allowMedia = true, themeColors, placeholder = 'Ask Maze Mentor…' }) {
+  const COLORS = themeColors || DEFAULT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const [text, setText] = useState('');
   const [images, setImages] = useState([]);
@@ -139,6 +141,7 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
 
   function stopRecording(uri) {
     setRecording(false);
+    if (disabled) return;
     if (!text.trim() && images.length === 0) {
       onSend({ type: 'audio', audioUri: uri, text: '' });
       return;
@@ -185,12 +188,12 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
       ) : null}
 
       {recording ? (
-        <VoiceRecorder onStopRecording={stopRecording} onCancel={() => setRecording(false)} />
+        <VoiceRecorder themeColors={themeColors} onStopRecording={stopRecording} onCancel={() => setRecording(false)} />
       ) : null}
 
       <View style={[styles.bar, { paddingBottom: (keyboardOpen ? 10 : insets.bottom + 8) }]}>
         <View style={styles.field}>
-          {!recording ? (
+          {allowMedia && !recording ? (
             <Animated.View style={{ transform: [{ rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg'] }) }] }}>
               <TouchableOpacity style={styles.iconBtn} onPress={toggleMedia} disabled={disabled}>
                 <Ionicons name="add" size={24} color={COLORS.primary} />
@@ -249,9 +252,9 @@ export default function ChatInput({ onSend, disabled, placeholder = 'Ask Maze Me
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   bar: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface || COLORS.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
     paddingHorizontal: 12,
@@ -298,7 +301,7 @@ const styles = StyleSheet.create({
   },
   mediaLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
   previewStrip: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface || COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     paddingHorizontal: 12,
@@ -307,7 +310,7 @@ const styles = StyleSheet.create({
   },
   previewItem: { marginRight: 8, position: 'relative' },
   previewImage: { width: 72, height: 72, borderRadius: 10 },
-  remove: { position: 'absolute', top: -6, right: -6, backgroundColor: COLORS.white, borderRadius: 10 },
+  remove: { position: 'absolute', top: -6, right: -6, backgroundColor: COLORS.surface || COLORS.white, borderRadius: 10 },
   attachStrip: {
     flexDirection: 'row',
     alignItems: 'center',

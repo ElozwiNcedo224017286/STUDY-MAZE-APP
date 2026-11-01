@@ -1,10 +1,12 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../theme/colors';
+import { COLORS as DEFAULT_COLORS } from '../../theme/colors';
 
-export default function AudioPlayer({ uri, isUser }) {
+export default function AudioPlayer({ uri, isUser, autoPlay = false, themeColors }) {
+  const COLORS = themeColors || DEFAULT_COLORS;
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const player = useAudioPlayer(uri ? { uri } : null);
   const status = useAudioPlayerStatus(player);
   const progress = useRef(new Animated.Value(0)).current;
@@ -17,6 +19,17 @@ export default function AudioPlayer({ uri, isUser }) {
     const ratio = duration ? position / duration : 0;
     progress.setValue(Math.min(1, Math.max(0, ratio)));
   }, [position, duration, progress]);
+
+  const didAutoPlay = useRef(false);
+  useEffect(() => {
+    if (!autoPlay || !status?.isLoaded || didAutoPlay.current) return;
+    didAutoPlay.current = true;
+    try {
+      Promise.resolve(player.play()).catch(() => {});
+    } catch {
+      // Manual playback remains available when autoplay is unavailable.
+    }
+  }, [autoPlay, status?.isLoaded, player]);
 
   function toggle() {
     if (!player) return;
@@ -60,7 +73,7 @@ export default function AudioPlayer({ uri, isUser }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', minWidth: 180, paddingVertical: 4 },
   play: {
     width: 34,
