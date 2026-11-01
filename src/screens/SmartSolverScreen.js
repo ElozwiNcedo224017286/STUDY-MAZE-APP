@@ -187,7 +187,7 @@ export default function SmartSolverScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <StatusBar barStyle="dark-content" />
       <LinearGradient
         colors={TOOL.lightGradient}
         style={[styles.header, { paddingTop: insets.top + 12 }]}

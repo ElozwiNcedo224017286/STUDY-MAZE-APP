@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as DocumentPicker from 'expo-document-picker';
@@ -29,7 +28,6 @@ export default function LearnScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={COLORS.backgroundSecondary}
       />
 
       <ScreenHeader
@@ -37,22 +35,6 @@ export default function LearnScreen({ navigation }) {
         titleHighlight="Hub"
         subtitle="Learn from your teacher or turn your own slides into study notes."
       />
-
-      <TouchableOpacity
-        style={[styles.voiceLab, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        onPress={() => navigation.navigate('SpeakingPractice')}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-      >
-        <Ionicons name="mic-outline" size={24} color={colors.primaryText} />
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.voiceLabTitle, { color: colors.textPrimary }]}>Voice Lab</Text>
-          <Text style={[styles.voiceLabText, { color: colors.textSecondary }]}>
-            Practice explaining ideas out loud and hear AI responses.
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.primaryText} />
-      </TouchableOpacity>
 
       <View style={styles.segmentWrap}>
         {['teacher-notes', 'own-notes'].map((key) => (
@@ -163,6 +145,7 @@ function TeacherNotesPane({ insets }) {
 }
 
 function OwnNotesPane({ insets }) {
+  const { colors } = useTheme();
   const [selectedFile, setSelectedFile] = useState(null);
   const [processingStep, setProcessingStep] = useState('');
   const [uploadError, setUploadError] = useState('');
@@ -609,9 +592,6 @@ function GeneratedStudyNotes({ notes }) {
 }
 
 const styles = StyleSheet.create({
-  voiceLab: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 20, marginBottom: 12, padding: 14, borderWidth: 1, borderRadius: 16 },
-  voiceLabTitle: { fontSize: 15, fontWeight: '800' },
-  voiceLabText: { fontSize: 12, lineHeight: 17, marginTop: 3 },
   container: {
     flex: 1,
     backgroundColor: COLORS.backgroundSecondary,

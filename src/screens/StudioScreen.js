@@ -29,7 +29,7 @@ export default function StudioScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.backgroundSecondary} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <ScreenHeader
         title="Quiz"
         titleHighlight="Studio"

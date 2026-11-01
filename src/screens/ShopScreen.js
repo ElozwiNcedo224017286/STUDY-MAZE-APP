@@ -71,7 +71,7 @@ export default function ShopScreen() {
   }
 
   return <View style={styles.container}>
-    <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <StatusBar barStyle="dark-content" />
     <ScreenHeader title="Rewards" titleHighlight="Shop" subtitle="Use your trusted coins to redeem Study Maze rewards." />
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { if (!lock.current) load(); }} colors={[COLORS.primary]} tintColor={COLORS.primary} />}>

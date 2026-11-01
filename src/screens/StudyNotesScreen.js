@@ -26,7 +26,7 @@ export default function StudyNotesScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      <StatusBar barStyle="dark-content" />
       <StackHeader
         title="Revision Notes"
         subtitle="Teacher summaries for quick recap"

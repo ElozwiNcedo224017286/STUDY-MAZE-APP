@@ -107,7 +107,7 @@ export default function ScannerAnimation({
     return (
       <Modal visible animationType="fade" presentationStyle="fullScreen" statusBarTranslucent>
         <View style={styles.container}>
-          <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+          <StatusBar barStyle="light-content" />
           <LinearGradient colors={['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.98)']} style={styles.permissionOverlay}>
             <Animated.View style={[styles.permissionContainer, { transform: [{ scale: scaleAnim }] }]}>
               <View style={styles.permissionCard}>
@@ -137,7 +137,7 @@ export default function ScannerAnimation({
   return (
     <Modal visible animationType="fade" presentationStyle="fullScreen" statusBarTranslucent>
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="light-content" />
         <CameraView
           style={styles.camera}
           ref={(ref) => setCamera(ref)}

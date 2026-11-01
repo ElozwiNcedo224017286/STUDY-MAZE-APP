@@ -38,7 +38,7 @@ export function useAdminResource(fetcher) {
 export function AdminPage({ title, subtitle, resource, children, right }) {
   const insets = useSafeAreaInsets();
   return <View style={styles.container}>
-    <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+    <StatusBar barStyle="dark-content" />
     <ScreenHeader title="Admin" titleHighlight={title} subtitle={subtitle} right={right} />
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 28 }]}
       refreshControl={<RefreshControl refreshing={resource.loading} onRefresh={resource.load} colors={[COLORS.primary]} tintColor={COLORS.primary} />}>

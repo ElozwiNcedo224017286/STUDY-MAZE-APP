@@ -61,8 +61,6 @@ export default function MentorHubScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor="transparent"
-        translucent
       />
 
       <LinearGradient
@@ -157,7 +155,11 @@ export default function MentorHubScreen({ navigation }) {
           </Text>
 
           <TouchableOpacity
-            style={styles.optionCard}
+            style={[
+              styles.optionCard,
+              styles.optionRow,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
             onPress={() =>
               openChat({
                 mode: 'general',
@@ -165,49 +167,46 @@ export default function MentorHubScreen({ navigation }) {
               })
             }
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Start chatting"
           >
-            <LinearGradient
-              colors={[
-                'rgba(109,40,217,0.14)',
-                'rgba(109,40,217,0.05)',
-              ]}
-              style={styles.optionGradient}
-            >
-              <View
-                style={[
-                  styles.optionIcon,
-                  {
-                    backgroundColor: 'rgba(109,40,217,0.16)',
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="chatbubbles"
-                  size={30}
-                  color={TOOL.color}
-                />
-              </View>
+            <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name="chatbubbles" size={24} color={colors.primaryText} />
+            </View>
 
-              <Text style={styles.optionTitle}>
-                Start a chat
-              </Text>
-
-              <Text style={styles.optionText}>
+            <View style={styles.infoCopy}>
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Start a chat</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
                 Ask questions, get help, and learn with your AI mentor.
               </Text>
+            </View>
 
-              <View style={styles.startButton}>
-                <Text style={styles.startButtonText}>
-                  Start chatting
-                </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.primaryText} />
+          </TouchableOpacity>
 
-                <Ionicons
-                  name="arrow-forward"
-                  size={18}
-                  color="#FFFFFF"
-                />
-              </View>
-            </LinearGradient>
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              styles.optionRow,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+            ]}
+            onPress={() => navigation.navigate('SpeakingPractice')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Open Voice Lab"
+          >
+            <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name="mic-outline" size={24} color={colors.primaryText} />
+            </View>
+
+            <View style={styles.infoCopy}>
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Voice Lab</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Practice explaining ideas out loud and hear AI responses.
+              </Text>
+            </View>
+
+            <Ionicons name="chevron-forward" size={18} color={colors.primaryText} />
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -307,53 +306,21 @@ const styles = StyleSheet.create({
     ...SHADOWS.small,
   },
 
-  optionGradient: {
-    padding: 24,
+  optionRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 240,
+    gap: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
   },
 
   optionIcon: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
   },
 
-  optionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-
-  optionText: {
-    fontSize: 13,
-    lineHeight: 19,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    fontWeight: '600',
-    maxWidth: 280,
-  },
-
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 11,
-    borderRadius: 12,
-    backgroundColor: TOOL.color,
-  },
-
-  startButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
 });

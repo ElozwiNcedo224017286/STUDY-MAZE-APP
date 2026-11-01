@@ -39,7 +39,7 @@ export default function ImagePreviewScreen({
   return (
     <Modal visible={visible} animationType="none" statusBarTranslucent>
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="light-content" />
         <LinearGradient colors={['rgba(0,0,0,0.95)', 'rgba(0,0,0,0.98)']} style={styles.backgroundGradient}>
           <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
             <TouchableOpacity style={styles.headerButton} onPress={onClose} activeOpacity={0.8}>

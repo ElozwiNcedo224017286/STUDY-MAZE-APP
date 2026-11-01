@@ -74,7 +74,7 @@ export default function SpeakingPracticeScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.surface} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <StackHeader title="Voice Lab" subtitle="Conversational speaking practice" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <FlatList

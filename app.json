@@ -25,7 +25,6 @@
         "backgroundColor": "#F6F4FB"
       },
       "package": "com.studymaze.app"
-    }
     },
     "plugins": [
       "expo-font",
@@ -48,6 +47,9 @@
           "cameraPermission": "Study Maze uses the camera so you can photograph a question for Smart Solver.",
           "microphonePermission": "Study Maze uses the microphone so you can ask Maze Mentor by voice."
         }
-      ]
+      ],
+      "expo-status-bar",
+      "expo-asset"
     ]
   }
+}

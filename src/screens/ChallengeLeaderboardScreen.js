@@ -53,7 +53,7 @@ export default function ChallengeLeaderboardScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+      <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Challenge" titleHighlight="Leaderboard" subtitle="Trusted XP from your games"
         right={<TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="Back" style={styles.back}>
           <Ionicons name="chevron-back" size={22} color={COLORS.primary} />

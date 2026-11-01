@@ -183,7 +183,7 @@ export default function TutorChatScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      <StatusBar barStyle="dark-content" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()} activeOpacity={0.75}>
           <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />

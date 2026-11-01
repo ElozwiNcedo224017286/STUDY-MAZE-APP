@@ -60,7 +60,7 @@ export default function SolverResultScreen({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS.backgroundSecondary} />
+        <StatusBar barStyle="dark-content" />
         <LinearGradient
           colors={toolConfig.lightGradient}
           style={[styles.header, { paddingTop: insets.top + 12 }]}
