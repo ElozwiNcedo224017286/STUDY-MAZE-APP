@@ -104,11 +104,7 @@ export default function MainTabs() {
             name="Learn"
             component={LearnScreen}
             options={{
-              tabBarLabel: ({ color }) => (
-                <Text style={[styles.smartLabel, { color }]} numberOfLines={2}>
-                  Smart Learn
-                </Text>
-              ),
+              tabBarLabel: 'Smart Learn',
               tabBarIcon: tabIcon('sparkles'),
             }}
           />
@@ -150,12 +146,5 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginBottom: Platform.OS === 'ios' ? 0 : 4,
-  },
-  smartLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    textAlign: 'center',
-    lineHeight: 11,
-    marginBottom: Platform.OS === 'ios' ? 0 : 2,
   },
 });

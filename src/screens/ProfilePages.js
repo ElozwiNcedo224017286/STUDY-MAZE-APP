@@ -1,7 +1,8 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -55,26 +56,132 @@ export function ProfileDetailsScreen({ navigation }) {
   );
 }
 
-const HELP_TOPICS = [
-  { title: 'I need help with my account', body: 'Check that you are using the email address you registered with. Ask your teacher or school administrator for help with account access.' },
-  { title: 'How do I study my notes?', body: 'Open Smart Learn to create notes from your own PDF, or open Notes to view material shared by your teacher.' },
-  { title: 'Where are my rewards and progress?', body: 'Your coins, streak, achievements, and learning progress are shown on your Profile page.' },
-  { title: 'Something is not working', body: 'Check your internet connection, then try again. If the problem continues, share what happened with your teacher or school administrator.' },
-];
+const SUPPORT_EMAIL = 'support.studymaze2026@gmail.com';
+const APP_VERSION = Constants?.expoConfig?.version || Constants?.manifest?.version || '1.0.0';
 
 export function HelpSupportScreen({ navigation }) {
+  const { user } = useAuth();
   const { colors } = useTheme();
+  const [search, setSearch] = useState('');
+  const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const isTeacher = user?.role === 'teacher';
+  const faqs = useMemo(() => [
+    {
+      category: 'Account',
+      question: 'I cannot log in. What should I do?',
+      answer: isTeacher
+        ? 'Check that you are using the email address registered to your teacher account. If your school manages accounts, contact your school administrator. You can also email Study Maze support for help.'
+        : 'Check that you are using the email address registered to your student account. If your school manages accounts, ask your teacher or school administrator to check your access. You can also email Study Maze support for help.',
+    },
+    {
+      category: 'Study materials',
+      question: isTeacher ? 'How do I share study material with my class?' : 'How do I upload my study material?',
+      answer: isTeacher
+        ? 'Open Studio or the upload option on Home to add class material. Use Notes to post a short summary for students. Students can find shared notes in Learn.'
+        : 'On Home, choose Upload study material and select your notes, PDF, or image. Smart Learn and study games can use uploaded material to create revision content. For class notes shared by your teacher, open Learn and Notes.',
+    },
+    {
+      category: 'Games and learning',
+      question: 'Why are my quiz or Memory Flip questions missing?',
+      answer: isTeacher
+        ? 'Check that you have added or published questions or study material in Studio. Confirm that the class and student access are set up correctly, then refresh the app.'
+        : 'Some activities need uploaded or teacher-shared material. Check that your file finished uploading, then reopen the activity. If your teacher shares a quiz, make sure it has been published.',
+    },
+    {
+      category: 'Games and learning',
+      question: 'Where can I find my notes and learning progress?',
+      answer: isTeacher
+        ? 'Use Notes to review summaries you have posted and Profile to see your account details. Students can open your shared summaries in Learn.'
+        : 'Open Learn to read notes shared by your teacher. Your coins, streak, achievements, and learning progress are shown on your Profile page.',
+    },
+    {
+      category: 'Troubleshooting',
+      question: 'An upload or screen is not working. What can I try?',
+      answer: 'Check your internet connection, confirm the file type and size are supported, and try again. If the issue continues, use Report a problem below and include what you were doing, what you expected, and what happened. Do not attach private study material unless support asks for it.',
+    },
+    {
+      category: 'Account',
+      question: 'How do I contact support?',
+      answer: `Email ${SUPPORT_EMAIL}. Include the email on your Study Maze account and a short description of the issue. Never send your password or verification codes.`,
+    },
+  ], [isTeacher]);
+  const filteredFaqs = faqs.filter((item) => `${item.category} ${item.question} ${item.answer}`.toLowerCase().includes(search.trim().toLowerCase()));
+
+  async function emailSupport(subject, body) {
+    const url = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open email', `Please email ${SUPPORT_EMAIL} from your mail app.`);
+    }
+  }
+
+  function contactSupport() {
+    emailSupport('Study Maze support request', `Hello Study Maze Support,\n\nAccount email: ${user?.email || 'Not provided'}\nRole: ${isTeacher ? 'Teacher' : 'Student'}\nApp version: ${APP_VERSION}\n\nHow can we help?\n`);
+  }
+
+  function reportProblem() {
+    emailSupport('Study Maze problem report', `Hello Study Maze Support,\n\nAccount email: ${user?.email || 'Not provided'}\nRole: ${isTeacher ? 'Teacher' : 'Student'}\nApp version: ${APP_VERSION}\nScreen: Help & Support\n\nWhat happened?\nWhat did you expect to happen?\nSteps to reproduce (if known):\n`);
+  }
+
   return (
-    <Page navigation={navigation} title="Help & support" subtitle="Quick answers for using Study Maze.">
-      {HELP_TOPICS.map((item, index) => (
-        <View key={item.title} style={[styles.helpCard, { backgroundColor: colors.surface }]}>
-          <View style={styles.helpHeading}>
-            <View style={styles.helpNumber}><Text style={[styles.helpNumberText, { color: colors.primaryText }]}>{index + 1}</Text></View>
-            <Text style={[styles.helpTitle, { color: colors.textPrimary }]}>{item.title}</Text>
-          </View>
-          <Text style={[styles.helpBody, { color: colors.textSecondary }]}>{item.body}</Text>
+    <Page navigation={navigation} title="Help & support" subtitle="Find quick answers or get in touch with the Study Maze team.">
+      <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Ionicons name="search-outline" size={19} color={colors.textTertiary} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search help topics"
+          placeholderTextColor={colors.textTertiary}
+          accessibilityLabel="Search help topics"
+          style={[styles.searchInput, { color: colors.textPrimary }]}
+        />
+        {search ? <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Clear search"><Ionicons name="close-circle" size={19} color={colors.textTertiary} /></TouchableOpacity> : null}
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Common questions</Text>
+      {filteredFaqs.length ? filteredFaqs.map((item) => {
+        const expanded = expandedQuestion === item.question;
+        return (
+          <TouchableOpacity
+            key={item.question}
+            style={[styles.faqCard, { backgroundColor: colors.surface }]}
+            onPress={() => setExpandedQuestion(expanded ? null : item.question)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityState={{ expanded }}
+          >
+            <View style={styles.faqHeading}>
+              <View style={styles.faqIcon}><Ionicons name="help-circle-outline" size={19} color={colors.primaryText} /></View>
+              <View style={styles.faqCopy}>
+                <Text style={[styles.faqCategory, { color: colors.primaryText }]}>{item.category}</Text>
+                <Text style={[styles.helpTitle, { color: colors.textPrimary }]}>{item.question}</Text>
+              </View>
+              <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color={colors.textTertiary} />
+            </View>
+            {expanded ? <Text style={[styles.helpBody, { color: colors.textSecondary }]}>{item.answer}</Text> : null}
+          </TouchableOpacity>
+        );
+      }) : (
+        <View style={[styles.emptyHelp, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.helpBody, { color: colors.textSecondary, marginLeft: 0, marginTop: 0 }]}>No matching help topics. Try another search or contact support.</Text>
         </View>
-      ))}
+      )}
+
+      <Text style={[styles.sectionTitle, styles.contactHeading, { color: colors.textPrimary }]}>Still need help?</Text>
+      <View style={[styles.contactCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.contactTitle, { color: colors.textPrimary }]}>We’re here to help</Text>
+        <Text style={[styles.contactCopy, { color: colors.textSecondary }]}>Email us at {SUPPORT_EMAIL}. Never include your password or verification codes.</Text>
+        <TouchableOpacity style={[styles.primaryHelpButton, { backgroundColor: colors.primary }]} onPress={contactSupport} accessibilityRole="button">
+          <Ionicons name="mail-outline" size={18} color={colors.primaryText} />
+          <Text style={[styles.primaryHelpButtonText, { color: colors.primaryText }]}>Contact support</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.secondaryHelpButton, { borderColor: colors.border }]} onPress={reportProblem} accessibilityRole="button">
+          <Ionicons name="bug-outline" size={18} color={colors.primaryText} />
+          <Text style={[styles.secondaryHelpButtonText, { color: colors.textPrimary }]}>Report a problem</Text>
+        </TouchableOpacity>
+        <Text style={[styles.versionLabel, { color: colors.textTertiary }]}>Study Maze · v{APP_VERSION}</Text>
+      </View>
     </Page>
   );
 }
@@ -121,12 +228,26 @@ const styles = StyleSheet.create({
   infoLabel: { color: COLORS.textTertiary, fontSize: 12, fontWeight: '600' },
   infoValue: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '700', marginTop: 3 },
   hint: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 14, paddingHorizontal: 4 },
-  helpCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, ...SHADOWS.small },
-  helpHeading: { flexDirection: 'row', alignItems: 'center' },
-  helpNumber: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primarySoft, marginRight: 10 },
-  helpNumberText: { color: COLORS.primary, fontWeight: '800' },
-  helpTitle: { flex: 1, color: COLORS.textPrimary, fontSize: 15, fontWeight: '800' },
-  helpBody: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 11, marginLeft: 38 },
+  searchBox: { minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  searchInput: { flex: 1, fontSize: 14, paddingVertical: 11, marginLeft: 9 },
+  sectionTitle: { fontSize: 17, fontWeight: '800', marginBottom: 12 },
+  faqCard: { borderRadius: 16, padding: 14, marginBottom: 10, ...SHADOWS.small },
+  faqHeading: { flexDirection: 'row', alignItems: 'center' },
+  faqIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primarySoft, marginRight: 11 },
+  faqCopy: { flex: 1, marginRight: 8 },
+  faqCategory: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 3 },
+  helpTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800', lineHeight: 19 },
+  helpBody: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 20, marginTop: 11, marginLeft: 45 },
+  emptyHelp: { borderRadius: 16, padding: 16, marginBottom: 12, ...SHADOWS.small },
+  contactHeading: { marginTop: 14 },
+  contactCard: { borderRadius: 18, padding: 18, marginBottom: 12, ...SHADOWS.small },
+  contactTitle: { fontSize: 17, fontWeight: '800' },
+  contactCopy: { fontSize: 13, lineHeight: 19, marginTop: 6, marginBottom: 14 },
+  primaryHelpButton: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 9, paddingHorizontal: 14 },
+  primaryHelpButtonText: { fontWeight: '800', fontSize: 14, marginLeft: 8 },
+  secondaryHelpButton: { minHeight: 44, borderWidth: 1, borderRadius: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
+  secondaryHelpButtonText: { fontWeight: '700', fontSize: 14, marginLeft: 8 },
+  versionLabel: { textAlign: 'center', fontSize: 11, marginTop: 14 },
   aboutTitle: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '800' },
   achievementCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, ...SHADOWS.small },
   achievementLocked: { opacity: 0.72 },

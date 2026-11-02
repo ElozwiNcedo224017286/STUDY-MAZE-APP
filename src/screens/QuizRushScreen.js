@@ -1,299 +1,255 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+﻿import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, SHADOWS } from '../theme/colors';
-import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 
-const RUSH_TARGET = 10;
-const RUSH_TIME = 10; // seconds per question
+const QUESTION_TIME = 15;
+const MAX_QUESTIONS = 10;
+const STARTING_LIVES = 3;
 
-// Legacy coins remain separate from trusted XP. Avoid duplicate writes on RPC retries/remounts.
-const recordedLegacyAttempts = new Set();
+function shuffle(list) {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function titleOf(note) {
+  const upload = Array.isArray(note?.student_uploads) ? note.student_uploads[0] : note?.student_uploads;
+  return upload?.title || upload?.file_name || 'Uploaded study notes';
+}
+
+function questionsFrom(note) {
+  const concepts = Array.isArray(note?.key_concepts) ? note.key_concepts : [];
+  const examples = Array.isArray(note?.examples) ? note.examples : [];
+  const pairs = [];
+  concepts.forEach((item, i) => {
+    const prompt = typeof item?.concept === 'string' ? item.concept.trim() : '';
+    const answer = typeof item?.explanation === 'string' ? item.explanation.trim() : '';
+    if (prompt && answer) pairs.push({ id: `concept-${i}`, prompt, answer, kind: 'concept' });
+  });
+  examples.forEach((item, i) => {
+    const prompt = typeof item?.title === 'string' ? item.title.trim() : '';
+    const answer = typeof item?.explanation === 'string' ? item.explanation.trim() : '';
+    if (prompt && answer) pairs.push({ id: `example-${i}`, prompt, answer, kind: 'example' });
+  });
+  const usable = pairs.slice(0, MAX_QUESTIONS);
+  return usable.map((pair) => {
+    const distractors = shuffle(usable.filter((other) => other.id !== pair.id))
+      .slice(0, Math.min(3, usable.length - 1));
+    const options = shuffle([pair, ...distractors]).map((option, index) => ({
+      id: `${pair.id}-option-${index}`,
+      text: option.answer,
+      correct: option.id === pair.id,
+    }));
+    return {
+      id: pair.id,
+      prompt: `Which explanation best matches “${pair.prompt}”?`,
+      options,
+    };
+  });
+}
 
 export default function QuizRushScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { recordGame } = useAuth();
-  const [phase, setPhase] = useState('start');
-  const [lives, setLives] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [question, setQuestion] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [answeredId, setAnsweredId] = useState(null);
+  const [phase, setPhase] = useState('choose');
+  const [notes, setNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [note, setNote] = useState(null);
+  const [questions, setQuestions] = useState([]);
+  const [index, setIndex] = useState(0);
+  const [lives, setLives] = useState(STARTING_LIVES);
+  const [correct, setCorrect] = useState(0);
+  const [seconds, setSeconds] = useState(QUESTION_TIME);
   const [feedback, setFeedback] = useState(null);
-  const [resultData, setResultData] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const attemptRef = useRef(null);
-  const questionRef = useRef(null);
-  const pendingRef = useRef(false);
-  const retryRef = useRef(null);
-  const mountedRef = useRef(false);
-  const resolveRef = useRef(null);
+  const [selected, setSelected] = useState(null);
+  const [result, setResult] = useState(null);
+  const resolved = useRef(false);
+  const advanceTimer = useRef(null);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+  const loadNotes = useCallback(async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const rows = await api.getStudentStudyNotes();
+      setNotes(Array.isArray(rows) ? rows : []);
+    } catch (error) {
+      setLoadError(error?.message || 'Could not load your uploaded notes.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  function showQuestion(nextQuestion) {
-    questionRef.current = nextQuestion;
-    setQuestion(nextQuestion);
-    setTimeLeft(Math.max(0, (Date.parse(nextQuestion.deadline_at) - Date.now()) / 1000));
-    setAnsweredId(null);
-    setFeedback(null);
-  }
+  useFocusEffect(useCallback(() => {
+    loadNotes();
+    return () => { if (advanceTimer.current) clearTimeout(advanceTimer.current); };
+  }, [loadNotes]));
 
-  async function startRun() {
-    if (pendingRef.current) return;
-    pendingRef.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      const attempt = await api.startStudyQuizAttempt();
-      if (!mountedRef.current) return;
-      attemptRef.current = attempt.attempt_id;
-      retryRef.current = null;
-      setLives(attempt.lives_remaining);
-      setStreak(attempt.correct_count);
-      setResultData(null);
-      showQuestion(attempt);
-      setPhase('playing');
-    } catch (err) {
-      if (mountedRef.current) setError(err.message || 'Could not start the run.');
-    } finally {
-      pendingRef.current = false;
-      if (mountedRef.current) setBusy(false);
-    }
-  }
-
-  async function resolveQuestion(request) {
-    if (pendingRef.current || !questionRef.current || request.questionId !== questionRef.current.question_id) return;
-    pendingRef.current = true;
-    retryRef.current = request;
-    setBusy(true);
-    setError('');
-    setAnsweredId(request.optionId ?? null);
-    try {
-      const state = request.kind === 'timeout'
-        ? await api.timeoutStudyQuizQuestion(request.attemptId, request.questionId)
-        : await api.submitStudyQuizAnswer(request.attemptId, request.questionId, request.optionId);
-      if (!mountedRef.current) return;
-      // All gameplay results, including retries, come exclusively from the server.
-      setLives(state.lives_remaining);
-      setStreak(state.correct_count);
-      setFeedback(state.outcome);
-      if (state.status === 'completed') {
-        retryRef.current = null;
-        questionRef.current = null;
-        setQuestion(null);
-        const awardedCoins = Number.isInteger(state.coins_awarded) && state.coins_awarded >= 0
-          ? state.coins_awarded : state.correct_count * 20;
-        setResultData({
-          won: state.completed_target,
-          streak: state.correct_count,
-          lives: state.lives_remaining,
-          xp: state.xp_awarded,
-          coins: awardedCoins,
-        });
-        setPhase('result');
-        if (!recordedLegacyAttempts.has(state.attempt_id)) {
-          recordedLegacyAttempts.add(state.attempt_id);
-          // Compatibility only: never used as XP evidence and never sent to trusted RPCs.
-          try {
-            await recordGame('study_quiz', { coinsEarned: awardedCoins, score: state.correct_count * 10 });
-          } catch {
-            // Trusted completion/XP remain successful even if legacy stats cannot refresh.
-          }
-        }
-      } else {
-        // Preserve brief answer feedback; the next deadline keeps running on the server.
-        if (!state.already_resolved) await new Promise((resolve) => setTimeout(resolve, 700));
-        if (!mountedRef.current) return;
-        retryRef.current = null;
-        showQuestion(state.next_question);
-      }
-    } catch (err) {
-      // Retain the exact request for an idempotent retry; do not advance local gameplay.
-      if (mountedRef.current) setError(err.message || 'Could not submit the result. Retry to continue.');
-    } finally {
-      pendingRef.current = false;
-      if (mountedRef.current) setBusy(false);
-    }
-  }
-  resolveRef.current = resolveQuestion;
+  const current = questions[index];
 
   useEffect(() => {
-    if (phase !== 'playing' || !question) return;
-    const tick = () => {
-      const remaining = Math.max(0, (Date.parse(question.deadline_at) - Date.now()) / 1000);
-      setTimeLeft(remaining);
-      if (remaining === 0 && !pendingRef.current && !retryRef.current) {
-        resolveRef.current({ kind: 'timeout', attemptId: attemptRef.current, questionId: question.question_id });
+    if (phase !== 'playing' || !current || feedback) return undefined;
+    resolved.current = false;
+    setSeconds(QUESTION_TIME);
+    const interval = setInterval(() => setSeconds((remaining) => Math.max(0, remaining - 1)), 1000);
+    const timeout = setTimeout(() => handleAnswer(null), QUESTION_TIME * 1000);
+    return () => { clearInterval(interval); clearTimeout(timeout); };
+  }, [phase, index, feedback]);
+
+  function startRun(selectedNote) {
+    const deck = questionsFrom(selectedNote);
+    if (deck.length < 2) return;
+    setNote(selectedNote);
+    setQuestions(deck);
+    setIndex(0);
+    setLives(STARTING_LIVES);
+    setCorrect(0);
+    setResult(null);
+    setFeedback(null);
+    setSelected(null);
+    setPhase('playing');
+  }
+
+  function finish(won, finalCorrect, finalLives) {
+    setResult({ won, correct: finalCorrect, lives: finalLives, total: questions.length });
+    setPhase('result');
+  }
+
+  function handleAnswer(optionId) {
+    if (resolved.current || phase !== 'playing' || !current) return;
+    resolved.current = true;
+    const right = current.options.find((option) => option.id === optionId)?.correct === true;
+    const nextCorrect = correct + (right ? 1 : 0);
+    const nextLives = lives - (right ? 0 : 1);
+    setSelected(optionId);
+    setFeedback(right ? 'correct' : optionId == null ? 'timeout' : 'incorrect');
+    setCorrect(nextCorrect);
+    setLives(nextLives);
+
+    advanceTimer.current = setTimeout(() => {
+      const lastQuestion = index + 1 >= questions.length;
+      if (nextLives <= 0) {
+        finish(false, nextCorrect, 0);
+      } else if (lastQuestion) {
+        finish(nextCorrect === questions.length, nextCorrect, nextLives);
+      } else {
+        setIndex((value) => value + 1);
+        setSelected(null);
+        setFeedback(null);
       }
-    };
-    tick();
-    const timer = setInterval(tick, 100);
-    return () => clearInterval(timer);
-  }, [phase, question]);
-
-  function answer(optionId) {
-    if (pendingRef.current || retryRef.current || !questionRef.current) return;
-    const current = questionRef.current;
-    // A locally expired display requests server timeout resolution, never a fabricated answer.
-    if (Date.now() >= Date.parse(current.deadline_at)) {
-      resolveQuestion({ kind: 'timeout', attemptId: attemptRef.current, questionId: current.question_id });
-    } else {
-      resolveQuestion({ kind: 'answer', attemptId: attemptRef.current, questionId: current.question_id, optionId });
-    }
+    }, 700);
   }
 
-  if (phase === 'start') {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.topnav}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Quiz Rush</Text>
-        </View>
-        <View style={styles.centerBody}>
-          <View style={styles.card}>
-            <Text style={styles.heroTitle}>Beat the Clock</Text>
-            <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
-            <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
-            <Bullet icon="💔" text="Wrong or too slow costs a life" />
-            <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
-            {!!error && <Text style={styles.sub}>{error}</Text>}
-            <TouchableOpacity style={styles.btn} disabled={busy} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
+  function chooseNotes() {
+    if (advanceTimer.current) clearTimeout(advanceTimer.current);
+    setFeedback(null);
+    setNote(null);
+    setQuestions([]);
+    setPhase('choose');
   }
 
-  if (phase === 'result') {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.centerBody}>
-          <View style={styles.card}>
-            <Text style={styles.icon}>{resultData.won ? '🏁' : '💀'}</Text>
-            <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'Run complete!' : 'Run over'}</Text>
-            <Text style={styles.sub}>
-              {resultData.won
-                ? `You answered ${resultData.streak} correctly. Coins earned: ${resultData.coins}`
-                : `You got ${resultData.streak} correct this run. Coins kept: ${resultData.coins}`}
-            </Text>
-            <Text style={styles.sub}>{resultData.xp} XP earned; {resultData.lives} lives remaining</Text>
-            <TouchableOpacity style={styles.btn} disabled={busy} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  const progress = questions.length ? Math.min(100, ((index + (feedback ? 1 : 0)) / questions.length) * 100) : 0;
 
-  const pct = Math.min(100, Math.max(0, (timeLeft / RUSH_TIME) * 100));
-  return (
-    <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.topnav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+  return <View style={[styles.screen, { paddingTop: insets.top + 12 }]}>
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.back} onPress={() => phase === 'choose' ? navigation.goBack() : chooseNotes()}>
+        <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
+      </TouchableOpacity>
+      <View style={{ flex: 1 }}>
         <Text style={styles.title}>Quiz Rush</Text>
+        {note && <Text numberOfLines={1} style={styles.noteSub}>{titleOf(note)}</Text>}
       </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.playScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.hudRow}>
-          <View style={styles.lives}>{[0, 1, 2].map((i) => <Text key={i} style={[styles.heart, i >= lives && styles.heartDead]}>❤️</Text>)}</View>
-          <Text style={styles.streakText}>Correct: {streak}/{RUSH_TARGET}</Text>
-        </View>
-        <View style={styles.timerTrack}><View style={[styles.timerFill, { width: `${pct}%` }, pct < 35 && styles.timerFillDanger]} /></View>
-        {!!error && (
-          <View>
-            <Text style={styles.sub}>{error}</Text>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={() => retryRef.current && resolveQuestion(retryRef.current)}>
-              <Text style={styles.btnGhostText}>{busy ? 'Retrying...' : 'Retry submission'}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {busy && !feedback && <Text style={styles.sub}>Checking with server...</Text>}
-        {feedback && <Text style={styles.sub}>{feedback === 'correct' ? 'Correct!' : feedback === 'timeout' ? 'Time expired' : 'Incorrect'}</Text>}
-        {question && (
-          <View style={styles.card}>
-            <Text style={styles.quizTag}>{question.subject}</Text>
-            <Text style={styles.quizQ}>{question.prompt}</Text>
-            {question.options.map((opt) => {
-              const isCorrect = answeredId === opt.id && feedback === 'correct';
-              const isWrong = answeredId === opt.id && feedback === 'incorrect';
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.quizOpt, isCorrect && styles.quizOptCorrect, isWrong && styles.quizOptWrong]}
-                  onPress={() => answer(opt.id)}
-                  disabled={busy || !!error || !!feedback}
-                >
-                  <Text style={styles.quizOptText}>{opt.text}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
     </View>
-  );
-}
 
-function Bullet({ icon, text }) {
-  return (
-    <View style={styles.bullet}>
-      <Text style={styles.bulletIcon}>{icon}</Text>
-      <Text style={styles.bulletText}>{text}</Text>
-    </View>
-  );
+    {phase === 'choose' && <ScrollView contentContainerStyle={styles.list}>
+      <View style={styles.panel}>
+        <Text style={styles.hero}>Choose your study notes</Text>
+        <Text style={styles.body}>Answer questions made from concepts and examples in your uploaded notes. You get 15 seconds for each answer and 3 lives.</Text>
+        {loading && <ActivityIndicator color={COLORS.primary} style={{ margin: 16 }} />}
+        {!!loadError && <Text style={styles.error}>{loadError}</Text>}
+        {!!loadError && <TouchableOpacity style={styles.ghost} onPress={loadNotes}><Text style={styles.ghostText}>Try again</Text></TouchableOpacity>}
+        {!loading && !loadError && notes.length === 0 && <Text style={styles.empty}>No uploaded notes yet. Upload a PDF in Learn Hub → Own notes, then return here.</Text>}
+        {!loading && notes.map((item) => {
+          const count = questionsFrom(item).length;
+          return <TouchableOpacity key={item.id} disabled={count < 2} style={[styles.option, count < 2 && { opacity: 0.5 }]} onPress={() => startRun(item)}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.optionTitle} numberOfLines={2}>{titleOf(item)}</Text>
+              <Text style={styles.meta}>{count >= 2 ? `${count} questions` : 'Needs at least 2 concepts or examples'}</Text>
+            </View>
+            {count >= 2 && <Ionicons name="play-circle" size={28} color={COLORS.primary} />}
+          </TouchableOpacity>;
+        })}
+      </View>
+    </ScrollView>}
+
+    {phase === 'playing' && current && <ScrollView contentContainerStyle={styles.play}>
+      <View style={styles.hud}>
+        <Text style={styles.meta}>Lives {lives}/{STARTING_LIVES}</Text>
+        <Text style={styles.meta}>Question {index + 1}/{questions.length}</Text>
+        <Text style={styles.meta}>{seconds}s</Text>
+      </View>
+      <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
+      {!!feedback && <Text style={[styles.feedback, feedback === 'correct' ? styles.good : styles.bad]}>{feedback === 'correct' ? 'Correct!' : feedback === 'timeout' ? 'Time is up' : 'Not quite'}</Text>}
+      <View style={styles.panel}>
+        <Text style={styles.prompt}>{current.prompt}</Text>
+        {current.options.map((option) => {
+          const rightChoice = selected === option.id && feedback === 'correct';
+          const wrongChoice = selected === option.id && feedback === 'incorrect';
+          return <TouchableOpacity key={option.id} style={[styles.answer, rightChoice && styles.answerRight, wrongChoice && styles.answerWrong]} disabled={!!feedback} onPress={() => handleAnswer(option.id)}>
+            <Text style={styles.answerText}>{option.text}</Text>
+          </TouchableOpacity>;
+        })}
+      </View>
+    </ScrollView>}
+
+    {phase === 'result' && <View style={styles.panel}>
+      <Text style={styles.icon}>{result?.won ? '🏁' : '💪'}</Text>
+      <Text style={styles.hero}>{result?.won ? 'Notes mastered!' : result?.lives === 0 ? 'Run over' : 'Quiz complete'}</Text>
+      <Text style={styles.body}>You answered {result?.correct || 0} of {result?.total || 0} questions correctly.</Text>
+      {result?.lives > 0 && <Text style={styles.meta}>Lives remaining: {result.lives}</Text>}
+      <TouchableOpacity style={styles.primary} onPress={() => startRun(note)}><Text style={styles.primaryText}>Play Again</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.ghost} onPress={chooseNotes}><Text style={styles.ghostText}>Choose different notes</Text></TouchableOpacity>
+    </View>}
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 14 },
-  centerBody: { flex: 1, justifyContent: 'center' },
-  playScroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
-  topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.small,
-  },
+  screen: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 16 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  back: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.borderLight, justifyContent: 'center', alignItems: 'center', ...SHADOWS.small },
   title: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 18 },
-  card: { backgroundColor: COLORS.white, borderRadius: 20, padding: 24, ...SHADOWS.small },
-  heroTitle: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 20, marginBottom: 16, textAlign: 'center' },
-  heroTitleLose: { color: COLORS.error },
-  icon: { fontSize: 46, textAlign: 'center', marginBottom: 8 },
-  sub: { color: COLORS.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 21, marginBottom: 22 },
-  bullet: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 14 },
-  bulletIcon: { fontSize: 20, width: 28, textAlign: 'center' },
-  bulletText: { color: COLORS.textPrimary, fontSize: 15, flex: 1 },
-  btn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 17, alignItems: 'center', marginTop: 10, ...SHADOWS.small },
-  btnText: { color: COLORS.white, fontWeight: '800', fontSize: 16 },
-  btnGhost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
-  btnGhostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
-  hudRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  lives: { flexDirection: 'row', gap: 4 },
-  heart: { fontSize: 20 },
-  heartDead: { opacity: 0.25 },
-  streakText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
-  timerTrack: { height: 10, backgroundColor: COLORS.backgroundTertiary, borderRadius: 6, overflow: 'hidden', marginBottom: 20 },
-  timerFill: { height: '100%', backgroundColor: COLORS.primary },
-  timerFillDanger: { backgroundColor: COLORS.error },
-  quizTag: { color: COLORS.primary, fontSize: 12, letterSpacing: 1, marginBottom: 12, fontWeight: '800' },
-  quizQ: { color: COLORS.textPrimary, fontSize: 17, lineHeight: 23, marginBottom: 18, fontWeight: '600' },
-  quizOpt: { backgroundColor: COLORS.backgroundSecondary, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, marginBottom: 12 },
-  quizOptCorrect: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
-  quizOptWrong: { borderColor: COLORS.error, backgroundColor: COLORS.errorLight },
-  quizOptText: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '600' },
+  noteSub: { color: COLORS.textSecondary, fontSize: 12, marginTop: 2 },
+  list: { paddingBottom: 24 },
+  panel: { backgroundColor: COLORS.white, borderRadius: 20, padding: 20, ...SHADOWS.small },
+  hero: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 19, marginBottom: 10, textAlign: 'center' },
+  body: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 14 },
+  empty: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, paddingVertical: 10, textAlign: 'center' },
+  error: { color: COLORS.error, textAlign: 'center', marginTop: 8 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, padding: 14, marginTop: 10 },
+  optionTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
+  meta: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '700', marginTop: 5 },
+  play: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
+  hud: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  progressTrack: { height: 8, backgroundColor: COLORS.backgroundTertiary, borderRadius: 5, overflow: 'hidden', marginBottom: 16 },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary },
+  feedback: { textAlign: 'center', fontWeight: '800', marginBottom: 10 },
+  good: { color: COLORS.success },
+  bad: { color: COLORS.error },
+  prompt: { color: COLORS.textPrimary, fontSize: 17, lineHeight: 24, marginBottom: 16, fontWeight: '700' },
+  answer: { backgroundColor: COLORS.backgroundSecondary, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 14, marginBottom: 10 },
+  answerRight: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
+  answerWrong: { borderColor: COLORS.error, backgroundColor: COLORS.errorLight },
+  answerText: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '600', lineHeight: 20 },
+  icon: { fontSize: 44, textAlign: 'center', marginBottom: 8 },
+  primary: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
+  primaryText: { color: COLORS.white, fontWeight: '800' },
+  ghost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 10 },
+  ghostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
 });
+
