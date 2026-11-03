@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useTheme } from '../context/ThemeContext';
+import StackHeader from './StackHeader';
 
 export default function ScreenHeader({
   title,
@@ -10,9 +11,14 @@ export default function ScreenHeader({
   subtitle,
   right,
   children,
+  onBack,
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+
+  if (onBack) {
+    return <StackHeader title={[title, titleHighlight].filter(Boolean).join(' ')} subtitle={subtitle} onBack={onBack} right={right} />;
+  }
 
   if (children) {
     return (

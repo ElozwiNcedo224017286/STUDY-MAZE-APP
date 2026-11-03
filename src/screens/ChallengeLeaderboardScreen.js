@@ -55,9 +55,7 @@ export default function ChallengeLeaderboardScreen({ navigation }) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <ScreenHeader title="Challenge" titleHighlight="Leaderboard" subtitle="Trusted XP from your games"
-        right={<TouchableOpacity onPress={() => navigation.goBack()} accessibilityLabel="Back" style={styles.back}>
-          <Ionicons name="chevron-back" size={22} color={COLORS.primary} />
-        </TouchableOpacity>} />
+        onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[COLORS.primary]} tintColor={COLORS.primary} />}>
         {loading ? <ActivityIndicator color={COLORS.primary} style={styles.message} /> : error ? (
@@ -101,7 +99,6 @@ export default function ChallengeLeaderboardScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
   body: { paddingHorizontal: 20, paddingTop: 4 },
-  back: { padding: 10, backgroundColor: COLORS.white, borderRadius: 12 },
   card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 14, marginBottom: 16, ...SHADOWS.small },
   title: { color: COLORS.textPrimary, fontSize: 20, fontWeight: '800' },
   description: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginTop: 8 },

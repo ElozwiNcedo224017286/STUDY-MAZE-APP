@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { api } from '../api/client';
+import TeacherSubjectPicker, { useTeacherSubjectAssignments } from '../components/TeacherSubjectPicker';
 import { useTheme } from '../context/ThemeContext';
 
 export default function NotesScreen() {
@@ -24,11 +25,13 @@ export default function NotesScreen() {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
+  const assignment = useTeacherSubjectAssignments();
+  const postLock = useRef(false);
   const [grade, setGrade] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const postDisabled = busy || assignment.loading || !!assignment.error || !assignment.selectedAssignment;
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -45,16 +48,19 @@ export default function NotesScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function post() {
+    if (postLock.current || postDisabled) return;
     if (!title.trim() || !content.trim()) { setStatus('Add a title and some content.'); return; }
+    postLock.current = true;
     setBusy(true);
     try {
-      await api.createStudyMaterial({ title: title.trim(), subject: subject.trim(), grade: grade.trim(), content: content.trim() });
-      setTitle(''); setSubject(''); setGrade(''); setContent('');
+      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, title: title.trim(), grade: grade.trim(), content: content.trim() });
+      setTitle(''); setGrade(''); setContent('');
       setStatus('Note posted to students.');
       await load();
     } catch (e) {
       setStatus(e.message);
     }
+    postLock.current = false;
     setBusy(false);
   }
 
@@ -74,13 +80,10 @@ export default function NotesScreen() {
         }
       >
         <View style={styles.form}>
+          <TeacherSubjectPicker {...assignment} disabled={busy} />
           <Text style={styles.label}>Title</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Cell Structure" placeholderTextColor={COLORS.textTertiary} />
           <View style={styles.twoCol}>
-            <View style={styles.col}>
-              <Text style={styles.label}>Subject</Text>
-              <TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="Life Sciences" placeholderTextColor={COLORS.textTertiary} />
-            </View>
             <View style={styles.col}>
               <Text style={styles.label}>Grade</Text>
               <TextInput style={styles.input} value={grade} onChangeText={setGrade} placeholder="10" placeholderTextColor={COLORS.textTertiary} />
@@ -88,7 +91,7 @@ export default function NotesScreen() {
           </View>
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, styles.tall]} value={content} onChangeText={setContent} placeholder="Write the study notes…" placeholderTextColor={COLORS.textTertiary} multiline />
-          <TouchableOpacity style={[styles.btn, busy && { opacity: 0.6 }]} disabled={busy} onPress={post}>
+          <TouchableOpacity style={[styles.btn, postDisabled && { opacity: 0.6 }]} disabled={postDisabled} onPress={post}>
             <Text style={styles.btnText}>{busy ? 'Posting…' : 'Post to students'}</Text>
           </TouchableOpacity>
           {!!status && <Text style={styles.status}>{status}</Text>}

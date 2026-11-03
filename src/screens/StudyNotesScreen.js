@@ -1,28 +1,17 @@
-import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, RefreshControl, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, StatusBar, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StackHeader from '../components/StackHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
-import { api } from '../api/client';
+import { useSubject } from '../context/SubjectContext';
+import useSubjectMaterials from '../hooks/useSubjectMaterials';
+import SubjectPrompt from '../components/SubjectPrompt';
 
 export default function StudyNotesScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const [materials, setMaterials] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { activeSubject, status } = useSubject();
+  const { materials, loading, error, refresh: load } = useSubjectMaterials();
   const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const { materials: rows } = await api.getPublishedNotes();
-      setMaterials(rows || []);
-    } catch {
-      setMaterials([]);
-    }
-    setLoading(false);
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   return (
     <View style={styles.container}>
@@ -43,8 +32,13 @@ export default function StudyNotesScreen({ navigation }) {
           />
         }
       >
-        {loading ? (
+        {status !== 'ready' || !activeSubject ? <SubjectPrompt /> : loading ? (
           <ActivityIndicator color={COLORS.primary} style={{ marginTop: 24 }} />
+        ) : error ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText} accessibilityRole="alert">{error}</Text>
+            <TouchableOpacity onPress={load} accessibilityRole="button"><Text style={styles.emptyTitle}>Retry notes</Text></TouchableOpacity>
+          </View>
         ) : materials.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyTitle}>No notes yet</Text>

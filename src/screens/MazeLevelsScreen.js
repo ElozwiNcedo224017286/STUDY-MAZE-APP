@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,10 @@ import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { LEVELS } from './mazeData';
+import { useFocusEffect } from '@react-navigation/native';
+import { api } from '../api/client';
+import { useSubject } from '../context/SubjectContext';
+import SubjectPrompt from '../components/SubjectPrompt';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_IMAGE_SIZE = Math.min(SCREEN_WIDTH * 0.62, 230);
@@ -23,6 +27,42 @@ export default function MazeLevelsScreen({ navigation }) {
   const unlocked = user?.unlockedLevel || 1;
   const levelsCleared = Math.min(unlocked - 1, LEVELS.length);
   const totalReward = LEVELS.reduce((sum, lvl) => sum + levelReward(lvl), 0);
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const contextKey = subjectStatus === 'ready' && activeSubject ? `${user?.id}:${activeSubject.class_subject_id}` : null;
+  const liveKey = useRef(contextKey);
+  liveKey.current = contextKey;
+  const [chapterState, setChapterState] = useState({ key: null, rows: [], loading: true, error: '' });
+  const [chapterChoice, setChapterChoice] = useState(null);
+  const selectedChapter = contextKey && chapterChoice?.contextKey === contextKey ? chapterChoice : null;
+  const current = contextKey && chapterState.key === contextKey;
+  const chapters = current ? chapterState.rows : [];
+  const loading = !!contextKey && (!current || chapterState.loading);
+  const error = current ? chapterState.error : '';
+  const requestVersion = useRef(0);
+
+  const loadChapters = useCallback(async () => {
+    const version = ++requestVersion.current;
+    if (!contextKey) { if (subjectStatus === 'ready') setChapterChoice(null); return; }
+    setChapterState({ key: contextKey, rows: [], loading: true, error: '' });
+    try {
+      const rows = await api.getSubjectChapters(activeSubject.class_subject_id);
+      if (version === requestVersion.current && liveKey.current === contextKey) {
+        setChapterState({ key: contextKey, rows, loading: false, error: '' });
+        setChapterChoice((previous) => previous?.contextKey === contextKey && rows.some((row) => row.test_id === previous.test_id) ? previous : null);
+      }
+    } catch (failure) {
+      if (version === requestVersion.current && liveKey.current === contextKey) {
+        setChapterChoice(null);
+        setChapterState({ key: contextKey, rows: [], loading: false, error: failure.message || 'Could not load these chapters.' });
+      }
+    }
+  }, [contextKey, subjectStatus, activeSubject?.class_subject_id]);
+
+  useFocusEffect(useCallback(() => {
+    loadChapters();
+    return () => { requestVersion.current += 1; };
+  }, [loadChapters]));
+
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}>
@@ -45,7 +85,35 @@ export default function MazeLevelsScreen({ navigation }) {
         </View>
       </LinearGradient>
 
-      {LEVELS.map((lvl, i) => {
+      {!contextKey ? <SubjectPrompt /> : selectedChapter && !loading ? (
+        <View style={styles.selection}>
+          <Text style={styles.name}>{activeSubject.subject_name}: {selectedChapter.chapter_title}</Text>
+          <TouchableOpacity style={styles.playBtn} onPress={() => { setChapterChoice(null); loadChapters(); }} accessibilityRole="button">
+            <Text style={styles.playBtnText}>Change chapter</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.selection}>
+          <Text style={styles.title}>{activeSubject.subject_name}: Choose chapter</Text>
+          {loading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading Maze chapters" /> : error ? (
+            <>
+              <Text style={styles.selectionText} accessibilityRole="alert">{error}</Text>
+              <TouchableOpacity style={styles.playBtn} onPress={loadChapters} accessibilityRole="button"><Text style={styles.playBtnText}>Retry chapters</Text></TouchableOpacity>
+            </>
+          ) : chapters.length === 0 ? <Text style={styles.selectionText}>No published chapters for this subject yet.</Text> : chapters.map((chapter) => (
+            <TouchableOpacity key={chapter.test_id} style={styles.card} onPress={() => setChapterChoice({ ...chapter, contextKey })} accessibilityRole="button">
+              <View style={styles.selectionCopy}>
+                <Text style={styles.name}>{chapter.chapter_title}</Text>
+                <Text style={styles.selectionText}>Teacher: {chapter.teacher_name || 'Teacher'}</Text>
+                <Text style={styles.selectionText}>{chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {selectedChapter && !loading && LEVELS.map((lvl, i) => {
         const locked = lvl.id > unlocked;
         const cleared = lvl.id < unlocked;
         const current = lvl.id === unlocked;
@@ -86,7 +154,10 @@ export default function MazeLevelsScreen({ navigation }) {
                 <Text style={styles.lockedBtnText}>Complete{'\n'}Level {lvl.id - 1}</Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.playBtn} onPress={() => navigation.navigate('MazeGame', { levelIndex: i })}>
+              <TouchableOpacity style={styles.playBtn} onPress={() => navigation.navigate('MazeGame', {
+                levelIndex: i, classSubjectId: activeSubject.class_subject_id, testId: selectedChapter.test_id,
+                chapterTitle: selectedChapter.chapter_title, subjectName: activeSubject.subject_name,
+              })}>
                 <Text style={styles.playBtnText}>Play</Text>
               </TouchableOpacity>
             )}
@@ -94,15 +165,18 @@ export default function MazeLevelsScreen({ navigation }) {
         );
       })}
 
-      <View style={styles.rewardBanner}>
+      {selectedChapter && <View style={styles.rewardBanner}>
         <Image source={require('../../assets/Artwork/maze-reward-chest.png')} style={styles.rewardBannerImage} resizeMode="contain" />
         <Text style={styles.rewardBannerText}>Complete all levels to earn up to{'\n'}<Text style={styles.rewardBannerCoins}>+{totalReward} coins</Text></Text>
-      </View>
+      </View>}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  selection: { marginBottom: 18 },
+  selectionCopy: { flex: 1 },
+  selectionText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, marginVertical: 5 },
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
   container: { padding: 20, paddingBottom: 40 },
   topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },

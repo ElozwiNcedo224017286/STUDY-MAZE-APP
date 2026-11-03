@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import { useSubject } from '../context/SubjectContext';
+import SubjectPrompt from '../components/SubjectPrompt';
 
 const RUSH_TARGET = 10;
 const RUSH_TIME = 10; // seconds per question
@@ -14,7 +16,7 @@ const recordedLegacyAttempts = new Set();
 
 export default function QuizRushScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { recordGame } = useAuth();
+  const { recordGame, user } = useAuth();
   const [phase, setPhase] = useState('start');
   const [lives, setLives] = useState(0);
   const [streak, setStreak] = useState(0);
@@ -25,6 +27,18 @@ export default function QuizRushScreen({ navigation }) {
   const [resultData, setResultData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const contextKey = subjectStatus === 'ready' && activeSubject ? `${user?.id}:${activeSubject.class_subject_id}` : null;
+  const liveKey = useRef(contextKey);
+  liveKey.current = contextKey;
+  const [chapterState, setChapterState] = useState({ key: null, rows: [], loading: true, error: '' });
+  const [selectedSubject, setSelectedSubject] = useState(null);
+  const [selectedChapter, setSelectedChapter] = useState(null);
+  const current = contextKey && chapterState.key === contextKey;
+  const chapters = current ? chapterState.rows : [];
+  const browseLoading = !!contextKey && (!current || chapterState.loading);
+  const browseError = current ? chapterState.error : '';
+  const browseVersion = useRef(0);
   const attemptRef = useRef(null);
   const questionRef = useRef(null);
   const pendingRef = useRef(false);
@@ -34,8 +48,50 @@ export default function QuizRushScreen({ navigation }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
+    return () => { mountedRef.current = false; browseVersion.current += 1; };
   }, []);
+
+  const loadChapters = useCallback(async () => {
+    const version = ++browseVersion.current;
+    if (!contextKey) return;
+    setChapterState({ key: contextKey, rows: [], loading: true, error: '' });
+    try {
+      const rows = await api.getSubjectChapters(activeSubject.class_subject_id);
+      if (mountedRef.current && version === browseVersion.current && liveKey.current === contextKey) {
+        setChapterState({ key: contextKey, rows, loading: false, error: '' });
+      }
+    } catch (err) {
+      if (mountedRef.current && version === browseVersion.current && liveKey.current === contextKey) {
+        setChapterState({ key: contextKey, rows: [], loading: false, error: err.message || 'Could not load chapters.' });
+      }
+    }
+  }, [contextKey, activeSubject?.class_subject_id]);
+
+  useEffect(() => {
+    // A running attempt and its result remain bound to their original chapter.
+    if (phase !== 'start' || busy || pendingRef.current) return;
+    if (subjectStatus === 'ready' && selectedChapter && selectedChapter.contextKey !== contextKey) {
+      setSelectedChapter(null);
+      setError('');
+    }
+    if (!contextKey) {
+      browseVersion.current += 1;
+      return;
+    }
+    if (chapterState.key !== contextKey) {
+      setSelectedSubject(activeSubject);
+      loadChapters();
+    }
+  }, [phase, busy, subjectStatus, contextKey, chapterState.key, selectedChapter, activeSubject, loadChapters]);
+
+  function changeChapter() {
+    if (pendingRef.current || phase === 'playing') return;
+    setSelectedChapter(null);
+    setError('');
+    setPhase('start');
+    setSelectedSubject(activeSubject);
+    loadChapters();
+  }
 
   function showQuestion(nextQuestion) {
     questionRef.current = nextQuestion;
@@ -46,12 +102,12 @@ export default function QuizRushScreen({ navigation }) {
   }
 
   async function startRun() {
-    if (pendingRef.current) return;
+    if (pendingRef.current || !contextKey || selectedChapter?.contextKey !== contextKey || !selectedSubject?.class_subject_id || !selectedChapter?.test_id) return;
     pendingRef.current = true;
     setBusy(true);
     setError('');
     try {
-      const attempt = await api.startStudyQuizAttempt();
+      const attempt = await api.startStudyQuizChapterAttempt(selectedSubject.class_subject_id, selectedChapter.test_id);
       if (!mountedRef.current) return;
       attemptRef.current = attempt.attempt_id;
       retryRef.current = null;
@@ -149,6 +205,37 @@ export default function QuizRushScreen({ navigation }) {
     }
   }
 
+  if (phase === 'start' && (!contextKey || !selectedChapter || selectedChapter.contextKey !== contextKey)) {
+    return (
+      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
+        <View style={styles.topnav}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} accessibilityLabel="Back">
+            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.title}>Quiz Rush</Text>
+        </View>
+        <ScrollView contentContainerStyle={styles.browseScroll}>
+          {!contextKey ? <SubjectPrompt /> : <>
+            <Text style={styles.heroTitle}>Choose Chapter</Text>
+            <Text style={styles.sub}>{activeSubject.subject_name} ? {activeSubject.class_name}</Text>
+            {browseLoading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading chapters" /> : browseError ? (
+              <>
+                <Text style={styles.sub} accessibilityRole="alert">{browseError}</Text>
+                <TouchableOpacity style={styles.btnGhost} onPress={loadChapters}><Text style={styles.btnGhostText}>Retry chapters</Text></TouchableOpacity>
+              </>
+            ) : chapters.length === 0 ? <Text style={styles.sub}>No published chapters for this subject yet.</Text> : chapters.map((chapter) => (
+              <TouchableOpacity key={chapter.test_id} style={[styles.card, styles.browseCard]} onPress={() => { setSelectedSubject(activeSubject); setSelectedChapter({ ...chapter, contextKey }); }}>
+                <Text style={styles.quizQ}>{chapter.chapter_title}</Text>
+                <Text style={styles.browseText}>Teacher: {chapter.teacher_name || 'Teacher'}</Text>
+                <Text style={styles.browseText}>{chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}</Text>
+              </TouchableOpacity>
+            ))}
+          </>}
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (phase === 'start') {
     return (
       <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
@@ -161,12 +248,14 @@ export default function QuizRushScreen({ navigation }) {
         <View style={styles.centerBody}>
           <View style={styles.card}>
             <Text style={styles.heroTitle}>Beat the Clock</Text>
+            <Text style={styles.sub}>{selectedSubject.subject_name} — {selectedChapter.chapter_title}</Text>
             <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
             <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
             <Bullet icon="💔" text="Wrong or too slow costs a life" />
             <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
             {!!error && <Text style={styles.sub}>{error}</Text>}
-            <TouchableOpacity style={styles.btn} disabled={busy} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btn} disabled={busy || !selectedSubject?.class_subject_id || !selectedChapter?.test_id} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
           </View>
         </View>
       </View>
@@ -187,6 +276,7 @@ export default function QuizRushScreen({ navigation }) {
             </Text>
             <Text style={styles.sub}>{resultData.xp} XP earned; {resultData.lives} lives remaining</Text>
             <TouchableOpacity style={styles.btn} disabled={busy} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
             <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
           </View>
         </View>
@@ -254,6 +344,9 @@ function Bullet({ icon, text }) {
 }
 
 const styles = StyleSheet.create({
+  browseScroll: { paddingBottom: 28, gap: 12 },
+  browseCard: { marginTop: 4 },
+  browseText: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 14 },
   centerBody: { flex: 1, justifyContent: 'center' },
   playScroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },

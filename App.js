@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './src/context/AuthContext';
+import { SubjectProvider } from './src/context/SubjectContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import MainTabs from './src/navigation/MainTabs';
 import SplashScreen from './src/screens/SplashScreen';
@@ -21,6 +22,7 @@ import StreakScreen from './src/screens/StreakScreen';
 import StudyNotesScreen from './src/screens/StudyNotesScreen';
 import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import MySubjectsScreen from './src/screens/MySubjectsScreen';
 import { PrivacyPolicyScreen, TermsOfServiceScreen } from './src/screens/LegalScreens';
 import {
   AchievementsScreen,
@@ -46,6 +48,7 @@ function AppShell() {
 
   return (
       <AuthProvider>
+        <SubjectProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />
 
         <NavigationContainer theme={navigationTheme}>
@@ -59,6 +62,7 @@ function AppShell() {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="Streak" component={StreakScreen} />
             <Stack.Screen name="ProfileDetails" component={ProfileDetailsScreen} />
+            <Stack.Screen name="MySubjects" component={MySubjectsScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
             <Stack.Screen name="TermsOfService" component={TermsOfServiceScreen} />
@@ -112,6 +116,7 @@ function AppShell() {
             />
           </Stack.Navigator>
         </NavigationContainer>
+        </SubjectProvider>
       </AuthProvider>
   );
 }

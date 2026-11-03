@@ -5,17 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import StackHeader from '../components/StackHeader';
 
 function Page({ navigation, title, subtitle, children }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   return (
     <View style={[styles.screen, { backgroundColor: colors.backgroundSecondary }]}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={[styles.back, { color: colors.primaryText }]} onPress={() => navigation.goBack()}>‹</Text>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+      <StackHeader title={title} onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]} showsVerticalScrollIndicator={false}>
         {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
         {children}
@@ -108,10 +105,6 @@ export function AchievementsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  header: { minHeight: 58, paddingHorizontal: 20, paddingBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  back: { color: COLORS.primary, fontSize: 34, lineHeight: 36, width: 38 },
-  headerTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '800' },
-  headerSpacer: { width: 38 },
   content: { paddingHorizontal: 20, paddingTop: 10 },
   subtitle: { color: COLORS.textSecondary, fontSize: 14, lineHeight: 21, marginBottom: 18 },
   card: { backgroundColor: COLORS.white, borderRadius: 18, paddingHorizontal: 16, ...SHADOWS.small },

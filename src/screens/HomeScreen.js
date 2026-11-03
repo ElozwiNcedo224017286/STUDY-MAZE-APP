@@ -22,6 +22,8 @@ import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 import { useTheme } from '../context/ThemeContext';
+import { useSubject } from '../context/SubjectContext';
+import useSubjectMaterials from '../hooks/useSubjectMaterials';
 
 const TOTAL_MAZE_LEVELS = 3;
 
@@ -72,7 +74,10 @@ export default function HomeScreen({ navigation }) {
     loadChallenge();
     return () => { challengeRequestRef.current += 1; };
   }, [loadChallenge]));
-  const [notesCount, setNotesCount] = useState(0);
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const { materials: subjectMaterials, refresh: refreshSubjectMaterials } = useSubjectMaterials();
+  const [teacherNotesCount, setNotesCount] = useState(0);
+  const notesCount = isTeacher ? teacherNotesCount : subjectMaterials.length;
   const [dailyStreak, setDailyStreak] = useState(null);
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -87,14 +92,14 @@ export default function HomeScreen({ navigation }) {
     try {
       const [{ meta, questions }, notes, streakData, notificationRows] =
         await Promise.all([
-          api.getQuizBank().catch(() => ({
+          (isTeacher ? api.getQuizBank() : Promise.resolve({ meta: null, questions: [] })).catch(() => ({
             meta: null,
             questions: [],
           })),
 
           (isTeacher
             ? api.getStudyMaterials()
-            : api.getPublishedNotes()
+            : Promise.resolve({ materials: [] })
           ).catch(() => ({
             materials: [],
           })),
@@ -161,9 +166,9 @@ export default function HomeScreen({ navigation }) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([load(), loadChallenge(), refreshUser?.(), refreshBalance()]);
+    await Promise.all([load(), loadChallenge(), refreshUser?.(), refreshBalance(), refreshSubjectMaterials()]);
     setRefreshing(false);
-  }, [load, loadChallenge, refreshUser, refreshBalance]);
+  }, [load, loadChallenge, refreshUser, refreshBalance, refreshSubjectMaterials]);
 
   const openNotifications = useCallback(async () => {
     setNotificationsVisible(true);
@@ -549,21 +554,25 @@ export default function HomeScreen({ navigation }) {
           <View style={[styles.recommendCard, { backgroundColor: COLORS.primaryFaded }]}>
             <Image source={require('../../assets/Artwork/icon-notes.png')} style={styles.recommendIcon} resizeMode="contain" />
             <Text style={styles.recommendTitle} numberOfLines={2}>
-              {quizMeta
+              {!isTeacher
+                ? subjectStatus !== 'ready' ? 'Your study subjects' : activeSubject ? `Continue studying ${activeSubject.subject_name}` : 'Choose your current subject'
+                : quizMeta
                 ? `Quiz: ${quizMeta.topic}`
                 : isTeacher ? 'No quiz published yet' : 'Warm up with a game'}
             </Text>
             <Text style={styles.recommendDesc} numberOfLines={2}>
-              {quizMeta
+              {!isTeacher
+                ? (activeSubject && subjectStatus === 'ready' ? 'Choose a chapter in Maze or Quiz Rush.' : 'Set your current subject in My Subjects.')
+                : quizMeta
                 ? (isTeacher ? 'Students can play this now.' : `${quizCount} question${quizCount === 1 ? '' : 's'} ready`)
                 : (isTeacher ? 'Build one from Studio.' : 'Built-in questions are ready.')}
             </Text>
             <TouchableOpacity
               style={styles.recommendBtn}
               activeOpacity={0.85}
-              onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.navigate('Play'))}
+              onPress={() => (isTeacher ? navigation.navigate('Studio') : activeSubject && subjectStatus === 'ready' ? navigation.navigate('Play') : navigation.getParent()?.navigate('MySubjects'))}
             >
-              <Text style={styles.recommendBtnText}>{isTeacher ? 'Open Studio' : 'Start quiz'}</Text>
+              <Text style={styles.recommendBtnText}>{isTeacher ? 'Open Studio' : activeSubject && subjectStatus === 'ready' ? 'Choose a game' : 'My Subjects'}</Text>
               <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
             </TouchableOpacity>
           </View>

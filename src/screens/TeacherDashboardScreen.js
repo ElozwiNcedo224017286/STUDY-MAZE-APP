@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Modal, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as DocumentPicker from 'expo-document-picker';
 import { colors } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
+import TeacherSubjectPicker, { useTeacherSubjectAssignments } from '../components/TeacherSubjectPicker';
+import StackHeader from '../components/StackHeader';
 
 const TABS = ['Create', 'Published', 'Notes', 'Class'];
 const LETTERS = ['A', 'B', 'C', 'D'];
@@ -80,6 +82,7 @@ export default function TeacherDashboardScreen({ navigation }) {
 
   return (
     <View style={styles.flex}>
+      <StackHeader title="Teacher Dashboard" onBack={() => navigation.goBack()} />
       <View style={styles.header}>
         <Text style={styles.welcome}>Teacher · <Text style={styles.username}>{user?.username}</Text></Text>
         <TouchableOpacity style={styles.iconBtn} onPress={handleLogout}><Text style={styles.iconBtnText}>⏻</Text></TouchableOpacity>
@@ -110,6 +113,37 @@ function CreateTab({ user, navigation }) {
   const [drafts, setDrafts] = useState([]);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [assignmentId, setAssignmentId] = useState('');
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
+  const [assignmentsError, setAssignmentsError] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const publishLock = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setAssignmentsLoading(true);
+    setAssignmentsError('');
+    api.getTeacherSubjectAssignments()
+      .then((rows) => {
+        if (!active) return;
+        setAssignments(rows);
+        setAssignmentId((previous) => rows.length === 1 ? rows[0].class_subject_id :
+          rows.some((row) => row.class_subject_id === previous) ? previous : '');
+      })
+      .catch((error) => {
+        if (!active) return;
+        setAssignments([]);
+        setAssignmentId('');
+        setAssignmentsError(error.message || 'Could not load your subject assignments.');
+      })
+      .finally(() => { if (active) setAssignmentsLoading(false); });
+    return () => { active = false; };
+  }, [user?.id]));
+
+  const selectedAssignment = assignments.find((row) => row.class_subject_id === assignmentId);
+  const publishDisabled = publishing || busy || assignmentsLoading || !!assignmentsError ||
+    !selectedAssignment || !topic.trim() || drafts.length === 0;
 
   async function pickFiles() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -122,7 +156,7 @@ function CreateTab({ user, navigation }) {
   }
 
   async function generate() {
-    if (files.length === 0) return;
+    if (publishLock.current || busy || files.length === 0) return;
     setBusy(true);
     setStatus('Generating questions from your slides…');
     try {
@@ -144,14 +178,27 @@ function CreateTab({ user, navigation }) {
   function removeDraft(i) { setDrafts((prev) => prev.filter((_, j) => j !== i)); }
 
   async function publish() {
+    if (publishLock.current || busy) return;
+    if (assignmentsLoading || assignmentsError || !selectedAssignment) {
+      setStatus('Select an assigned class subject before publishing.');
+      return;
+    }
+    if (!topic.trim()) { setStatus('Enter a chapter name before publishing.'); return; }
     if (drafts.length === 0) return;
+    publishLock.current = true;
+    setPublishing(true);
+    setStatus('');
     try {
-      await api.publishQuizBank(user.username, topic || 'Uploaded Material', drafts);
-      setStatus(`Published ${drafts.length} questions to all students! 🎉`);
+      const questions = drafts.map((question) => ({ ...question, subject: selectedAssignment.subject_name }));
+      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions);
+      setStatus(`Published ${questions.length} questions for ${selectedAssignment.subject_name}.`);
       setDrafts([]);
       setFiles([]);
     } catch (e) {
-      setStatus(e.message || 'Could not publish — please try again.');
+      setStatus(e.message || 'Could not publish. Please try again.');
+    } finally {
+      publishLock.current = false;
+      setPublishing(false);
     }
   }
 
@@ -160,21 +207,48 @@ function CreateTab({ user, navigation }) {
       <Text style={styles.sectionTitle}>Build a Quiz</Text>
       <Text style={styles.sub}>Generate questions from slides with AI, add your own by hand, or both — then publish the set to your students.</Text>
 
-      <Text style={styles.label}>Topic / class name</Text>
-      <TextInput style={styles.input} value={topic} onChangeText={setTopic} placeholder="e.g. Grade 10 Life Sciences — Cell Structure" placeholderTextColor={colors.inkDim} />
+      <Text style={styles.label}>Class subject</Text>
+      {assignmentsLoading ? <ActivityIndicator color={colors.mint} /> : assignmentsError ? (
+        <Text style={styles.status} accessibilityRole="alert">{assignmentsError} Reopen Create to retry.</Text>
+      ) : assignments.length === 0 ? (
+        <Text style={styles.status}>No subject assignments. Ask an administrator to assign you to a class subject before publishing.</Text>
+      ) : assignments.length === 1 ? (
+        <Text style={styles.status}>{assignments[0].class_name} — {assignments[0].subject_name}</Text>
+      ) : (
+        <View>
+          <Text style={styles.label}>Choose the class subject for this chapter.</Text>
+          {assignments.map((assignment) => (
+            <TouchableOpacity
+              key={assignment.class_subject_id}
+              style={[styles.input, { borderColor: assignmentId === assignment.class_subject_id ? colors.mint : colors.wallEdge }]}
+              onPress={() => setAssignmentId(assignment.class_subject_id)}
+              disabled={publishing}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: assignmentId === assignment.class_subject_id, disabled: publishing }}
+            >
+              <Text style={{ color: colors.ink }}>
+                {assignmentId === assignment.class_subject_id ? '● ' : '○ '}{assignment.class_name} — {assignment.subject_name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <Text style={styles.label}>Chapter name</Text>
+      <TextInput style={styles.input} value={topic} onChangeText={setTopic} editable={!publishing} placeholder="e.g. Cell Structure" placeholderTextColor={colors.inkDim} />
 
       <View style={styles.uploadZone}>
-        <TouchableOpacity style={styles.uploadBtn} onPress={pickFiles}><Text style={styles.uploadBtnText}>Choose Files (PDF / TXT)</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.uploadBtn} onPress={pickFiles} disabled={publishing}><Text style={styles.uploadBtnText}>Choose Files (PDF / TXT)</Text></TouchableOpacity>
         <Text style={styles.uploadHint}>Export PowerPoint to PDF first</Text>
       </View>
       {files.map((f, i) => (
         <View key={i} style={styles.row}><Text style={styles.rowText} numberOfLines={1}>{f.name}</Text><Text>✅</Text></View>
       ))}
 
-      <TouchableOpacity style={[styles.btnSecondary, (busy || files.length === 0) && styles.btnDisabled]} disabled={busy || files.length === 0} onPress={generate}>
+      <TouchableOpacity style={[styles.btnSecondary, (publishing || busy || files.length === 0) && styles.btnDisabled]} disabled={publishing || busy || files.length === 0} onPress={generate}>
         <Text style={styles.btnSecondaryText}>{busy ? 'Generating…' : '✨ Generate from Slides'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.btnGhost} onPress={openNew}><Text style={styles.btnGhostText}>✍️ Add a Question Manually</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.btnGhost} disabled={publishing} onPress={openNew}><Text style={styles.btnGhostText}>✍️ Add a Question Manually</Text></TouchableOpacity>
 
       {!!status && <Text style={styles.status}>{status}</Text>}
 
@@ -182,8 +256,8 @@ function CreateTab({ user, navigation }) {
       {drafts.map((q, idx) => (
         <View key={idx} style={styles.genCard}>
           <View style={styles.genActions}>
-            <TouchableOpacity onPress={() => openEdit(idx)}><Text style={styles.editBtn}>✎</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => removeDraft(idx)}><Text style={styles.removeBtn}>×</Text></TouchableOpacity>
+            <TouchableOpacity disabled={publishing} onPress={() => openEdit(idx)}><Text style={styles.editBtn}>✎</Text></TouchableOpacity>
+            <TouchableOpacity disabled={publishing} onPress={() => removeDraft(idx)}><Text style={styles.removeBtn}>×</Text></TouchableOpacity>
           </View>
           <Text style={styles.genTag}>{q.subject}</Text>
           <Text style={styles.genQ}>{q.q}</Text>
@@ -194,7 +268,7 @@ function CreateTab({ user, navigation }) {
       ))}
 
       {drafts.length > 0 && (
-        <TouchableOpacity style={styles.btn} onPress={publish}><Text style={styles.btnText}>Publish to Students</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btn, publishDisabled && styles.btnDisabled]} disabled={publishDisabled} onPress={publish}><Text style={styles.btnText}>{publishing ? 'Publishing...' : 'Publish to Students'}</Text></TouchableOpacity>
       )}
 
       <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>🎮 Preview Student App</Text></TouchableOpacity>
@@ -279,11 +353,13 @@ function NotesTab() {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
-  const [subject, setSubject] = useState('');
+  const assignment = useTeacherSubjectAssignments();
+  const postLock = useRef(false);
   const [grade, setGrade] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
+  const postDisabled = busy || assignment.loading || !!assignment.error || !assignment.selectedAssignment;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -293,13 +369,16 @@ function NotesTab() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   async function post() {
+    if (postLock.current || postDisabled) return;
     if (!title.trim() || !content.trim()) { setStatus('Add a title and some content.'); return; }
+    postLock.current = true;
     setBusy(true);
     try {
-      await api.createStudyMaterial({ title: title.trim(), subject: subject.trim(), grade: grade.trim(), content: content.trim() });
-      setTitle(''); setSubject(''); setGrade(''); setContent(''); setStatus('Note posted to students. 📚');
+      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, title: title.trim(), grade: grade.trim(), content: content.trim() });
+      setTitle(''); setGrade(''); setContent(''); setStatus('Note posted to students. 📚');
       await load();
     } catch (e) { setStatus(e.message); }
+    postLock.current = false;
     setBusy(false);
   }
 
@@ -312,13 +391,10 @@ function NotesTab() {
       <Text style={styles.sectionTitle}>Post Study Notes</Text>
       <Text style={styles.sub}>Share summaries and notes your students can read in the app.</Text>
 
-      <Text style={styles.label}>Title</Text>
+      <TeacherSubjectPicker {...assignment} disabled={busy} />
+          <Text style={styles.label}>Title</Text>
       <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Cell Structure" placeholderTextColor={colors.inkDim} />
       <View style={styles.twoCol}>
-        <View style={styles.col}>
-          <Text style={styles.label}>Subject</Text>
-          <TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="Life Sciences" placeholderTextColor={colors.inkDim} />
-        </View>
         <View style={styles.col}>
           <Text style={styles.label}>Grade</Text>
           <TextInput style={styles.input} value={grade} onChangeText={setGrade} placeholder="10" placeholderTextColor={colors.inkDim} />
@@ -327,7 +403,7 @@ function NotesTab() {
       <Text style={styles.label}>Notes</Text>
       <TextInput style={[styles.input, styles.inputTall]} value={content} onChangeText={setContent} placeholder="Write the study notes…" placeholderTextColor={colors.inkDim} multiline />
 
-      <TouchableOpacity style={[styles.btn, busy && styles.btnDisabled]} disabled={busy} onPress={post}><Text style={styles.btnText}>{busy ? 'Posting…' : 'Post to Students'}</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.btn, postDisabled && styles.btnDisabled]} disabled={postDisabled} onPress={post}><Text style={styles.btnText}>{busy ? 'Posting…' : 'Post to Students'}</Text></TouchableOpacity>
       {!!status && <Text style={styles.status}>{status}</Text>}
 
       <Text style={styles.sectionTitle}>Your Notes</Text>
@@ -379,7 +455,7 @@ function ClassTab() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg, paddingTop: 50 },
+  flex: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, marginBottom: 12 },
   welcome: { color: colors.inkDim, fontSize: 13 },
   username: { color: colors.gold, fontWeight: '800' },

@@ -314,6 +314,21 @@ export const api = {
     return attempt;
   },
 
+  startStudyQuizChapterAttempt: async (classSubjectId, testId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim() ||
+        typeof testId !== 'string' || !testId.trim()) throw new Error('Select a subject and chapter first.');
+    const { data, error } = await supabase.rpc('start_study_quiz_chapter_attempt', {
+      _class_subject_id: classSubjectId,
+      _test_id: testId,
+    });
+    if (error) throw new Error(error.message || 'Could not start Study Quiz.');
+    if (!Array.isArray(data) || data.length !== 1) throw new Error('Invalid Study Quiz start response.');
+    const attempt = data[0];
+    validateStudyQuizState(attempt);
+    validateStudyQuizQuestion(attempt);
+    return attempt;
+  },
+
   submitStudyQuizAnswer: (attemptId, questionId, selectedOptionId) =>
     resolveStudyQuizQuestion('submit_study_quiz_answer', attemptId, questionId, selectedOptionId),
 
@@ -339,18 +354,104 @@ export const api = {
     };
   },
 
-  publishQuizBank: async (_teacher, topic, questions) => {
-    // teacher_id is taken from the signed-in user by RLS; the _teacher arg is ignored.
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('You must be signed in to publish.');
-
-    const { error } = await supabase.from('tests').insert({
-      teacher_id: user.id,
-      title: topic,
-      questions: (questions || []).map(toDbQuestion)
+  getMazeChapterBank: async (classSubjectId, testId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim() ||
+      typeof testId !== 'string' || !testId.trim()) throw new Error('Select a subject and chapter first.');
+    const { data, error } = await supabase.rpc('student_get_maze_chapter_bank', {
+      _class_subject_id: classSubjectId, _test_id: testId,
     });
-    if (error) throw new Error(error.message || 'Could not publish.');
-    return { ok: true };
+    if (error) throw error;
+    const bank = Array.isArray(data) && data.length === 1 ? data[0] : data;
+    const fields = ['chapter_title', 'subject_name', 'teacher_id', 'created_at'];
+    if (!bank || typeof bank !== 'object' || Array.isArray(bank) ||
+      bank.test_id !== testId || bank.class_subject_id !== classSubjectId ||
+      fields.some((field) => typeof bank[field] !== 'string' || !bank[field].trim()) ||
+      (bank.teacher_name != null && typeof bank.teacher_name !== 'string') || !Array.isArray(bank.questions)) {
+      throw new Error('Invalid Maze chapter bank response.');
+    }
+    if (bank.questions.length === 0) throw new Error('This chapter has no questions. Choose another chapter.');
+    const questions = bank.questions.map((question) => {
+      if (!question || typeof question.q !== 'string' || !question.q.trim() ||
+        !Array.isArray(question.choices) || question.choices.length < 2 ||
+        question.choices.some((choice) => typeof choice !== 'string' || !choice.trim()) ||
+        !Number.isInteger(question.answer) || question.answer < 0 || question.answer >= question.choices.length) {
+        throw new Error('This chapter contains an invalid Maze question. Ask your teacher to review it.');
+      }
+      return { subject: bank.subject_name, q: question.q, opts: [...question.choices], correct: question.answer };
+    });
+    return {
+      test_id: bank.test_id, class_subject_id: bank.class_subject_id,
+      chapter_title: bank.chapter_title, subject_name: bank.subject_name,
+      teacher_id: bank.teacher_id, teacher_name: bank.teacher_name,
+      created_at: bank.created_at, questions,
+    };
+  },
+
+  getMySubjects: async () => {
+    const { data, error } = await supabase.rpc('student_list_my_subjects');
+    if (error) throw error;
+    if (data == null) return [];
+    const fields = ['class_subject_id', 'class_id', 'class_name', 'subject_name', 'teacher_id'];
+    if (!Array.isArray(data) || data.some((row) => !row ||
+      fields.some((field) => typeof row[field] !== 'string' || !row[field].trim()) ||
+      (row.teacher_name != null && typeof row.teacher_name !== 'string'))) {
+      throw new Error('Invalid enrolled subjects response.');
+    }
+    return data.map(({ class_subject_id, class_id, class_name, subject_name, teacher_id, teacher_name }) => ({
+      class_subject_id, class_id, class_name, subject_name, teacher_id, teacher_name,
+    }));
+  },
+
+  getSubjectChapters: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Select a subject first.');
+    const { data, error } = await supabase.rpc('student_list_subject_chapters', {
+      _class_subject_id: classSubjectId,
+    });
+    if (error) throw error;
+    if (data == null) return [];
+    if (!Array.isArray(data)) throw new Error('Invalid subject chapters response.');
+    return data.map((row) => {
+      const count = typeof row?.question_count === 'number' ? row.question_count :
+        typeof row?.question_count === 'string' && row.question_count.trim() ? Number(row.question_count) : NaN;
+      const fields = ['test_id', 'chapter_title', 'subject_name', 'teacher_id', 'created_at'];
+      if (!row || fields.some((field) => typeof row[field] !== 'string' || !row[field].trim()) ||
+        (row.teacher_name != null && typeof row.teacher_name !== 'string') || !Number.isSafeInteger(count) || count < 0) {
+        throw new Error('Invalid subject chapters response.');
+      }
+      return {
+        test_id: row.test_id, chapter_title: row.chapter_title, subject_name: row.subject_name,
+        teacher_id: row.teacher_id, teacher_name: row.teacher_name,
+        question_count: count, created_at: row.created_at,
+      };
+    });
+  },
+
+  getTeacherSubjectAssignments: async () => {
+    const { data, error } = await supabase.rpc('teacher_list_subject_assignments');
+    if (error) throw error;
+    if (data == null) return [];
+    const fields = ['class_subject_id', 'class_id', 'class_name', 'subject_name'];
+    if (!Array.isArray(data) || data.some((row) => !row ||
+      fields.some((field) => typeof row[field] !== 'string' || !row[field].trim()))) {
+      throw new Error('Invalid teacher subject assignments response.');
+    }
+    return data.map(({ class_subject_id, class_id, class_name, subject_name }) => ({
+      class_subject_id, class_id, class_name, subject_name,
+    }));
+  },
+
+  publishQuizBank: async (classSubjectId, chapterTitle, questions) => {
+    if (!classSubjectId || typeof chapterTitle !== 'string' || !chapterTitle.trim() ||
+      !Array.isArray(questions) || questions.length === 0) {
+      throw new Error('Select an assigned subject, enter a chapter name, and add questions.');
+    }
+    const { data, error } = await supabase.rpc('teacher_publish_quiz_bank', {
+      _class_subject_id: classSubjectId,
+      _chapter_title: chapterTitle.trim(),
+      _questions: questions.map(toDbQuestion),
+    });
+    if (error) throw error;
+    return data;
   },
 
   // Removes this teacher's published tests (RLS restricts deletes to their own rows).
@@ -410,14 +511,20 @@ export const api = {
     return { materials: data || [] };
   },
 
-  createStudyMaterial: async ({ title, subject, grade, content }) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('You must be signed in.');
-    const { data, error } = await supabase
-      .from('study_materials')
-      .insert({ teacher_id: user.id, title, subject: subject || null, grade: grade || null, content })
-      .select()
-      .single();
+  getSubjectMaterials: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Choose your current subject first.');
+    const { data, error } = await supabase.rpc('student_list_subject_materials', { _class_subject_id: classSubjectId });
+    if (error) throw error;
+    if (data != null && !Array.isArray(data)) throw new Error('Invalid subject materials response.');
+    return { materials: data || [] };
+  },
+
+  createStudyMaterial: async ({ classSubjectId, title, grade, content }) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Select an assigned class subject first.');
+    if (!title?.trim() || !content?.trim()) throw new Error('Add a title and some content.');
+    const { data, error } = await supabase.rpc('teacher_publish_study_material', {
+      _class_subject_id: classSubjectId, _title: title.trim(), _grade: grade?.trim() || null, _content: content.trim(),
+    });
     if (error) throw new Error(error.message || 'Could not post the note.');
     return { material: data };
   },
@@ -475,7 +582,10 @@ export const api = {
     return { imageUrl };
   },
 
-  uploadStudentSlides: async (file) => {
+  uploadStudentSlides: async (file, classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) {
+      throw new Error('Choose your current subject before uploading a PDF.');
+    }
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -510,34 +620,26 @@ export const api = {
       );
     }
 
-    const { data, error: insertError } = await supabase
-      .from('student_uploads')
-      .insert({
-        student_id: user.id,
-        title: file.name || 'Study slides',
-        file_name: file.name || 'study-slides.pdf',
-        storage_path: storagePath,
-        file_size: file.size || null,
-        status: 'uploaded',
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      // Remove the uploaded file if the database record fails.
-      await supabase.storage
-        .from('student-slides')
-        .remove([storagePath]);
-
-      throw new Error(
-        insertError.message || 'Could not save your upload.'
-      );
+    let registeredId;
+    try {
+      const { data, error } = await supabase.rpc('student_register_subject_upload', {
+        _class_subject_id: classSubjectId,
+        _title: file.name || 'Study slides',
+        _file_name: file.name || 'study-slides.pdf',
+        _storage_path: storagePath,
+        _file_size: file.size || null,
+      });
+      if (error) throw error;
+      if (typeof data !== 'string' || !data) throw new Error('Invalid upload registration response.');
+      registeredId = data;
+    } catch (registrationError) {
+      // Cleanup is best-effort; it must never hide the original registration error.
+      try { await supabase.storage.from('student-slides').remove([storagePath]); }
+      catch { /* The registration error remains the actionable failure. */ }
+      throw registrationError;
     }
 
-    return {
-      upload: data,
-      storagePath,
-    };
+    return { upload: { id: registeredId }, storagePath };
   },
 
     validateStudentUpload: async (uploadId) => {
@@ -596,41 +698,37 @@ export const api = {
     return data;
   },
 
-  getStudentStudyNotes: async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      throw new Error('You must be signed in.');
+  getStudentStudyNotes: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) {
+      throw new Error('Choose your current subject to view personal notes.');
     }
-
-    const { data, error } = await supabase
-      .from('study_notes')
-      .select(`
-        id,
-        upload_id,
-        summary,
-        key_concepts,
-        examples,
-        revision_summary,
-        created_at,
-        student_uploads (
-          id,
-          title,
-          file_name,
-          page_count,
-          created_at
-        )
-      `)
-      .eq('student_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      throw new Error(
-        error.message || 'Could not load your study notes.'
-      );
-    }
-
-    return data || [];
+    const { data, error } = await supabase.rpc('student_list_subject_study_notes', {
+      _class_subject_id: classSubjectId,
+    });
+    if (error) throw error;
+    if (data != null && !Array.isArray(data)) throw new Error('Invalid personal study notes response.');
+    return (data || []).map((row) => {
+      if (!row || typeof row.note_id !== 'string' || typeof row.upload_id !== 'string' ||
+          row.class_subject_id !== classSubjectId) throw new Error('Invalid subject-linked personal note response.');
+      return {
+        id: row.note_id,
+        upload_id: row.upload_id,
+        summary: row.summary,
+        key_concepts: row.key_concepts,
+        examples: row.examples,
+        revision_summary: row.revision_summary,
+        created_at: row.note_created_at,
+        student_uploads: {
+          id: row.upload_id,
+          title: row.upload_title,
+          file_name: row.file_name,
+          page_count: row.page_count,
+          created_at: row.upload_created_at,
+          subject: row.subject,
+          class_subject_id: row.class_subject_id,
+        },
+      };
+    });
   },
 
   getNotifications: async () => {

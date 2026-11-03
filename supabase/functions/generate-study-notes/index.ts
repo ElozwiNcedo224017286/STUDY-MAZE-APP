@@ -24,6 +24,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
 
 const GEMINI_MODEL = "gemini-3-flash-preview";
+const BUCKET = "student-slides";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const MIN_PAGES = 1;
@@ -216,6 +217,7 @@ Deno.serve(async (req) => {
   }
   let uploadId: string | null = null;
   let insertedNoteId: string | null = null;
+  let verifiedUpload: { id: string; student_id: string } | null = null;
 
   try {
     if (req.method !== "POST") {
@@ -304,17 +306,49 @@ Deno.serve(async (req) => {
     } = await serviceClient
       .from("student_uploads")
       .select(
-        "id, student_id, title, file_name, storage_path, page_count, file_size, status",
+        "id, student_id, class_subject_id, subject, title, file_name, storage_path, page_count, file_size, status",
       )
       .eq("id", uploadId)
       .eq("student_id", user.id)
       .single();
 
-    if (uploadError || !upload) {
+    if (uploadError || !upload || upload.student_id !== user.id) {
       return jsonResponse(
         { error: "Upload not found." },
         404,
       );
+    }
+
+    verifiedUpload = { id: upload.id, student_id: user.id };
+
+    // Only the upload's original assignment is considered, never request metadata.
+    // Null-linked legacy uploads retain their existing ownership-based behavior.
+    if (upload.class_subject_id != null) {
+      const { data: enrollment, error: enrollmentError } = await serviceClient
+        .from("student_subjects")
+        .select("class_subject_id")
+        .eq("student_id", user.id)
+        .eq("class_subject_id", upload.class_subject_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (enrollmentError) {
+        return jsonResponse({ error: "Could not verify enrollment for this upload." }, 500);
+      }
+      if (!enrollment) {
+        return jsonResponse({ error: "You are no longer enrolled in this upload's class subject." }, 403);
+      }
+    }
+
+    // The upload row supplies the captured context; request metadata cannot replace it.
+    const pathSegments: string[] = typeof upload.storage_path === "string"
+      ? upload.storage_path.split("/")
+      : [];
+    if (
+      pathSegments.length < 2 || pathSegments[0] !== user.id ||
+      pathSegments.some((segment) => !segment || /^(?:\.|%2e){1,2}$/i.test(segment) || /\\|%2f|%5c/i.test(segment))
+    ) {
+      return jsonResponse({ error: "The stored PDF path does not belong to this student." }, 403);
     }
 
     // ------------------------------------------------------------
@@ -373,7 +407,7 @@ Deno.serve(async (req) => {
       data: pdfFile,
       error: downloadError,
     } = await serviceClient.storage
-      .from("student-slides")
+      .from(BUCKET)
       .download(upload.storage_path);
 
     if (downloadError || !pdfFile) {
@@ -574,21 +608,24 @@ Deno.serve(async (req) => {
         SUPABASE_SERVICE_ROLE_KEY,
       );
 
-      if (insertedNoteId) {
+      if (insertedNoteId && verifiedUpload) {
         await serviceClient
           .from("study_notes")
           .delete()
-          .eq("id", insertedNoteId);
+          .eq("id", insertedNoteId)
+          .eq("upload_id", verifiedUpload.id)
+          .eq("student_id", verifiedUpload.student_id);
       }
 
-      if (uploadId) {
+      if (verifiedUpload) {
         await serviceClient
           .from("student_uploads")
           .update({
             status: "failed",
             error_message: message.slice(0, 1000),
           })
-          .eq("id", uploadId);
+          .eq("id", verifiedUpload.id)
+          .eq("student_id", verifiedUpload.student_id);
       }
     } catch (cleanupError) {
       console.error(

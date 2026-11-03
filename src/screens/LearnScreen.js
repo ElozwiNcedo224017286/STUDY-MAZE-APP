@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,18 @@ import * as DocumentPicker from 'expo-document-picker';
 import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { api } from '../api/client';
+import { useSubject } from '../context/SubjectContext';
+import useSubjectMaterials from '../hooks/useSubjectMaterials';
+import SubjectPrompt from '../components/SubjectPrompt';
 import { validatePdf } from '../utils/pdfValidation';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function LearnScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [segment, setSegment] = useState('teacher-notes');
+  const [ownNotesOpened, setOwnNotesOpened] = useState(false);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
@@ -44,7 +49,7 @@ export default function LearnScreen({ navigation }) {
               styles.segment,
               segment === key && styles.segmentActive,
             ]}
-            onPress={() => setSegment(key)}
+            onPress={() => { if (key === 'own-notes') setOwnNotesOpened(true); setSegment(key); }}
             activeOpacity={0.8}
           >
             <Text
@@ -59,36 +64,21 @@ export default function LearnScreen({ navigation }) {
         ))}
       </View>
 
-      {segment === 'teacher-notes' ? (
-        <TeacherNotesPane insets={insets} />
-      ) : (
-        <OwnNotesPane insets={insets} />
+      {segment === 'teacher-notes' && <TeacherNotesPane insets={insets} />}
+      {/* Keep an opened Own Notes job mounted while switching Learn panes. */}
+      {ownNotesOpened && (
+        <View style={{ flex: 1, display: segment === 'own-notes' ? 'flex' : 'none' }}>
+          <OwnNotesPane insets={insets} />
+        </View>
       )}
     </View>
   );
 }
 
 function TeacherNotesPane({ insets }) {
-  const [materials, setMaterials] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { activeSubject, status } = useSubject();
+  const { materials, loading, error, refresh: load } = useSubjectMaterials();
   const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const { materials: rows } = await api.getPublishedNotes();
-      setMaterials(rows || []);
-    } catch {
-      setMaterials([]);
-    }
-
-    setLoading(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
 
   return (
     <ScrollView
@@ -109,11 +99,16 @@ function TeacherNotesPane({ insets }) {
         />
       }
     >
-      {loading ? (
+      {status !== 'ready' || !activeSubject ? <SubjectPrompt /> : loading ? (
         <ActivityIndicator
           color={COLORS.primary}
           style={{ marginTop: 24 }}
         />
+      ) : error ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText} accessibilityRole="alert">{error}</Text>
+          <TouchableOpacity onPress={load} accessibilityRole="button"><Text style={styles.emptyTitle}>Retry notes</Text></TouchableOpacity>
+        </View>
       ) : materials.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>No notes yet</Text>
@@ -146,116 +141,146 @@ function TeacherNotesPane({ insets }) {
 
 function OwnNotesPane({ insets }) {
   const { colors } = useTheme();
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [processingStep, setProcessingStep] = useState('');
-  const [uploadError, setUploadError] = useState('');
-  const [uploaded, setUploaded] = useState(false);
-  const [generatedNotes, setGeneratedNotes] = useState(null);
-  const [savedNotes, setSavedNotes] = useState([]);
-  const [savedNotesLoading, setSavedNotesLoading] = useState(true);
+  const { user } = useAuth();
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const owner = user?.role === 'student' ? user.id : null;
+  const rawKey = owner && activeSubject ? `${owner}:${activeSubject.class_subject_id}` : null;
+  const contextKey = subjectStatus === 'ready' ? rawKey : null;
+  const contextVersion = useRef(0);
+  const previousKey = useRef(rawKey);
+  if (previousKey.current !== rawKey) {
+    previousKey.current = rawKey;
+    contextVersion.current += 1;
+  }
+  const liveContext = useRef(null);
+  liveContext.current = { owner, key: contextKey, rawKey, classSubjectId: activeSubject?.class_subject_id, subjectName: activeSubject?.subject_name };
+  const mounted = useRef(false);
+  const historyRequest = useRef(0);
+  const pickerPending = useRef(false);
+  const jobRef = useRef(null);
+  const [selection, setSelection] = useState(null);
+  const [processing, setProcessing] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState({ key: null, notes: [], loading: true, error: '' });
+  const selectedFile = selection?.key === contextKey && selection?.version === contextVersion.current ? selection.file : null;
+  const processingStep = processing?.owner === owner ? processing.step : '';
+  const uploadError = feedback?.key === contextKey ? feedback.message : '';
+  const generatedNotes = result?.key === contextKey ? result.notes : null;
+  const uploaded = !!generatedNotes;
+  const currentHistory = contextKey && history.key === contextKey;
+  const savedNotes = currentHistory ? history.notes : [];
+  const savedNotesLoading = !!contextKey && (!currentHistory || history.loading);
+  const historyError = currentHistory ? history.error : '';
 
-  const loadSavedNotes = useCallback(async () => {
-    try {
-      setSavedNotesLoading(true);
-
-      const notes = await api.getStudentStudyNotes();
-
-      setSavedNotes(Array.isArray(notes) ? notes : []);
-    } catch (error) {
-      console.error('Failed to load saved study notes:', error);
-      setSavedNotes([]);
-    } finally {
-      setSavedNotesLoading(false);
-    }
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      liveContext.current = null;
+      historyRequest.current += 1;
+      contextVersion.current += 1;
+    };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadSavedNotes();
-    }, [loadSavedNotes])
-  );
+  useEffect(() => {
+    if (selection && (selection.key !== rawKey || selection.version !== contextVersion.current)) {
+      setSelection(null);
+      setResult(null);
+      setFeedback(null);
+      if (!jobRef.current) setNotice({ owner, message: 'Your current subject changed. Please select the PDF again.' });
+    }
+  }, [rawKey, owner, selection]);
+
+  const loadSavedNotes = useCallback(async () => {
+    const ticket = ++historyRequest.current;
+    if (!contextKey || liveContext.current?.key !== contextKey) return;
+    const classSubjectId = liveContext.current.classSubjectId;
+    setHistory({ key: contextKey, notes: [], loading: true, error: '' });
+    try {
+      const notes = await api.getStudentStudyNotes(classSubjectId);
+      if (mounted.current && ticket === historyRequest.current && liveContext.current?.key === contextKey) {
+        setHistory({ key: contextKey, notes, loading: false, error: '' });
+      }
+    } catch (error) {
+      if (mounted.current && ticket === historyRequest.current && liveContext.current?.key === contextKey) {
+        setHistory({ key: contextKey, notes: [], loading: false, error: error.message || 'Could not load your personal notes.' });
+      }
+    }
+  }, [contextKey]);
+  const refreshHistory = useRef(loadSavedNotes);
+  refreshHistory.current = loadSavedNotes;
+  useFocusEffect(useCallback(() => {
+    loadSavedNotes();
+    return () => { historyRequest.current += 1; };
+  }, [loadSavedNotes]));
 
   async function pickPdf() {
+    const captured = liveContext.current;
+    if (!captured?.key || pickerPending.current || jobRef.current) return;
+    const version = contextVersion.current;
+    pickerPending.current = true;
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/pdf',
-        multiple: false,
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) {
+      const picked = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', multiple: false, copyToCacheDirectory: true });
+      if (!mounted.current) return;
+      if (liveContext.current?.key !== captured.key || contextVersion.current !== version) {
+        setNotice({ owner: liveContext.current?.owner, message: 'Your current subject changed. Please select the PDF again.' });
         return;
       }
-
-      const file = result.assets?.[0];
-
-      if (!file) {
-        return;
-      }
-
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const file = picked.assets[0];
       const validation = validatePdf(file);
-
       if (!validation.valid) {
-        console.warn('PDF validation failed:', validation.message);
+        setFeedback({ key: captured.key, message: validation.message });
         return;
       }
-
-      setSelectedFile(file);
-      setGeneratedNotes(null);
-      setUploadError('');
-      setUploaded(false);
+      setSelection({ key: captured.key, version, file });
+      setResult(null);
+      setFeedback(null);
+      setNotice(null);
     } catch (error) {
-      console.error('PDF picker error:', error);
-    }
+      if (mounted.current && liveContext.current?.key === captured.key) setFeedback({ key: captured.key, message: error.message || 'Could not select your PDF.' });
+    } finally { pickerPending.current = false; }
   }
 
   async function uploadPdf() {
-    if (!selectedFile || processingStep) {
-      return;
-    }
-
-    setUploadError('');
-    setUploaded(false);
-    setGeneratedNotes(null);
-
+    const captured = liveContext.current;
+    if (jobRef.current || !captured?.key || !selection || selection.key !== captured.key || selection.version !== contextVersion.current) return;
+    const job = Object.freeze({ ...captured, file: selection.file });
+    jobRef.current = job;
+    setFeedback(null);
+    setResult(null);
+    setNotice(null);
+    const sameAccount = () => mounted.current && liveContext.current?.owner === job.owner;
+    const step = (value) => { if (sameAccount()) setProcessing({ owner: job.owner, subjectName: job.subjectName, key: job.key, step: value }); };
     try {
-      // Step 1: Upload the PDF
-      setProcessingStep('uploading');
-
-      const uploadResult = await api.uploadStudentSlides(selectedFile);
+      step('uploading');
+      const uploadResult = await api.uploadStudentSlides(job.file, job.classSubjectId);
       const uploadId = uploadResult?.upload?.id;
-
-      if (!uploadId) {
-        throw new Error('The upload was created without an upload ID.');
-      }
-
-      console.log('Student PDF uploaded:', uploadResult);
-
-      // Step 2: Server-side validation
-      setProcessingStep('validating');
-
-      const validationResult = await api.validateStudentUpload(uploadId);
-
-      console.log('Student PDF validated:', validationResult);
-
-      // Step 3: Generate AI study notes
-      setProcessingStep('generating');
-
+      if (!uploadId) throw new Error('The upload was created without an upload ID.');
+      if (!sameAccount()) return;
+      step('validating');
+      await api.validateStudentUpload(uploadId);
+      if (!sameAccount()) return;
+      step('generating');
       const notesResult = await api.generateStudyNotes(uploadId);
-
-      console.log('Student study notes generated:', notesResult);
-
-      setGeneratedNotes(notesResult?.notes || null);
-      setUploaded(true);
+      if (!sameAccount()) return;
+      if (liveContext.current?.rawKey === job.key) {
+        setResult({ key: job.key, notes: notesResult?.notes || null });
+        setSelection({ key: job.key, version: contextVersion.current, file: job.file });
+        await refreshHistory.current();
+      } else {
+        setNotice({ owner: job.owner, message: `Your notes for ${job.subjectName} are ready. Return to that subject to view them.` });
+      }
     } catch (error) {
-      console.error('Student notes processing failed:', error);
-
-      setUploadError(
-        error?.message ||
-          'We could not create your study notes. Please try again.'
-      );
+      if (sameAccount()) {
+        if (liveContext.current?.rawKey === job.key) setFeedback({ key: job.key, message: error.message || 'We could not create your study notes. Please try again.' });
+        else setNotice({ owner: job.owner, message: `Notes for ${job.subjectName} could not be created. Return to that subject to retry.` });
+      }
     } finally {
-      setProcessingStep('');
+      if (jobRef.current === job) jobRef.current = null;
+      if (mounted.current) setProcessing(null);
     }
   }
 
@@ -283,7 +308,14 @@ function OwnNotesPane({ insets }) {
       ]}
       showsVerticalScrollIndicator={false}
     >
-      {!selectedFile ? (
+      {notice?.owner === owner && <Text style={[styles.fileMeta, { color: colors.textSecondary }]}>{notice.message}</Text>}
+      {processingStep && <Text style={[styles.fileMeta, { color: colors.textSecondary }]}>{processingStep === 'uploading' ? 'Uploading PDF' : processingStep === 'validating' ? 'Checking PDF' : 'Generating notes'} for {processing.subjectName}...</Text>}
+      {!contextKey ? (
+        <>
+          <Text style={[styles.ownNotesText, { color: colors.textSecondary }]}>Choose your current subject to view or create your personal study notes.</Text>
+          <SubjectPrompt />
+        </>
+      ) : !selectedFile ? (
         <>
           <View style={styles.ownNotesCard}>
             <Text style={styles.ownNotesIcon}>📝</Text>
@@ -307,6 +339,7 @@ function OwnNotesPane({ insets }) {
               style={styles.uploadButton}
               activeOpacity={0.8}
               onPress={pickPdf}
+              disabled={!!processing}
             >
               <Text style={styles.uploadButtonText}>
                 + Upload slides
@@ -316,11 +349,17 @@ function OwnNotesPane({ insets }) {
 
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your notes</Text>
 
+          {!!uploadError && <Text style={styles.uploadError}>{uploadError}</Text>}
           {savedNotesLoading ? (
             <ActivityIndicator
               color={COLORS.primary}
               style={{ marginTop: 8 }}
             />
+          ) : historyError ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.uploadError} accessibilityRole="alert">{historyError}</Text>
+              <TouchableOpacity onPress={loadSavedNotes} accessibilityRole="button"><Text style={styles.changeButtonText}>Retry personal notes</Text></TouchableOpacity>
+            </View>
           ) : savedNotes.length > 0 ? (
             savedNotes.map((note) => (
               <GeneratedStudyNotes
@@ -368,6 +407,7 @@ function OwnNotesPane({ insets }) {
               style={styles.changeButton}
               activeOpacity={0.8}
               onPress={pickPdf}
+              disabled={!!processing}
             >
               <Text style={styles.changeButtonText}>
                 Change PDF
@@ -380,7 +420,7 @@ function OwnNotesPane({ insets }) {
                 processingStep && styles.uploadButtonDisabled,
               ]}
               onPress={uploadPdf}
-              disabled={!!processingStep}
+              disabled={!!processing || uploaded}
               activeOpacity={0.85}
             >
             {processingStep ? (
@@ -400,7 +440,7 @@ function OwnNotesPane({ insets }) {
               </>
             ) : (
               <Text style={styles.uploadButtonText}>
-                Upload slides
+                {uploaded ? 'Notes created' : 'Upload slides'}
               </Text>
             )}
             </TouchableOpacity>
@@ -408,11 +448,11 @@ function OwnNotesPane({ insets }) {
             {uploaded ? (
               <View style={styles.uploadSuccess}>
                 <Text style={styles.uploadSuccessTitle}>
-                  PDF uploaded successfully
+                  Study notes created
                 </Text>
 
                 <Text style={styles.uploadSuccessText}>
-                  Your slides are safely stored and ready for processing.
+                  Your PDF has been checked and your study notes are ready.
                 </Text>
               </View>
             ) : null}
@@ -424,6 +464,13 @@ function OwnNotesPane({ insets }) {
             ) : null}
           </View>
 
+          {!processing && <TouchableOpacity style={styles.changeButton} accessibilityRole="button" onPress={() => {
+            if (jobRef.current) return;
+            setSelection(null);
+            setResult(null);
+            setFeedback(null);
+            loadSavedNotes();
+          }}><Text style={styles.changeButtonText}>View saved notes</Text></TouchableOpacity>}
           {generatedNotes ? (
             <GeneratedStudyNotes notes={generatedNotes} />
           ) : (

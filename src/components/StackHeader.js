@@ -12,7 +12,7 @@ export default function StackHeader({ title, subtitle, onBack, right }) {
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 8, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
       <View style={styles.row}>
-        <TouchableOpacity style={[styles.back, { backgroundColor: colors.backgroundTertiary }]} onPress={onBack} activeOpacity={0.75}>
+        <TouchableOpacity style={[styles.back, { backgroundColor: colors.backgroundTertiary }]} onPress={onBack} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.text}>

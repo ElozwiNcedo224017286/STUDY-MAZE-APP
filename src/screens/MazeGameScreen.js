@@ -6,7 +6,6 @@ import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { LEVELS } from './mazeData';
-import { buildActivePool } from './quizBank';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const FLEX_PADDING = 12;
@@ -24,12 +23,23 @@ export default function MazeGameScreen({ route, navigation }) {
       </View>
     );
   }
-  return <MazeRun key={levelIndex} route={route} navigation={navigation} />;
+  const { classSubjectId, testId } = route.params;
+  if (typeof classSubjectId !== 'string' || !classSubjectId.trim() || typeof testId !== 'string' || !testId.trim()) {
+    return (
+      <View style={styles.flex}>
+        <Text style={styles.title}>Choose a subject and chapter before starting Maze.</Text>
+        <TouchableOpacity style={styles.ctrlBtn} onPress={() => navigation.navigate('MazeLevels')}>
+          <Text>Choose chapter</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  return <MazeRun key={`${levelIndex}:${classSubjectId}:${testId}`} route={route} navigation={navigation} />;
 }
 
 function MazeRun({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { levelIndex } = route.params;
+  const { levelIndex, classSubjectId, testId, chapterTitle, subjectName } = route.params;
   const level = LEVELS[levelIndex];
   const { recordGame } = useAuth();
 
@@ -45,6 +55,9 @@ function MazeRun({ route, navigation }) {
   const dotsRemainingRef = useRef(gridRef.current.flat().filter((v) => v === 0).length);
   const awaitingQuizRef = useRef(false);
   const quizPoolRef = useRef([]);
+  const chapterBankRef = useRef(null);
+  const chapterPromiseRef = useRef(null);
+  const chapterPendingRef = useRef(false);
   const currentQuizCellRef = useRef(null);
   const coinsRef = useRef(0); // coins EARNED this run — added to the player's total on finish
   const runningRef = useRef(false);
@@ -67,7 +80,7 @@ function MazeRun({ route, navigation }) {
   const [quizVisible, setQuizVisible] = useState(false);
   const [quizQuestion, setQuizQuestion] = useState(null);
   const [quizFeedback, setQuizFeedback] = useState('');
-  const [boundary, setBoundary] = useState({ stage: 'starting', error: '' });
+  const [boundary, setBoundary] = useState({ stage: 'loading', error: '' });
 
   function clearCallbacks() {
     callbacksRef.current.forEach(clearTimeout);
@@ -90,7 +103,7 @@ function MazeRun({ route, navigation }) {
   }
 
   async function startMaze(retry = false) {
-    if (attemptIdRef.current || leavingRef.current || terminalRef.current) return;
+    if (!chapterBankRef.current || attemptIdRef.current || leavingRef.current || terminalRef.current) return;
     if (retry && startPendingRef.current) return;
     if (retry) startPromiseRef.current = null;
     setBoundary({ stage: 'starting', error: '' });
@@ -114,11 +127,41 @@ function MazeRun({ route, navigation }) {
     }
   }
 
+  async function prepareChapter(retry = false) {
+    if (chapterPendingRef.current || attemptIdRef.current || leavingRef.current || terminalRef.current) return;
+    chapterPendingRef.current = true;
+    setBoundary({ stage: 'loading', error: '' });
+    try {
+      if (!chapterBankRef.current) {
+        if (retry) chapterPromiseRef.current = null;
+        // Retain the read promise across Strict Mode effect cleanup/setup.
+        if (!chapterPromiseRef.current) chapterPromiseRef.current = api.getMazeChapterBank(classSubjectId, testId);
+        const bank = await chapterPromiseRef.current;
+        if (!mountedRef.current || leavingRef.current || terminalRef.current) return;
+        chapterBankRef.current = Object.freeze({
+          ...bank,
+          questions: Object.freeze(bank.questions.map((question) => Object.freeze({
+            ...question, opts: Object.freeze([...question.opts]),
+          }))),
+        });
+        quizPoolRef.current = shuffle(chapterBankRef.current.questions);
+      }
+    } catch (error) {
+      if (mountedRef.current && !leavingRef.current) {
+        setBoundary({ stage: 'chapter-error', error: error.message || 'Could not load this chapter.' });
+      }
+      return;
+    } finally {
+      chapterPendingRef.current = false;
+    }
+    if (mountedRef.current && !leavingRef.current && !terminalRef.current) await startMaze();
+  }
+
   useEffect(() => {
     mountedRef.current = true;
     if (attemptIdRef.current && !terminalRef.current && !leavingRef.current) {
       runningRef.current = !pausedRef.current;
-    } else startMaze();
+    } else prepareChapter();
     return () => {
       mountedRef.current = false;
       runningRef.current = false;
@@ -129,20 +172,6 @@ function MazeRun({ route, navigation }) {
   const totalDots = level.grid.reduce((s, row) => s + row.split('').filter((ch) => ch === '0').length, 0);
   const totalQuizNodes = level.grid.reduce((s, row) => s + row.split('').filter((ch) => ch === '2').length, 0);
   const dotsCollected = totalDots - dotsRemainingRef.current;
-
-  // Load the active question pool (built-in + any teacher-published set) once.
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const { questions } = await api.getQuizBank();
-        if (alive) quizPoolRef.current = shuffle(buildActivePool(questions));
-      } catch (e) {
-        if (alive) quizPoolRef.current = shuffle(buildActivePool([]));
-      }
-    })();
-    return () => { alive = false; };
-  }, []);
 
   useEffect(() => {
     const ghostTimer = setInterval(() => {
@@ -165,7 +194,7 @@ function MazeRun({ route, navigation }) {
   }
 
   function nextQuestion() {
-    if (quizPoolRef.current.length === 0) quizPoolRef.current = shuffle(buildActivePool([]));
+    if (quizPoolRef.current.length === 0) quizPoolRef.current = shuffle(chapterBankRef.current.questions);
     return quizPoolRef.current.pop();
   }
 
@@ -247,6 +276,10 @@ function MazeRun({ route, navigation }) {
         outcome: terminal.outcome === 'won' ? 'win' : 'lose',
         coins: awardedCoins, score: terminal.score, levelIndex,
         xp_awarded: terminal.serverResult.xp_awarded,
+        classSubjectId: chapterBankRef.current.class_subject_id,
+        testId: chapterBankRef.current.test_id,
+        chapterTitle: chapterBankRef.current.chapter_title || chapterTitle,
+        subjectName: chapterBankRef.current.subject_name || subjectName,
       });
     } catch (error) {
       if (mountedRef.current && !leavingRef.current) {
@@ -414,16 +447,18 @@ function MazeRun({ route, navigation }) {
       <Modal visible={!!boundary} transparent animationType="fade" onRequestClose={leaveMaze}>
         <View style={styles.modalOverlay}>
           <View style={styles.quizCard}>
-            <Text style={styles.quizQ}>{boundary?.stage === 'starting' ? 'Starting Maze...' :
+            <Text style={styles.quizQ}>{boundary?.stage === 'loading' ? 'Loading chapter questions...' :
+              boundary?.stage === 'starting' ? 'Starting Maze...' :
               boundary?.stage === 'finishing' ? 'Saving Maze result...' : 'Maze request failed'}</Text>
             {!!boundary?.error && <Text style={styles.quizFeedback}>{boundary.error}</Text>}
-            {(boundary?.stage === 'start-error' || boundary?.stage === 'finish-error') && (
-              <TouchableOpacity style={styles.quizOpt} onPress={() => boundary.stage === 'start-error' ? startMaze(true) : completeTerminal()}>
+            {(boundary?.stage === 'chapter-error' || boundary?.stage === 'start-error' || boundary?.stage === 'finish-error') && (
+              <TouchableOpacity style={styles.quizOpt} onPress={() => boundary.stage === 'chapter-error' ? prepareChapter(true) :
+                boundary.stage === 'start-error' ? startMaze(true) : completeTerminal()}>
                 <Text style={styles.quizOptText}>Retry</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.quizOpt} onPress={leaveMaze}>
-              <Text style={styles.quizOptText}>Back</Text>
+              <Text style={styles.quizOptText}>{boundary?.stage === 'chapter-error' ? 'Change chapter / Back' : 'Back'}</Text>
             </TouchableOpacity>
           </View>
         </View>

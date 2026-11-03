@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -56,6 +56,7 @@ export default function StudioScreen({ navigation }) {
 }
 
 function CreatePane({ user, navigation, bottom }) {
+  const { colors } = useTheme();
   const [files, setFiles] = useState([]);
   const [topic, setTopic] = useState('');
   const [status, setStatus] = useState('');
@@ -63,6 +64,37 @@ function CreatePane({ user, navigation, bottom }) {
   const [drafts, setDrafts] = useState([]);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [assignmentId, setAssignmentId] = useState('');
+  const [assignmentsLoading, setAssignmentsLoading] = useState(true);
+  const [assignmentsError, setAssignmentsError] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const publishLock = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setAssignmentsLoading(true);
+    setAssignmentsError('');
+    api.getTeacherSubjectAssignments()
+      .then((rows) => {
+        if (!active) return;
+        setAssignments(rows);
+        setAssignmentId((previous) => rows.length === 1 ? rows[0].class_subject_id :
+          rows.some((row) => row.class_subject_id === previous) ? previous : '');
+      })
+      .catch((error) => {
+        if (!active) return;
+        setAssignments([]);
+        setAssignmentId('');
+        setAssignmentsError(error.message || 'Could not load your subject assignments.');
+      })
+      .finally(() => { if (active) setAssignmentsLoading(false); });
+    return () => { active = false; };
+  }, [user?.id]));
+
+  const selectedAssignment = assignments.find((row) => row.class_subject_id === assignmentId);
+  const publishDisabled = publishing || busy || assignmentsLoading || !!assignmentsError ||
+    !selectedAssignment || !topic.trim() || drafts.length === 0;
 
   async function pickFiles() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -75,7 +107,7 @@ function CreatePane({ user, navigation, bottom }) {
   }
 
   async function generate() {
-    if (files.length === 0) return;
+    if (publishLock.current || busy || files.length === 0) return;
     setBusy(true);
     setStatus('Generating questions from your slides…');
     try {
@@ -94,29 +126,69 @@ function CreatePane({ user, navigation, bottom }) {
   }
 
   async function publish() {
+    if (publishLock.current || busy) return;
+    if (assignmentsLoading || assignmentsError || !selectedAssignment) {
+      setStatus('Select an assigned class subject before publishing.');
+      return;
+    }
+    if (!topic.trim()) { setStatus('Enter a chapter name before publishing.'); return; }
     if (drafts.length === 0) return;
+    publishLock.current = true;
+    setPublishing(true);
+    setStatus('');
     try {
-      await api.publishQuizBank(user.username, topic || 'Uploaded Material', drafts);
-      setStatus(`Published ${drafts.length} questions to all students.`);
+      const questions = drafts.map((question) => ({ ...question, subject: selectedAssignment.subject_name }));
+      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions);
+      setStatus(`Published ${questions.length} questions for ${selectedAssignment.subject_name}.`);
       setDrafts([]);
       setFiles([]);
     } catch (e) {
-      setStatus(e.message || 'Could not publish — please try again.');
+      setStatus(e.message || 'Could not publish. Please try again.');
+    } finally {
+      publishLock.current = false;
+      setPublishing(false);
     }
   }
 
   return (
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: bottom + 100 }]} showsVerticalScrollIndicator={false}>
-      <Text style={styles.label}>Topic / class name</Text>
+      <Text style={styles.label}>Class subject</Text>
+      {assignmentsLoading ? <ActivityIndicator color={colors.primaryText} /> : assignmentsError ? (
+        <Text style={styles.status} accessibilityRole="alert">{assignmentsError} Reopen Create to retry.</Text>
+      ) : assignments.length === 0 ? (
+        <Text style={styles.status}>No subject assignments. Ask an administrator to assign you to a class subject before publishing.</Text>
+      ) : assignments.length === 1 ? (
+        <Text style={styles.status}>{assignments[0].class_name} — {assignments[0].subject_name}</Text>
+      ) : (
+        <View>
+          <Text style={styles.label}>Choose the class subject for this chapter.</Text>
+          {assignments.map((assignment) => (
+            <TouchableOpacity
+              key={assignment.class_subject_id}
+              style={[styles.input, { borderColor: assignmentId === assignment.class_subject_id ? colors.primaryText : colors.border, backgroundColor: colors.surface }]}
+              onPress={() => setAssignmentId(assignment.class_subject_id)}
+              disabled={publishing}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: assignmentId === assignment.class_subject_id, disabled: publishing }}
+            >
+              <Text style={{ color: colors.textPrimary }}>
+                {assignmentId === assignment.class_subject_id ? '● ' : '○ '}{assignment.class_name} — {assignment.subject_name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      <Text style={styles.label}>Chapter name</Text>
       <TextInput
         style={styles.input}
         value={topic}
-        onChangeText={setTopic}
-        placeholder="e.g. Grade 10 Life Sciences — Cell Structure"
+        onChangeText={setTopic} editable={!publishing}
+        placeholder="e.g. Cell Structure"
         placeholderTextColor={COLORS.textTertiary}
       />
 
-      <TouchableOpacity style={styles.upload} onPress={pickFiles} activeOpacity={0.8}>
+      <TouchableOpacity style={styles.upload} onPress={pickFiles} disabled={publishing} activeOpacity={0.8}>
         <Ionicons name="cloud-upload-outline" size={22} color={COLORS.primary} />
         <Text style={styles.uploadTitle}>Choose files (PDF / TXT)</Text>
         <Text style={styles.uploadHint}>Export PowerPoint to PDF first</Text>
@@ -128,22 +200,22 @@ function CreatePane({ user, navigation, bottom }) {
         </View>
       ))}
 
-      <TouchableOpacity style={[styles.btn, (busy || files.length === 0) && styles.btnDisabled]} disabled={busy || files.length === 0} onPress={generate}>
+      <TouchableOpacity style={[styles.btn, (publishing || busy || files.length === 0) && styles.btnDisabled]} disabled={publishing || busy || files.length === 0} onPress={generate}>
         <Text style={styles.btnText}>{busy ? 'Generating…' : 'Generate from slides'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.ghost} onPress={() => { setEditIndex(null); setEditorVisible(true); }}>
+      <TouchableOpacity style={styles.ghost} disabled={publishing} onPress={() => { setEditIndex(null); setEditorVisible(true); }}>
         <Text style={styles.ghostText}>Add a question manually</Text>
       </TouchableOpacity>
       {!!status && <Text style={styles.status}>{status}</Text>}
 
       {drafts.length > 0 && <Text style={styles.section}>Review ({drafts.length})</Text>}
       {drafts.map((q, idx) => (
-        <QuestionCard key={idx} q={q} onEdit={() => { setEditIndex(idx); setEditorVisible(true); }} onRemove={() => setDrafts((prev) => prev.filter((_, j) => j !== idx))} />
+        <QuestionCard key={idx} q={q} disabled={publishing} onEdit={() => { setEditIndex(idx); setEditorVisible(true); }} onRemove={() => setDrafts((prev) => prev.filter((_, j) => j !== idx))} />
       ))}
 
       {drafts.length > 0 && (
-        <TouchableOpacity style={styles.btn} onPress={publish}>
-          <Text style={styles.btnText}>Publish to students</Text>
+        <TouchableOpacity style={[styles.btn, publishDisabled && styles.btnDisabled]} disabled={publishDisabled} onPress={publish}>
+          <Text style={styles.btnText}>{publishing ? 'Publishing...' : 'Publish to students'}</Text>
         </TouchableOpacity>
       )}
 
@@ -223,12 +295,12 @@ function LivePane({ bottom }) {
   );
 }
 
-function QuestionCard({ q, onEdit, onRemove }) {
+function QuestionCard({ q, onEdit, onRemove, disabled = false }) {
   return (
     <View style={styles.qCard}>
       <View style={styles.qActions}>
-        <TouchableOpacity onPress={onEdit}><Ionicons name="create-outline" size={18} color={COLORS.primary} /></TouchableOpacity>
-        <TouchableOpacity onPress={onRemove}><Ionicons name="close" size={20} color={COLORS.error} /></TouchableOpacity>
+        <TouchableOpacity disabled={disabled} onPress={onEdit}><Ionicons name="create-outline" size={18} color={COLORS.primary} /></TouchableOpacity>
+        <TouchableOpacity disabled={disabled} onPress={onRemove}><Ionicons name="close" size={20} color={COLORS.error} /></TouchableOpacity>
       </View>
       <Text style={styles.qTag}>{q.subject}</Text>
       <Text style={styles.qText}>{q.q}</Text>

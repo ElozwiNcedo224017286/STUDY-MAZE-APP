@@ -13,7 +13,7 @@ import { getPendingRedemption, submitRewardRedemption } from '../api/rewardRedem
 const statusLabel = { pending: 'Pending', fulfilled: 'Fulfilled', cancelled: 'Cancelled' };
 const dateLabel = (value) => new Date(value).toLocaleString();
 
-export default function ShopScreen() {
+export default function ShopScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [state, setState] = useState({ owner: null, data: null, loading: true, error: '' });
@@ -72,7 +72,7 @@ export default function ShopScreen() {
 
   return <View style={styles.container}>
     <StatusBar barStyle="dark-content" />
-    <ScreenHeader title="Rewards" titleHighlight="Shop" subtitle="Use your trusted coins to redeem Study Maze rewards." />
+    <ScreenHeader title="Rewards" titleHighlight="Shop" subtitle="Use your trusted coins to redeem Study Maze rewards." onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { if (!lock.current) load(); }} colors={[COLORS.primary]} tintColor={COLORS.primary} />}>
       {!!notice && <Text style={styles.toast}>{notice}</Text>}

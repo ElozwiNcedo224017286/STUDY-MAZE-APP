@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
   } = await adminClient
     .from("student_uploads")
     .select(
-      "id, student_id, file_name, storage_path, file_size, page_count, status",
+      "id, student_id, class_subject_id, file_name, storage_path, file_size, page_count, status",
     )
     .eq("id", uploadId)
     .eq("student_id", user.id)
@@ -188,11 +188,30 @@ Deno.serve(async (req) => {
     );
   }
 
-  if (!upload) {
+  if (!upload || upload.student_id !== user.id) {
     return json(
       { error: "Upload not found or you do not have access to it." },
       404,
     );
+  }
+
+  // Linked uploads retain the assignment captured when they were registered.
+  // Legacy null-linked uploads continue under the existing ownership rules.
+  if (upload.class_subject_id != null) {
+    const { data: enrollment, error: enrollmentError } = await adminClient
+      .from("student_subjects")
+      .select("class_subject_id")
+      .eq("student_id", user.id)
+      .eq("class_subject_id", upload.class_subject_id)
+      .limit(1)
+      .maybeSingle();
+
+    if (enrollmentError) {
+      return json({ error: "Could not verify enrollment for this upload." }, 500);
+    }
+    if (!enrollment) {
+      return json({ error: "You are no longer enrolled in this upload's class subject." }, 403);
+    }
   }
 
   // ------------------------------------------------------------
@@ -214,6 +233,27 @@ Deno.serve(async (req) => {
       upload_id: upload.id,
       page_count: null,
       error: "The uploaded file could not be located.",
+    });
+  }
+
+  // The path is relative to our fixed student-slides bucket, never a client URL.
+  const pathSegments: string[] = typeof upload.storage_path === "string"
+    ? upload.storage_path.split("/")
+    : [];
+  if (
+    pathSegments.length < 2 || pathSegments[0] !== user.id ||
+    pathSegments.some((segment) => !segment || /^(?:\.|%2e){1,2}$/i.test(segment) || /\\|%2f|%5c/i.test(segment))
+  ) {
+    await adminClient
+      .from("student_uploads")
+      .update({ status: "failed", error_message: "The stored PDF path does not belong to this student." })
+      .eq("id", upload.id)
+      .eq("student_id", user.id);
+    return json({
+      valid: false,
+      upload_id: upload.id,
+      page_count: null,
+      error: "The stored PDF path does not belong to this student.",
     });
   }
 

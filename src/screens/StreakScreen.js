@@ -381,15 +381,18 @@ export default function StreakScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator
-          size="large"
-          color={COLORS.primary}
-        />
+      <View style={styles.screen}>
+        <ScreenHeader title="Daily" titleHighlight="Rewards" onBack={() => navigation.goBack()} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.primary}
+          />
 
-        <Text style={styles.loadingText}>
-          Loading your streak...
-        </Text>
+          <Text style={styles.loadingText}>
+            Loading your streak...
+          </Text>
+        </View>
       </View>
     );
   }
@@ -405,6 +408,7 @@ export default function StreakScreen({ navigation }) {
           title="Daily"
           titleHighlight="Rewards"
           subtitle="Keep your streak alive and earn rewards every day."
+          onBack={() => navigation.goBack()}
         />
 
         <View style={styles.errorContainer}>
@@ -435,22 +439,6 @@ export default function StreakScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={17}
-              color={COLORS.primary}
-            />
-
-            <Text style={styles.backButtonText}>
-              Back
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     );
@@ -466,6 +454,7 @@ export default function StreakScreen({ navigation }) {
         title="Daily"
         titleHighlight="Rewards"
         subtitle="Keep your streak alive and earn rewards every day."
+        onBack={() => navigation.goBack()}
       />
 
       <ScrollView
@@ -1303,21 +1292,6 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 12,
     fontWeight: '800',
-  },
-
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    marginTop: 10,
-  },
-
-  backButtonText: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: '800',
-    marginLeft: 6,
   },
 
   bottomSpacer: {

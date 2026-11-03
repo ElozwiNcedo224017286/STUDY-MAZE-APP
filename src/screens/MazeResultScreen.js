@@ -4,7 +4,8 @@ import { COLORS, SHADOWS } from '../theme/colors';
 import { LEVELS } from './mazeData';
 
 export default function MazeResultScreen({ route, navigation }) {
-  const { outcome, coins, score, levelIndex } = route.params;
+  const { outcome, coins, score, levelIndex, classSubjectId, testId, chapterTitle, subjectName } = route.params;
+  const chapterContext = { classSubjectId, testId, chapterTitle, subjectName };
   const isWin = outcome === 'win';
   const isLast = levelIndex >= LEVELS.length - 1;
 
@@ -22,12 +23,12 @@ export default function MazeResultScreen({ route, navigation }) {
         {isWin ? (
           <TouchableOpacity
             style={styles.btnPrimary}
-            onPress={() => navigation.replace('MazeGame', { levelIndex: isLast ? 0 : levelIndex + 1 })}
+            onPress={() => navigation.replace('MazeGame', { ...chapterContext, levelIndex: isLast ? 0 : levelIndex + 1 })}
           >
             <Text style={styles.btnPrimaryText}>{isLast ? 'Play again from Level 1' : 'Continue'}</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.btnRetry} onPress={() => navigation.replace('MazeGame', { levelIndex })}>
+          <TouchableOpacity style={styles.btnRetry} onPress={() => navigation.replace('MazeGame', { ...chapterContext, levelIndex })}>
             <Text style={styles.btnRetryText}>Retry level</Text>
           </TouchableOpacity>
         )}

@@ -24,7 +24,7 @@ const TOOL = {
   lightGradient: ['rgba(109, 40, 217, 0.16)', 'rgba(139, 92, 246, 0.05)'],
 };
 
-export default function MentorHubScreen({ navigation }) {
+export default function MentorHubScreen({ navigation, route }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState('start');
@@ -70,7 +70,7 @@ export default function MentorHubScreen({ navigation }) {
         end={{ x: 0, y: 1 }}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
+          {route?.name === 'MentorHub' && <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             activeOpacity={0.7}
@@ -82,7 +82,7 @@ export default function MentorHubScreen({ navigation }) {
                 color={COLORS.textPrimary}
               />
             </View>
-          </TouchableOpacity>
+          </TouchableOpacity>}
 
           <View style={styles.headerText}>
             <Text style={styles.headerTitle}>{TOOL.title}</Text>

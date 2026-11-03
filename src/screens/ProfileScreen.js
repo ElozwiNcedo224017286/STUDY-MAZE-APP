@@ -23,6 +23,8 @@ import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 import { useTheme } from '../context/ThemeContext';
+import { useSubject } from '../context/SubjectContext';
+import useSubjectMaterials from '../hooks/useSubjectMaterials';
 
 const TOTAL_MAZE_LEVELS = 3;
 
@@ -32,7 +34,10 @@ export default function ProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user, logout, refreshUser } = useAuth();
   const isTeacher = user?.role === 'teacher';
-  const [notesCount, setNotesCount] = useState(0);
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const { materials: subjectMaterials } = useSubjectMaterials();
+  const [teacherNotesCount, setNotesCount] = useState(0);
+  const notesCount = isTeacher ? teacherNotesCount : subjectMaterials.length;
   const [editVisible, setEditVisible] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -43,7 +48,7 @@ export default function ProfileScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      const { materials } = await (isTeacher ? api.getStudyMaterials() : api.getPublishedNotes());
+      const { materials } = await (isTeacher ? api.getStudyMaterials() : Promise.resolve({ materials: [] }));
       setNotesCount((materials || []).length);
     } catch {
       /* keep last good state */
@@ -206,6 +211,17 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
         </LinearGradient>
+
+        {user?.role === 'student' && (
+          <ProfileSection>
+            <ProfileMenuItem
+              icon="school-outline"
+              title="My Subjects"
+              description={subjectStatus === 'loading' ? 'Loading current subject...' : subjectStatus === 'error' ? 'Check your current subject' : activeSubject ? `Current subject: ${activeSubject.subject_name}` : 'Choose your current subject'}
+              onPress={() => navigation.getParent()?.navigate('MySubjects')}
+            />
+          </ProfileSection>
+        )}
 
         <View style={styles.progressCard}>
           <View style={styles.progressTop}>

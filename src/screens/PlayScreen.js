@@ -1,13 +1,12 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, RefreshControl, Image, TouchableOpacity } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
-import { api } from '../api/client';
+import { useSubject } from '../context/SubjectContext';
 import { LEVELS } from './mazeData';
 import { useTheme } from '../context/ThemeContext';
 
@@ -49,17 +48,8 @@ export default function PlayScreen({ navigation }) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [quizMeta, setQuizMeta] = useState(null);
+  const { activeSubject, status, refreshActiveSubject } = useSubject();
   const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const { meta } = await api.getQuizBank();
-      setQuizMeta(meta);
-    } catch { /* ignore */ }
-  }, []);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
@@ -71,7 +61,7 @@ export default function PlayScreen({ navigation }) {
             <Text style={[styles.headerPlay, { color: colors.textPrimary }]}>Play </Text>
             <Text style={[styles.headerZone, { color: colors.primaryText }]}>Zone</Text>
           </Text>
-          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Three games. One quiz bank. Earn coins as you learn.</Text>
+          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Choose a game and learn at your pace.</Text>
         </View>
         <View style={styles.statPill}>
           <Text style={styles.statCoin}>🪙</Text>
@@ -86,24 +76,14 @@ export default function PlayScreen({ navigation }) {
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([load(), refreshBalance()]); setRefreshing(false); }} colors={[COLORS.primary]} />
+          <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await Promise.all([refreshActiveSubject(), refreshBalance()]); setRefreshing(false); }} colors={[COLORS.primary]} />
         }
       >
         <LinearGradient colors={COLORS.gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
           <View style={styles.heroContent}>
-            {quizMeta ? (
-              <>
-                <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>LIVE</Text></View>
-                <Text style={styles.heroTitle}>Playing: {quizMeta.topic}</Text>
-                <Text style={styles.heroSub}>This is the live question set from your teacher.</Text>
-              </>
-            ) : (
-              <>
-                <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>READY</Text></View>
-                <Text style={styles.heroTitle}>Built-in questions ready</Text>
-                <Text style={styles.heroSub}>When your teacher publishes a quiz, every game here will use it.</Text>
-              </>
-            )}
+            <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>YOUR STUDY</Text></View>
+            <Text style={styles.heroTitle}>{status === 'loading' ? 'Loading current subject...' : status === 'error' ? 'Check your current subject' : activeSubject ? `Current subject: ${activeSubject.subject_name}` : 'Choose your current subject'}</Text>
+            <Text style={styles.heroSub}>Maze and Quiz Rush use your current subject. Choose its chapters inside each game.</Text>
           </View>
           <Image source={require('../../assets/Artwork/icon-quiz-tray.png')} style={styles.heroImage} resizeMode="contain" />
         </LinearGradient>
