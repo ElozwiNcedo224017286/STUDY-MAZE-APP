@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Linking } from 'react-native';
-import Constants from 'expo-constants';
 import { supabase } from '../api/supabase';
 
 const AuthContext = createContext(null);
@@ -305,23 +304,24 @@ const getDailyRewardDates = useCallback(async () => {
     if (error) throw new Error(error.message);
   }, []);
 
-  const startAppleSignIn = useCallback(async () => {
-    const expoGoHost = Constants.executionEnvironment === 'storeClient'
-      ? Constants.expoConfig?.hostUri
-      : null;
-    const redirectTo = expoGoHost
-      ? `exp://${expoGoHost}/--/auth/callback`
-      : 'studymaze://auth/callback';
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'apple',
-      options: {
-        redirectTo,
-        skipBrowserRedirect: true,
-      },
+  const requestEmailLoginCode = useCallback(async (email) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: false },
     });
     if (error) throw new Error(error.message);
-    if (!data?.url) throw new Error('Supabase did not return an Apple sign-in URL.');
-    return data.url;
+  }, []);
+
+  const verifyEmailLoginCode = useCallback(async (email, token) => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: token.trim(),
+      type: 'email',
+    });
+    if (error) throw new Error(error.message);
+    const u = await loadUser(data.user);
+    setUser(u);
+    return u;
   }, []);
 
   const logout = useCallback(async () => {
@@ -417,7 +417,7 @@ const hasClaimedDailyReward = useCallback(async () => {
 }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, startAppleSignIn, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, requestEmailLoginCode, verifyEmailLoginCode, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

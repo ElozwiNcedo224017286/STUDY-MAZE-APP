@@ -9,7 +9,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Linking,
   StatusBar,
   Image,
   Dimensions,
@@ -39,7 +38,7 @@ function hasStrongPassword(password) {
 
 export default function AuthScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, startAppleSignIn, user, booting } = useAuth();
+  const { login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, requestEmailLoginCode, verifyEmailLoginCode, user, booting } = useAuth();
   const [mode, setMode] = useState(route?.params?.mode === 'register' ? 'register' : route?.params?.mode === 'reset' ? 'reset' : 'login');
   const [role, setRole] = useState('student');
   const [displayName, setDisplayName] = useState('');
@@ -47,6 +46,7 @@ export default function AuthScreen({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [emailLoginCode, setEmailLoginCode] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState('');
@@ -69,7 +69,7 @@ export default function AuthScreen({ navigation, route }) {
   }
 
   useEffect(() => {
-    if (!booting && user && mode !== 'reset' && mode !== 'verify') navigation.replace('Main');
+    if (!booting && user && mode !== 'reset' && mode !== 'verify' && mode !== 'email-code') navigation.replace('Main');
   }, [booting, user, navigation, mode]);
 
   async function sendPasswordReset() {
@@ -84,15 +84,28 @@ export default function AuthScreen({ navigation, route }) {
     finally { setBusy(false); }
   }
 
-  async function signInWithApple() {
+  async function sendEmailLoginCode() {
     setMsg('');
+    if (!emailValid) { setMsg('Enter a valid email address first.'); return; }
     setBusy(true);
     try {
-      const authUrl = await startAppleSignIn();
-      await Linking.openURL(authUrl);
+      await requestEmailLoginCode(email);
+      setMode('email-code');
+      setMsg('A sign-in code has been sent to your email.');
     } catch (error) {
-      setMsg(error.message || 'Could not start Apple sign-in.');
+      setMsg(error.message || 'Could not send a sign-in code.');
     } finally { setBusy(false); }
+  }
+
+  async function completeEmailCodeSignIn() {
+    setMsg('');
+    if (!emailLoginCode.trim()) { setMsg('Enter the sign-in code from your email.'); return; }
+    setBusy(true);
+    try {
+      await verifyEmailLoginCode(email, emailLoginCode);
+      navigation.replace('Main');
+    } catch (error) { setMsg(error.message); }
+    finally { setBusy(false); }
   }
 
   async function verifyRecoveryCode() {
@@ -462,20 +475,21 @@ export default function AuthScreen({ navigation, route }) {
         <View style={styles.handle} />
         <View style={[styles.sheetContent, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>{mode === 'reset' ? 'Choose a new password' : mode === 'verify' ? 'Check your email' : 'Welcome back'}</Text>
+            <Text style={styles.title}>{mode === 'reset' ? 'Choose a new password' : mode === 'verify' || mode === 'email-code' ? 'Check your email' : 'Welcome back'}</Text>
             <Ionicons name="sparkles" size={20} color={COLORS.accent} />
           </View>
-          <Text style={styles.subtitle}>{mode === 'reset' ? 'Enter and confirm your new password.' : mode === 'verify' ? `Enter the recovery code sent to ${email}.` : 'Ready for your next challenge?'}</Text>
+          <Text style={styles.subtitle}>{mode === 'reset' ? 'Enter and confirm your new password.' : mode === 'verify' ? `Enter the recovery code sent to ${email}.` : mode === 'email-code' ? `Enter the sign-in code sent to ${email}.` : 'Ready for your next challenge?'}</Text>
 
           {mode === 'login' && tabsRow}
 
-          {(mode === 'login' || mode === 'verify') && <><Text style={styles.label}>Email</Text>
+          {(mode === 'login' || mode === 'verify' || mode === 'email-code') && <><Text style={styles.label}>Email</Text>
           <View style={styles.inputRow}>
             <Ionicons name="mail-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
+              editable={mode !== 'email-code'}
               autoCapitalize="none"
               keyboardType="email-address"
               placeholder="thabo@example.com"
@@ -504,6 +518,14 @@ export default function AuthScreen({ navigation, route }) {
             <View style={styles.inputRow}>
               <Ionicons name="key-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
               <TextInput style={styles.input} value={recoveryCode} onChangeText={setRecoveryCode} keyboardType="number-pad" autoCapitalize="none" placeholder="Enter code" placeholderTextColor={COLORS.textTertiary} />
+            </View>
+          </>}
+
+          {mode === 'email-code' && <>
+            <Text style={styles.label}>Sign-in code</Text>
+            <View style={styles.inputRow}>
+              <Ionicons name="key-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
+              <TextInput style={styles.input} value={emailLoginCode} onChangeText={setEmailLoginCode} keyboardType="number-pad" autoCapitalize="none" placeholder="Enter code" placeholderTextColor={COLORS.textTertiary} />
             </View>
           </>}
 
@@ -539,35 +561,35 @@ export default function AuthScreen({ navigation, route }) {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity activeOpacity={0.9} disabled={busy} onPress={mode === 'reset' ? saveNewPassword : mode === 'verify' ? verifyRecoveryCode : submit}>
+          <TouchableOpacity activeOpacity={0.9} disabled={busy} onPress={mode === 'reset' ? saveNewPassword : mode === 'verify' ? verifyRecoveryCode : mode === 'email-code' ? completeEmailCodeSignIn : submit}>
             <LinearGradient
               colors={COLORS.gradients.hero}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.cta, busy && styles.ctaDisabled]}
             >
-              <Text style={styles.ctaText}>{busy ? 'Please wait…' : mode === 'reset' ? 'Save new password' : mode === 'verify' ? 'Verify code' : 'Continue learning'}</Text>
+              <Text style={styles.ctaText}>{busy ? 'Please wait…' : mode === 'reset' ? 'Save new password' : mode === 'verify' || mode === 'email-code' ? 'Verify code' : 'Continue learning'}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          {(mode === 'reset' || mode === 'verify') && <TouchableOpacity style={styles.forgotRow} onPress={() => { setMode('login'); setMsg(''); navigation.setParams({ mode: 'login' }); }}>
+          {(mode === 'reset' || mode === 'verify' || mode === 'email-code') && <TouchableOpacity style={styles.forgotRow} onPress={() => { setMode('login'); setMsg(''); navigation.setParams({ mode: 'login' }); }}>
             <Text style={styles.forgotText}>Back to log in</Text>
           </TouchableOpacity>}
 
           {mode === 'login' && <><View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
+            <Text style={styles.dividerText}>or sign in without a password</Text>
             <View style={styles.dividerLine} />
           </View>
 
           <TouchableOpacity
-            style={styles.appleBtn}
+            style={styles.emailCodeBtn}
             activeOpacity={0.85}
             disabled={busy}
-            onPress={signInWithApple}
+            onPress={sendEmailLoginCode}
           >
-            <Ionicons name="logo-apple" size={20} color={COLORS.white} />
-            <Text style={styles.appleText}>Continue with Apple</Text>
+            <Ionicons name="mail-outline" size={20} color={COLORS.primary} />
+            <Text style={styles.emailCodeText}>Continue with email code</Text>
           </TouchableOpacity>
           </>}
 
@@ -781,16 +803,18 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: { color: COLORS.textTertiary, fontSize: 13 },
 
-  appleBtn: {
+  emailCodeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#000000',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
     borderRadius: 14,
     paddingVertical: 12,
   },
-  appleText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+  emailCodeText: { color: COLORS.primary, fontWeight: '700', fontSize: 15 },
 
   footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 },
   footerText: { color: COLORS.textTertiary, fontSize: 12 },
