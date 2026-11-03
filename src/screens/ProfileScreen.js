@@ -301,6 +301,7 @@ export default function ProfileScreen({ navigation }) {
           <ProfileMenuItem
             icon="help-circle-outline"
             title="Help & support"
+            description="Get answers and contact our support team"
             onPress={() => navigation.getParent()?.navigate('HelpSupport')}
           />
         </ProfileSection>

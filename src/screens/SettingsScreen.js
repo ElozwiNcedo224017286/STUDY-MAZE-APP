@@ -21,6 +21,7 @@ import { useTheme } from '../context/ThemeContext';
 
 const APP_VERSION =
   Constants?.expoConfig?.version || Constants?.manifest?.version || '1.0.0';
+const SUPPORT_EMAIL = 'support.studymaze2026@gmail.com';
 
 export default function SettingsScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -197,7 +198,7 @@ export default function SettingsScreen({ navigation }) {
             icon="chatbubble-ellipses-outline"
             title="Contact us"
             description="Get in touch with our team"
-            onPress={() => Linking.openURL('mailto:support@studymaze.app')}
+            onPress={() => Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}
           />
           <Divider />
           <ProfileMenuItem
