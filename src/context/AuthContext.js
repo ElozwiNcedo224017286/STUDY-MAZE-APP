@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { Linking } from 'react-native';
 import { supabase } from '../api/supabase';
 
 const AuthContext = createContext(null);
@@ -86,6 +87,24 @@ export function AuthProvider({ children }) {
       if (!session) setUser(null);
     });
     return () => { alive = false; subscription?.unsubscribe(); };
+  }, []);
+
+  // Supabase sends a PKCE code back to this URL after the user opens the
+  // password recovery email. Exchange it before the reset screen updates auth.
+  useEffect(() => {
+    let alive = true;
+    const handleUrl = async (url) => {
+      if (!url || !url.includes('reset-password')) return;
+      let code;
+      try { code = new URL(url).searchParams.get('code'); } catch (_) { return; }
+      if (typeof code === 'string') {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error && alive) console.warn('Could not open password reset link:', error.message);
+      }
+    };
+    Linking.getInitialURL().then(handleUrl).catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => handleUrl(url));
+    return () => { alive = false; subscription.remove(); };
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -254,6 +273,34 @@ const getDailyRewardDates = useCallback(async () => {
     if (error) throw new Error(error.message);
   }, []);
 
+  const requestPasswordReset = useCallback(async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+    if (error) {
+      const message = error.message || '';
+      if (/redirect|allow.?list|not allowed/i.test(message)) {
+        throw new Error('Supabase rejected the reset link address. Add studymaze://reset-password to Authentication → URL Configuration → Redirect URLs.');
+      }
+      if (/sending recovery email|smtp|email provider/i.test(message) || error.status >= 500) {
+        throw new Error('Supabase could not send the recovery email. Configure a working SMTP provider in Supabase Authentication → SMTP Settings, then check Authentication → Logs for the delivery error.');
+      }
+      throw new Error(message || 'Could not send a password recovery email.');
+    }
+  }, []);
+
+  const verifyRecoveryOtp = useCallback(async (email, token) => {
+    const { error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token: token.trim(),
+      type: 'recovery',
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const updatePassword = useCallback(async (password) => {
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+  }, []);
+
   const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message || 'Could not sign out.');
@@ -347,7 +394,7 @@ const hasClaimedDailyReward = useCallback(async () => {
 }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

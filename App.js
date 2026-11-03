@@ -45,13 +45,17 @@ export default function App() {
 function AppShell() {
   const { isDark } = useTheme();
   const navigationTheme = isDark ? DarkTheme : DefaultTheme;
+  const linking = {
+    prefixes: ['studymaze://'],
+    config: { screens: { Auth: { path: 'reset-password', parse: { mode: () => 'reset' } } } },
+  };
 
   return (
       <AuthProvider>
         <SubjectProvider>
         <StatusBar style={isDark ? 'light' : 'dark'} />
 
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer theme={navigationTheme} linking={linking}>
           <Stack.Navigator
             screenOptions={{ headerShown: false }}
             initialRouteName="Splash"

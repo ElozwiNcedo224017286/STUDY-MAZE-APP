@@ -26,15 +26,26 @@ const REGISTER_IMAGE_WIDTH = SCREEN_WIDTH * 0.9;
 const REGISTER_IMAGE_HEIGHT = REGISTER_IMAGE_WIDTH * (925 / 1701);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_REQUIREMENTS = 'Use at least 12 characters, including an uppercase letter, a lowercase letter, a number, and a symbol.';
+
+function hasStrongPassword(password) {
+  return password.length >= 12
+    && /[a-z]/.test(password)
+    && /[A-Z]/.test(password)
+    && /\d/.test(password)
+    && /[^A-Za-z0-9\s]/.test(password);
+}
 
 export default function AuthScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { login, register, resendSignupConfirmation, user, booting } = useAuth();
-  const [mode, setMode] = useState(route?.params?.mode === 'register' ? 'register' : 'login');
+  const { login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, user, booting } = useAuth();
+  const [mode, setMode] = useState(route?.params?.mode === 'register' ? 'register' : route?.params?.mode === 'reset' ? 'reset' : 'login');
   const [role, setRole] = useState('student');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [recoveryCode, setRecoveryCode] = useState('');
   const [teacherCode, setTeacherCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [msg, setMsg] = useState('');
@@ -46,6 +57,10 @@ export default function AuthScreen({ navigation, route }) {
   const nameValid = displayName.trim().length > 1;
   const emailValid = EMAIL_RE.test(email.trim());
 
+  useEffect(() => {
+    if (route?.params?.mode === 'reset') setMode('reset');
+  }, [route?.params?.mode]);
+
   function switchMode(nextMode) {
     setMode(nextMode);
     setMsg('');
@@ -53,8 +68,49 @@ export default function AuthScreen({ navigation, route }) {
   }
 
   useEffect(() => {
-    if (!booting && user) navigation.replace('Main');
-  }, [booting, user, navigation]);
+    if (!booting && user && mode !== 'reset' && mode !== 'verify') navigation.replace('Main');
+  }, [booting, user, navigation, mode]);
+
+  async function sendPasswordReset() {
+    setMsg('');
+    if (!emailValid) { setMsg('Enter a valid email address first.'); return; }
+    setBusy(true);
+    try {
+      await requestPasswordReset(email);
+      setMode('verify');
+      setMsg('Enter the recovery code from your email.');
+    } catch (error) { setMsg(error.message); }
+    finally { setBusy(false); }
+  }
+
+  async function verifyRecoveryCode() {
+    setMsg('');
+    if (!emailValid) { setMsg('Enter a valid email address first.'); return; }
+    if (!recoveryCode.trim()) { setMsg('Enter the recovery code from your email.'); return; }
+    setBusy(true);
+    try {
+      await verifyRecoveryOtp(email, recoveryCode);
+      setMode('reset');
+      setMsg('Code verified. Choose a new password.');
+    } catch (error) { setMsg(error.message); }
+    finally { setBusy(false); }
+  }
+
+  async function saveNewPassword() {
+    setMsg('');
+    if (!hasStrongPassword(password)) { setMsg(PASSWORD_REQUIREMENTS); return; }
+    if (password !== confirmPassword) { setMsg('The passwords do not match.'); return; }
+    setBusy(true);
+    try {
+      await updatePassword(password);
+      setMsg('Your password has been changed. You can now log in with it.');
+      setPassword('');
+      setConfirmPassword('');
+      setMode('login');
+      navigation.setParams({ mode: 'login' });
+    } catch (error) { setMsg(error.message); }
+    finally { setBusy(false); }
+  }
 
   async function submit() {
     setMsg('');
@@ -62,6 +118,7 @@ export default function AuthScreen({ navigation, route }) {
     if (mode === 'register' && !nameValid) { setMsg('Enter a display name with at least 2 characters.'); return; }
     if (!emailValid) { setMsg('Enter a valid email address.'); return; }
     if (!password) { setMsg('Enter a password.'); return; }
+    if (mode === 'register' && !hasStrongPassword(password)) { setMsg(PASSWORD_REQUIREMENTS); return; }
     setBusy(true);
     try {
       if (mode === 'register') {
@@ -242,7 +299,7 @@ export default function AuthScreen({ navigation, route }) {
             {emailValid && <Ionicons name="checkmark-circle" size={18} color={COLORS.success} />}
           </View>
 
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{mode === 'reset' ? 'New password' : 'Password'}</Text>
           <View style={styles.inputRow}>
             <Ionicons name="lock-closed-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
             <TextInput
@@ -257,6 +314,8 @@ export default function AuthScreen({ navigation, route }) {
               <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={COLORS.textTertiary} />
             </TouchableOpacity>
           </View>
+
+          <Text style={styles.passwordHint}>{PASSWORD_REQUIREMENTS}</Text>
 
           <Text style={styles.label}>Choose your role</Text>
           <View style={styles.roleRow}>
@@ -391,14 +450,14 @@ export default function AuthScreen({ navigation, route }) {
         <View style={styles.handle} />
         <View style={[styles.sheetContent, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Welcome back</Text>
+            <Text style={styles.title}>{mode === 'reset' ? 'Choose a new password' : mode === 'verify' ? 'Check your email' : 'Welcome back'}</Text>
             <Ionicons name="sparkles" size={20} color={COLORS.accent} />
           </View>
-          <Text style={styles.subtitle}>Ready for your next challenge?</Text>
+          <Text style={styles.subtitle}>{mode === 'reset' ? 'Enter and confirm your new password.' : mode === 'verify' ? `Enter the recovery code sent to ${email}.` : 'Ready for your next challenge?'}</Text>
 
-          {tabsRow}
+          {mode === 'login' && tabsRow}
 
-          <Text style={styles.label}>Email</Text>
+          {(mode === 'login' || mode === 'verify') && <><Text style={styles.label}>Email</Text>
           <View style={styles.inputRow}>
             <Ionicons name="mail-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
             <TextInput
@@ -410,10 +469,10 @@ export default function AuthScreen({ navigation, route }) {
               placeholder="thabo@example.com"
               placeholderTextColor={COLORS.textTertiary}
             />
-          </View>
+          </View></>}
 
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.inputRow}>
+          {mode === 'login' && <Text style={styles.label}>Password</Text>}
+          {mode === 'login' && <View style={styles.inputRow}>
             <Ionicons name="lock-closed-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
@@ -426,28 +485,64 @@ export default function AuthScreen({ navigation, route }) {
             <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
               <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={COLORS.textTertiary} />
             </TouchableOpacity>
-          </View>
+          </View>}
+
+          {mode === 'verify' && <>
+            <Text style={styles.label}>Recovery code</Text>
+            <View style={styles.inputRow}>
+              <Ionicons name="key-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
+              <TextInput style={styles.input} value={recoveryCode} onChangeText={setRecoveryCode} keyboardType="number-pad" autoCapitalize="none" placeholder="Enter code" placeholderTextColor={COLORS.textTertiary} />
+            </View>
+          </>}
+
+          {mode === 'reset' && <>
+            <Text style={styles.label}>New password</Text>
+            <View style={styles.inputRow}>
+              <Ionicons name="lock-closed-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
+              <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry={!showPassword} placeholder="New password" placeholderTextColor={COLORS.textTertiary} />
+              <TouchableOpacity onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={COLORS.textTertiary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.passwordHint}>{PASSWORD_REQUIREMENTS}</Text>
+          </>}
 
           {!!msg && <Text style={styles.msg}>{msg}</Text>}
 
-          {!!confirmationEmail && (
+          {mode === 'reset' && <>
+            <Text style={styles.label}>Confirm new password</Text>
+            <View style={styles.inputRow}>
+              <Ionicons name="lock-closed-outline" size={18} color={COLORS.textTertiary} style={styles.inputIcon} />
+              <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry placeholder="Confirm password" placeholderTextColor={COLORS.textTertiary} />
+            </View>
+          </>}
+
+          {mode === 'login' && <TouchableOpacity style={styles.forgotRow} disabled={busy} onPress={sendPasswordReset}>
+            <Text style={styles.forgotText}>{busy ? 'Please wait…' : 'Forgot password?'}</Text>
+          </TouchableOpacity>}
+
+          {!!confirmationEmail && mode === 'login' && (
             <TouchableOpacity style={styles.forgotRow} disabled={busy} onPress={resendConfirmation}>
               <Text style={styles.forgotText}>{busy ? 'Sending…' : 'Resend confirmation email'}</Text>
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity activeOpacity={0.9} disabled={busy} onPress={submit}>
+          <TouchableOpacity activeOpacity={0.9} disabled={busy} onPress={mode === 'reset' ? saveNewPassword : mode === 'verify' ? verifyRecoveryCode : submit}>
             <LinearGradient
               colors={COLORS.gradients.hero}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={[styles.cta, busy && styles.ctaDisabled]}
             >
-              <Text style={styles.ctaText}>{busy ? 'Please wait…' : 'Continue learning'}</Text>
+              <Text style={styles.ctaText}>{busy ? 'Please wait…' : mode === 'reset' ? 'Save new password' : mode === 'verify' ? 'Verify code' : 'Continue learning'}</Text>
             </LinearGradient>
           </TouchableOpacity>
 
-          <View style={styles.dividerRow}>
+          {(mode === 'reset' || mode === 'verify') && <TouchableOpacity style={styles.forgotRow} onPress={() => { setMode('login'); setMsg(''); navigation.setParams({ mode: 'login' }); }}>
+            <Text style={styles.forgotText}>Back to log in</Text>
+          </TouchableOpacity>}
+
+          {mode === 'login' && <><View style={styles.dividerRow}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>or continue with</Text>
             <View style={styles.dividerLine} />
@@ -461,6 +556,7 @@ export default function AuthScreen({ navigation, route }) {
             <Ionicons name="logo-google" size={18} color="#EA4335" />
             <Text style={styles.googleText}>Google</Text>
           </TouchableOpacity>
+          </>}
 
           <View style={styles.footerRow}>
             <Ionicons name="shield-checkmark-outline" size={14} color={COLORS.textTertiary} />
@@ -652,6 +748,7 @@ const styles = StyleSheet.create({
   forgotText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
 
   msg: { color: COLORS.error, fontSize: 13, marginBottom: 6 },
+  passwordHint: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: -2, marginBottom: 10 },
 
   cta: { borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 4, ...SHADOWS.medium },
   ctaRow: {
