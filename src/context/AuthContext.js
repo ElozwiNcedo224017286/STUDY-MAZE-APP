@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Linking } from 'react-native';
+import Constants from 'expo-constants';
 import { supabase } from '../api/supabase';
 
 const AuthContext = createContext(null);
@@ -94,12 +95,15 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let alive = true;
     const handleUrl = async (url) => {
-      if (!url || !url.includes('reset-password')) return;
+      if (!url || (!url.includes('reset-password') && !url.includes('auth/callback'))) return;
       let code;
       try { code = new URL(url).searchParams.get('code'); } catch (_) { return; }
       if (typeof code === 'string') {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error && alive) console.warn('Could not open password reset link:', error.message);
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error && alive) console.warn('Could not complete authentication callback:', error.message);
+        if (!error && data.session && url.includes('auth/callback') && alive) {
+          setUser(await loadUser(data.session.user));
+        }
       }
     };
     Linking.getInitialURL().then(handleUrl).catch(() => {});
@@ -301,6 +305,25 @@ const getDailyRewardDates = useCallback(async () => {
     if (error) throw new Error(error.message);
   }, []);
 
+  const startAppleSignIn = useCallback(async () => {
+    const expoGoHost = Constants.executionEnvironment === 'storeClient'
+      ? Constants.expoConfig?.hostUri
+      : null;
+    const redirectTo = expoGoHost
+      ? `exp://${expoGoHost}/--/auth/callback`
+      : 'studymaze://auth/callback';
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    });
+    if (error) throw new Error(error.message);
+    if (!data?.url) throw new Error('Supabase did not return an Apple sign-in URL.');
+    return data.url;
+  }, []);
+
   const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message || 'Could not sign out.');
@@ -394,7 +417,7 @@ const hasClaimedDailyReward = useCallback(async () => {
 }, [user]);
 
   return (
-    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
+    <AuthContext.Provider value={{ user, booting, login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, startAppleSignIn, logout, recordGame, claimDailyReward, hasClaimedDailyReward, getUserStreak, getDailyRewardDates, refreshUser, setUser }}>
       {children}
     </AuthContext.Provider>
   );

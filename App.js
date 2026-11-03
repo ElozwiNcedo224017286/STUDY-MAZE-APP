@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { DarkTheme, DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 
 import { AuthProvider } from './src/context/AuthContext';
 import { SubjectProvider } from './src/context/SubjectContext';
@@ -45,9 +46,12 @@ export default function App() {
 function AppShell() {
   const { isDark } = useTheme();
   const navigationTheme = isDark ? DarkTheme : DefaultTheme;
+  const expoGoPrefix = Constants.executionEnvironment === 'storeClient' && Constants.expoConfig?.hostUri
+    ? `exp://${Constants.expoConfig.hostUri}/--/`
+    : null;
   const linking = {
-    prefixes: ['studymaze://'],
-    config: { screens: { Auth: { path: 'reset-password', parse: { mode: () => 'reset' } } } },
+    prefixes: [expoGoPrefix, 'studymaze://'].filter(Boolean),
+    config: { screens: { Auth: { path: 'auth/callback' } } },
   };
 
   return (

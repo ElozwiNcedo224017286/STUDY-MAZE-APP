@@ -9,6 +9,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Linking,
   StatusBar,
   Image,
   Dimensions,
@@ -38,7 +39,7 @@ function hasStrongPassword(password) {
 
 export default function AuthScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, user, booting } = useAuth();
+  const { login, register, resendSignupConfirmation, requestPasswordReset, verifyRecoveryOtp, updatePassword, startAppleSignIn, user, booting } = useAuth();
   const [mode, setMode] = useState(route?.params?.mode === 'register' ? 'register' : route?.params?.mode === 'reset' ? 'reset' : 'login');
   const [role, setRole] = useState('student');
   const [displayName, setDisplayName] = useState('');
@@ -81,6 +82,17 @@ export default function AuthScreen({ navigation, route }) {
       setMsg('Enter the recovery code from your email.');
     } catch (error) { setMsg(error.message); }
     finally { setBusy(false); }
+  }
+
+  async function signInWithApple() {
+    setMsg('');
+    setBusy(true);
+    try {
+      const authUrl = await startAppleSignIn();
+      await Linking.openURL(authUrl);
+    } catch (error) {
+      setMsg(error.message || 'Could not start Apple sign-in.');
+    } finally { setBusy(false); }
   }
 
   async function verifyRecoveryCode() {
@@ -549,12 +561,13 @@ export default function AuthScreen({ navigation, route }) {
           </View>
 
           <TouchableOpacity
-            style={styles.googleBtn}
+            style={styles.appleBtn}
             activeOpacity={0.85}
-            onPress={() => setMsg('Google sign-in is not set up yet.')}
+            disabled={busy}
+            onPress={signInWithApple}
           >
-            <Ionicons name="logo-google" size={18} color="#EA4335" />
-            <Text style={styles.googleText}>Google</Text>
+            <Ionicons name="logo-apple" size={20} color={COLORS.white} />
+            <Text style={styles.appleText}>Continue with Apple</Text>
           </TouchableOpacity>
           </>}
 
@@ -768,17 +781,16 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
   dividerText: { color: COLORS.textTertiary, fontSize: 13 },
 
-  googleBtn: {
+  appleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: '#000000',
     borderRadius: 14,
     paddingVertical: 12,
   },
-  googleText: { color: COLORS.textPrimary, fontWeight: '700', fontSize: 15 },
+  appleText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
 
   footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 10 },
   footerText: { color: COLORS.textTertiary, fontSize: 12 },
