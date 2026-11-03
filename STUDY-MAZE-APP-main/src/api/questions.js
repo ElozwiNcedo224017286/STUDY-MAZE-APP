@@ -1,57 +1,94 @@
 
 
 /*
- * Study Maze — QuizAPI integration
+ * Study Maze — QuizAPI service (the only one).
  *
- * Responsibilities:
  * 1. Search QuizAPI by a user-entered subject.
- * 2. Check whether questions are available.
- * 3. Fetch questions for a selected quiz.
- * 4. Convert QuizAPI questions into Study Maze format.
- * 5. Filter questions by subject/difficulty.
- * 6. Check answers.
+ * 2. Fetch questions (by quiz first, then by category as a fallback).
+ * 3. Convert them to the game format: { id, q, opts, correct, ... }.
  */
 
 const QUIZAPI_BASE_URL = 'https://quizapi.io/api/v1';
+const QUIZAPI_KEY = process.env.EXPO_PUBLIC_QUIZAPI_KEY;
 
-const QUIZAPI_KEY =
-  process.env.EXPO_PUBLIC_QUIZAPI_KEY;
+/* Try to have at least this many questions before skipping the fallback. */
+const MIN_POOL_SIZE = 8;
 
 /* ==========================================================
-   BASIC HELPERS
+   SUBJECT -> QUIZAPI CATEGORIES
+   Keys are lowercase subject names/aliases.
 ========================================================== */
 
-function cleanText(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/\s+/g, ' ');
-}
+const IT_CATEGORIES = [
+  'Programming', 'Database', 'Databases', 'Data Structures',
+  'Software Engineering', 'Web Development', 'REST API',
+  'SQL Queries', 'JavaScript', 'Python', 'Java', 'C++',
+];
 
-function normalize(value) {
-  return cleanText(value).toLowerCase();
-}
+const SUBJECT_CATEGORY_MAP = {
+  mathematics: ['Mathematics'],
+  science: ['Science', 'Physics', 'Chemistry', 'Biology'],
+  english: [
+    'Languages', 'Literature', 'Literary Devices',
+    'Classic Literature', 'Poetry', 'Shakespeare',
+  ],
+  engineering: ['Engineering', 'Architecture'],
+  it: IT_CATEGORIES,
+  'information technology': IT_CATEGORIES,
+  geography: ['Geography', 'Countries', 'World Capitals', 'Rivers', 'Mountains'],
+  robotics: ['Robotics'],
+  business: [
+    'Business & Finance', 'Economics', 'Marketing', 'Entrepreneurship',
+    'Investing', 'Personal Finance', 'Supply Chain',
+  ],
+  history: [
+    'History', 'Ancient History', 'Ancient Rome', 'Ancient Greece',
+    'Medieval History', 'Industrial Revolution', 'World Wars', 'Cold War',
+  ],
+  'life skills': ['Personal Finance', 'Health'],
+};
 
-function normalizeDifficulty(value) {
-  const valueNormalized = normalize(value);
+/* Topic names offered by the search-ahead box. */
+export const SUGGESTION_TOPICS = [
+  ...new Set(Object.values(SUBJECT_CATEGORY_MAP).flat()),
+];
 
-  const aliases = {
-    easy: 'easy',
-    beginner: 'easy',
+/* ==========================================================
+   HELPERS
+========================================================== */
 
-    medium: 'medium',
-    intermediate: 'medium',
+const cleanText = value => String(value ?? '').trim().replace(/\s+/g, ' ');
 
-    hard: 'hard',
-    advanced: 'hard',
+const normalize = value => cleanText(value).toLowerCase();
 
-    expert: 'expert',
-  };
+const DIFFICULTY_ALIASES = {
+  easy: 'easy',
+  beginner: 'easy',
+  medium: 'medium',
+  intermediate: 'medium',
+  hard: 'hard',
+  advanced: 'hard',
+  expert: 'expert',
+};
 
-  return aliases[valueNormalized] || valueNormalized;
+const normalizeDifficulty = value => {
+  const key = normalize(value);
+  return DIFFICULTY_ALIASES[key] || key;
+};
+
+const isTrue = value => value === true || value === 'true';
+
+function shuffle(array) {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 }
 
 /* ==========================================================
-   QUIZAPI REQUEST
+   HTTP
 ========================================================== */
 
 async function quizApiRequest(endpoint, params = {}) {
@@ -61,43 +98,24 @@ async function quizApiRequest(endpoint, params = {}) {
     );
   }
 
-  const url = new URL(
-    `${QUIZAPI_BASE_URL}${endpoint}`
-  );
+  const url = new URL(`${QUIZAPI_BASE_URL}${endpoint}`);
 
   Object.entries(params).forEach(([key, value]) => {
-    if (
-      value !== undefined &&
-      value !== null &&
-      String(value).trim() !== ''
-    ) {
-      url.searchParams.append(
-        key,
-        String(value)
-      );
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      url.searchParams.append(key, String(value));
     }
   });
 
-  const response = await fetch(
-    url.toString(),
-    {
-      method: 'GET',
-
-      headers: {
-        Authorization:
-          `Bearer ${QUIZAPI_KEY}`,
-
-        Accept:
-          'application/json',
-
-        'Content-Type':
-          'application/json',
-      },
-    }
-  );
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${QUIZAPI_KEY}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+  });
 
   let data = null;
-
   try {
     data = await response.json();
   } catch {
@@ -108,37 +126,69 @@ async function quizApiRequest(endpoint, params = {}) {
 
   if (!response.ok) {
     throw new Error(
-      data?.error ||
-      data?.message ||
-      `QuizAPI request failed (${response.status}).`
+      data?.error || data?.message || `QuizAPI request failed (${response.status}).`
     );
   }
 
   if (data?.success === false) {
-    throw new Error(
-      data?.error ||
-      data?.message ||
-      'QuizAPI request failed.'
-    );
+    throw new Error(data?.error || data?.message || 'QuizAPI request failed.');
   }
 
   return data;
 }
 
 /* ==========================================================
-   SEARCH QUIZAPI BY SUBJECT
+   CONVERT QUIZAPI QUESTION -> GAME QUESTION
+   Supports the current array format and the older object format.
 ========================================================== */
 
-/*
- * Search for any subject entered by the user.
- *
- * Examples:
- * searchSubject('Python')
- * searchSubject('Mathematics')
- * searchSubject('Cybersecurity')
- * searchSubject('JavaScript')
- * searchSubject('Geography')
- */
+const toAnswerList = raw => {
+  const list = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object'
+    ? Object.values(raw)
+    : [];
+
+  return list
+    .filter(answer => answer && (answer.text || answer.answer))
+    .map(answer => ({
+      text: cleanText(answer.text || answer.answer),
+      correct: isTrue(answer.isCorrect) || isTrue(answer.is_correct),
+    }));
+};
+
+export function convertQuizAPIQuestion(question) {
+  if (!question) return null;
+
+  const questionText = cleanText(question.text || question.question);
+  if (!questionText) return null;
+
+  const answers = toAnswerList(question.answers);
+  if (answers.length < 2) return null;
+
+  // Without a known correct answer the game cannot score the question.
+  const correctIndex = answers.findIndex(answer => answer.correct);
+  if (correctIndex < 0) return null;
+
+  return {
+    id: `quizapi-${question.id}`,
+    source: 'quizapi',
+    quizId: question.quizId || question.quiz_id || null,
+    quizQuestionId: question.id,
+    subject: cleanText(
+      question.categoryName || question.category || question.topic || 'General'
+    ),
+    difficulty: cleanText(question.difficulty || 'medium').toLowerCase(),
+    q: questionText,
+    opts: answers.map(answer => answer.text),
+    correct: correctIndex,
+    explanation: question.explanation || null,
+  };
+}
+
+/* ==========================================================
+   SEARCH BY SUBJECT
+========================================================== */
 
 export async function searchSubject(subject) {
   const searchTerm = cleanText(subject);
@@ -155,594 +205,199 @@ export async function searchSubject(subject) {
   }
 
   try {
-    const response = await quizApiRequest(
-      '/quizzes',
-      {
-        topic: searchTerm,
-        limit: 50,
-        sort: 'title',
-      }
-    );
+    const response = await quizApiRequest('/quizzes', {
+      topic: searchTerm,
+      limit: 50,
+      sort: 'title',
+    });
 
-    const quizzes = Array.isArray(response?.data)
-      ? response.data
-      : [];
+    const quizzes = Array.isArray(response?.data) ? response.data : [];
 
-    /*
-     * QuizAPI's current quiz object provides
-     * questionCount.
-     */
     const availableQuizzes = quizzes.filter(
-      quiz =>
-        Number(
-          quiz?.questionCount || 0
-        ) > 0
+      quiz => Number(quiz?.questionCount || 0) > 0
     );
 
-    const questionCount =
-      availableQuizzes.reduce(
-        (total, quiz) =>
-          total +
-          Number(
-            quiz?.questionCount || 0
-          ),
-        0
-      );
+    const questionCount = availableQuizzes.reduce(
+      (total, quiz) => total + Number(quiz?.questionCount || 0),
+      0
+    );
 
     return {
-      available:
-        availableQuizzes.length > 0,
-
-      subject:
-        searchTerm,
-
-      quizzes:
-        availableQuizzes,
-
+      available: availableQuizzes.length > 0,
+      subject: searchTerm,
+      quizzes: availableQuizzes,
       questionCount,
-
-      quizCount:
-        availableQuizzes.length,
-
+      quizCount: availableQuizzes.length,
       message:
         availableQuizzes.length > 0
           ? `"${searchTerm}" is available.`
           : `"${searchTerm}" was not found on QuizAPI.`,
-
       error: null,
     };
   } catch (error) {
-    console.error(
-      'QuizAPI subject search failed:',
-      error
-    );
+    console.error('QuizAPI subject search failed:', error);
 
     return {
       available: false,
-
-      subject:
-        searchTerm,
-
+      subject: searchTerm,
       quizzes: [],
-
       questionCount: 0,
-
       quizCount: 0,
-
-      error:
-        error?.message ||
-        'Unknown QuizAPI error.',
-
-      message:
-        'Could not search QuizAPI.',
+      error: error?.message || 'Unknown QuizAPI error.',
+      message: 'Could not search QuizAPI.',
     };
   }
 }
 
-/*
- * Compatibility name used by MazeGameScreen.
- *
- * This means either of these works:
- *
- * searchSubject()
- * searchQuizAPISubject()
- */
+/* Name used by the screens. */
+export const searchQuizAPISubject = subject => searchSubject(subject);
 
-export async function searchQuizAPISubject(
-  subject
-) {
-  return searchSubject(subject);
+export async function checkSubjectAvailability(subject) {
+  const result = await searchSubject(subject);
+
+  return {
+    subject: result.subject,
+    available: result.available,
+    questionCount: result.questionCount,
+    quizCount: result.quizCount,
+    quizzes: result.quizzes,
+    message: result.message,
+    error: result.error || null,
+  };
 }
 
 /* ==========================================================
-   GET QUESTIONS FOR A QUIZ
+   FETCH QUESTIONS
 ========================================================== */
 
-export async function getQuizQuestions(
-  quizId
-) {
-  if (!quizId) {
-    return [];
-  }
+export async function getQuizQuestions(quizId) {
+  if (!quizId) return [];
 
   try {
-    const response =
-      await quizApiRequest(
-        '/questions',
-        {
-          quiz_id: quizId,
+    const response = await quizApiRequest('/questions', {
+      quiz_id: quizId,
+      include_answers: 'true',
+      limit: 50,
+    });
 
-          include_answers:
-            'true',
-
-          limit: 50,
-        }
-      );
-
-    const questions =
-      Array.isArray(response?.data)
-        ? response.data
-        : [];
-
-    return questions
-      .map(convertQuizAPIQuestion)
-      .filter(Boolean);
-
+    const questions = Array.isArray(response?.data) ? response.data : [];
+    return questions.map(convertQuizAPIQuestion).filter(Boolean);
   } catch (error) {
-    console.error(
-      `Could not load QuizAPI quiz ${quizId}:`,
-      error
-    );
-
+    console.error(`Could not load QuizAPI quiz ${quizId}:`, error);
     return [];
   }
 }
 
-/* ==========================================================
-   GET QUESTIONS FOR A SUBJECT
-========================================================== */
+/* Path 1: find quizzes about the topic, then load their questions. */
+async function getQuestionsFromQuizzes(subject) {
+  const searchResult = await searchSubject(subject);
+  if (!searchResult.available) return [];
 
-export async function getQuestionsForSubject(
-  subject,
-  difficulty = null
-) {
-  const searchResult =
-    await searchSubject(subject);
+  // The first 10 matching quizzes are enough for a usable pool.
+  const results = await Promise.all(
+    searchResult.quizzes.slice(0, 10).map(quiz => getQuizQuestions(quiz.id))
+  );
 
-  if (!searchResult.available) {
-    return [];
+  return results.flat();
+}
+
+/* Path 2 (fallback): ask for questions directly by mapped category. */
+async function getQuestionsByCategory(subject, difficulty, limit = 20) {
+  const categories = SUBJECT_CATEGORY_MAP[normalize(subject)];
+  if (!categories || categories.length === 0) return [];
+
+  const response = await quizApiRequest('/questions', {
+    category: categories.join(','),
+    difficulty: difficulty
+      ? normalizeDifficulty(difficulty).toUpperCase()
+      : undefined,
+    type: 'MULTIPLE_CHOICE',
+    include_answers: 'true',
+    limit,
+    random: 'true',
+  });
+
+  const questions = Array.isArray(response?.data) ? response.data : [];
+  return questions.map(convertQuizAPIQuestion).filter(Boolean);
+}
+
+export async function getQuestionsForSubject(subject, difficulty = null) {
+  let questions = [];
+
+  try {
+    questions = await getQuestionsFromQuizzes(subject);
+  } catch (error) {
+    console.log('QuizAPI quiz lookup failed:', error);
   }
 
-  /*
-   * Do not request hundreds of quizzes.
-   * The first 10 matching quizzes are enough
-   * to create a usable maze question pool.
-   */
-
-  const quizzes =
-    searchResult.quizzes.slice(0, 10);
-
-  const questionResults =
-    await Promise.all(
-      quizzes.map(
-        quiz =>
-          getQuizQuestions(
-            quiz.id
-          )
-      )
-    );
-
-  let questions =
-    questionResults.flat();
-
-  /*
-   * Remove invalid questions.
-   */
-
-  questions =
-    questions.filter(
-      question =>
-        question &&
-        question.q &&
-        Array.isArray(question.opts) &&
-        question.opts.length >= 2
-    );
-
-  /*
-   * Attach the searched subject.
-   */
-
-  questions =
-    questions.map(
-      question => ({
-        ...question,
-
-        subject:
-          cleanText(subject),
-      })
-    );
-
-  /*
-   * Filter by difficulty when possible.
-   *
-   * If QuizAPI has no questions at that
-   * difficulty, keep the original questions
-   * instead of giving the maze an empty pool.
-   */
-
-  if (difficulty) {
-    const wanted =
-      normalizeDifficulty(
-        difficulty
-      );
-
-    const filtered =
-      questions.filter(
-        question =>
-          normalizeDifficulty(
-            question.difficulty
-          ) === wanted
-      );
-
-    if (filtered.length > 0) {
-      questions = filtered;
+  if (questions.length < MIN_POOL_SIZE) {
+    try {
+      const byCategory = await getQuestionsByCategory(subject, difficulty);
+      questions = [...questions, ...byCategory];
+    } catch (error) {
+      console.log('QuizAPI category lookup failed:', error);
     }
   }
 
-  return shuffle(questions);
+  // Remove duplicates and invalid questions, and label with the searched subject.
+  const unique = new Map();
+  questions.forEach(question => {
+    if (
+      question?.q &&
+      Array.isArray(question.opts) &&
+      question.opts.length >= 2 &&
+      !unique.has(question.id)
+    ) {
+      unique.set(question.id, { ...question, subject: cleanText(subject) });
+    }
+  });
+
+  let pool = [...unique.values()];
+
+  // Prefer the requested difficulty, but never leave the maze with an empty pool.
+  if (difficulty) {
+    const wanted = normalizeDifficulty(difficulty);
+    const filtered = pool.filter(
+      question => normalizeDifficulty(question.difficulty) === wanted
+    );
+    if (filtered.length > 0) pool = filtered;
+  }
+
+  return shuffle(pool);
 }
 
 /* ==========================================================
-   CONVERT QUIZAPI QUESTION
+   PUBLIC API USED BY THE GAME
+   getQuizBank('Science', 'easy')  or  getQuizBank({ subject, difficulty })
 ========================================================== */
 
-/*
- * Converts QuizAPI's current response:
- *
- * {
- *   id,
- *   quizId,
- *   text,
- *   difficulty,
- *   category,
- *   explanation,
- *   answers: [
- *     {
- *       id,
- *       text,
- *       isCorrect
- *     }
- *   ]
- * }
- *
- * into the Study Maze format:
- *
- * {
- *   id,
- *   q,
- *   opts,
- *   correct
- * }
- */
+export async function getQuizBank(subjectOrOptions = null, difficulty = null) {
+  let subject = subjectOrOptions;
 
-export function convertQuizAPIQuestion(
-  question
-) {
-  if (!question) {
-    return null;
+  if (subjectOrOptions && typeof subjectOrOptions === 'object') {
+    subject = subjectOrOptions.subject;
+    difficulty = subjectOrOptions.difficulty;
   }
 
-  /*
-   * Current QuizAPI uses "text".
-   *
-   * Older responses may have used "question".
-   */
-  const questionText =
-    cleanText(
-      question.text ||
-      question.question
-    );
+  subject = cleanText(subject);
 
-  if (!questionText) {
-    return null;
+  if (!subject) {
+    return { questions: [], source: 'quizapi', subject: '', difficulty: difficulty || null };
   }
 
-  /*
-   * Current QuizAPI returns answers as
-   * an array.
-   *
-   * We also support the older object format
-   * so existing data does not break.
-   */
+  const questions = await getQuestionsForSubject(subject, difficulty);
 
-  let answers = [];
-
-  if (
-    Array.isArray(
-      question.answers
-    )
-  ) {
-    answers =
-      question.answers
-        .filter(
-          answer =>
-            answer &&
-            (
-              answer.text ||
-              answer.answer
-            )
-        )
-        .map(answer => ({
-          text:
-            cleanText(
-              answer.text ||
-              answer.answer
-            ),
-
-          correct:
-            answer.isCorrect === true ||
-            answer.isCorrect === 'true' ||
-            answer.is_correct === true ||
-            answer.is_correct === 'true',
-        }));
-  } else if (
-    question.answers &&
-    typeof question.answers === 'object'
-  ) {
-    answers =
-      Object.entries(
-        question.answers
-      )
-        .filter(
-          ([, answer]) =>
-            answer &&
-            (
-              answer.answer ||
-              answer.text
-            )
-        )
-        .map(
-          ([key, answer]) => ({
-            key,
-
-            text:
-              cleanText(
-                answer.answer ||
-                answer.text
-              ),
-
-            correct:
-              answer.isCorrect === true ||
-              answer.isCorrect === 'true' ||
-              answer.is_correct === true ||
-              answer.is_correct === 'true',
-          })
-        );
-  }
-
-  if (answers.length < 2) {
-    return null;
-  }
-
-  const correctIndex =
-    answers.findIndex(
-      answer =>
-        answer.correct
-    );
-
-  /*
-   * A question without a known correct
-   * answer cannot safely be used by the game.
-   */
-
-  if (correctIndex < 0) {
-    return null;
-  }
-
-  return {
-    id:
-      `quizapi-${question.id}`,
-
-    source:
-      'quizapi',
-
-    quizId:
-      question.quizId ||
-      question.quiz_id ||
-      null,
-
-    quizQuestionId:
-      question.id,
-
-    subject:
-      cleanText(
-        question.categoryName ||
-        question.category ||
-        question.topic ||
-        'General'
-      ),
-
-    difficulty:
-      cleanText(
-        question.difficulty ||
-        'medium'
-      ).toLowerCase(),
-
-    q:
-      questionText,
-
-    opts:
-      answers.map(
-        answer =>
-          answer.text
-      ),
-
-    correct:
-      correctIndex,
-
-    explanation:
-      question.explanation ||
-      null,
-  };
+  return { questions, source: 'quizapi', subject, difficulty: difficulty || null };
 }
 
 /* ==========================================================
    CHECK ANSWER
 ========================================================== */
 
-export function checkAnswer(
-  question,
-  selectedIndex
-) {
-  if (!question) {
-    return false;
-  }
-
+export function checkAnswer(question, selectedIndex) {
   return (
+    !!question &&
     typeof question.correct === 'number' &&
-    selectedIndex ===
-      question.correct
+    selectedIndex === question.correct
   );
-}
-
-/* ==========================================================
-   GET QUIZ BANK
-========================================================== */
-
-/*
- * Supports BOTH:
- *
- * getQuizBank('Python', 'easy')
- *
- * and:
- *
- * getQuizBank({
- *   subject: 'Python',
- *   difficulty: 'easy'
- * })
- *
- * This is important because your
- * MazeGameScreen uses the object form.
- */
-
-export async function getQuizBank(
-  subjectOrOptions = null,
-  difficulty = null
-) {
-  let subject =
-    subjectOrOptions;
-
-  /*
-   * Object form
-   */
-
-  if (
-    subjectOrOptions &&
-    typeof subjectOrOptions === 'object'
-  ) {
-    subject =
-      subjectOrOptions.subject;
-
-    difficulty =
-      subjectOrOptions.difficulty;
-  }
-
-  subject =
-    cleanText(subject);
-
-  if (!subject) {
-    return {
-      questions: [],
-      source: 'quizapi',
-      subject: '',
-      difficulty:
-        difficulty || null,
-    };
-  }
-
-  const questions =
-    await getQuestionsForSubject(
-      subject,
-      difficulty
-    );
-
-  return {
-    questions,
-
-    source:
-      'quizapi',
-
-    subject,
-
-    difficulty:
-      difficulty || null,
-  };
-}
-
-/* ==========================================================
-   CHECK SUBJECT AVAILABILITY
-========================================================== */
-
-export async function checkSubjectAvailability(
-  subject
-) {
-  const result =
-    await searchSubject(
-      subject
-    );
-
-  return {
-    subject:
-      result.subject,
-
-    available:
-      result.available,
-
-    questionCount:
-      result.questionCount,
-
-    quizCount:
-      result.quizCount,
-
-    quizzes:
-      result.quizzes,
-
-    message:
-      result.message,
-
-    error:
-      result.error || null,
-  };
-}
-
-/* ==========================================================
-   SHUFFLE
-========================================================== */
-
-function shuffle(array) {
-  const result = [
-    ...array,
-  ];
-
-  for (
-    let i = result.length - 1;
-    i > 0;
-    i--
-  ) {
-    const j =
-      Math.floor(
-        Math.random() *
-        (i + 1)
-      );
-
-    [
-      result[i],
-      result[j],
-    ] = [
-      result[j],
-      result[i],
-    ];
-  }
-
-  return result;
 }

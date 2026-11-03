@@ -245,23 +245,36 @@ const getDailyRewardDates = useCallback(async () => {
   }, []);
 
   // Record one finished game into game_scores, then refresh the aggregated user.
-  const recordGame = useCallback(async (game, { coinsEarned = 0, score = 0, level } = {}) => {
+  // Record one finished game into game_scores, then refresh the aggregated user.
+const recordGame = useCallback(
+  async (
+    game,
+    { coinsEarned = 0, score = 0, level, subject, difficulty, stars } = {}
+  ) => {
     if (!user) return null;
-    const detail = level != null ? { level } : {};
+
+    const detail = {};
+    if (typeof level === 'number') detail.level = level; // read by loadUser
+    if (subject) detail.subject = subject;
+    if (difficulty) detail.difficulty = difficulty;
+    if (typeof stars === 'number') detail.stars = stars;
+
     const { error } = await supabase.from('game_scores').insert({
       user_id: user.id,
-      game,                              // 'quiz_maze' | 'memory_match' | 'study_quiz'
+      game, // 'quiz_maze' | 'memory_match' | 'study_quiz'
       coins: Math.max(0, Math.round(coinsEarned)),
       score: Math.round(score),
-      detail
+      detail,
     });
+
     if (error) {
-      // Don't crash the results screen if the write fails — surface it in the console.
       console.warn('Failed to record game score:', error.message);
       return user;
     }
     return refreshUser();
-  }, [user, refreshUser]);
+  },
+  [user, refreshUser]
+);
 
   
 // Claim today's daily login reward through the secure Supabase RPC.

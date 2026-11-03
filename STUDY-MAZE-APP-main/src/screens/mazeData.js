@@ -152,6 +152,21 @@ export const SUBJECTS = [
 ];
 
 
+export function findSubject(value) {
+  if (!value) return null;
+
+  const key = String(value).trim().toLowerCase();
+
+  return (
+    SUBJECTS.find(
+      item =>
+        item.id === key ||
+        item.name.toLowerCase() === key ||
+        item.shortName?.toLowerCase() === key
+    ) || null
+  );
+}
+
 /* ==========================================================
    DIFFICULTIES
 ========================================================== */
@@ -206,6 +221,68 @@ export const DIFFICULTIES = [
   },
 ];
 
+/* ==========================================================
+   icons
+========================================================== */
+
+const fold = value =>
+  String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+
+// First rule whose keyword appears in the subject name wins.
+const ICON_RULES = [
+  { icon: '🐍', words: ['python'] },
+  { icon: '☕', words: ['java '] },
+  { icon: '🟨', words: ['javascript', 'typescript'] },
+  { icon: '🗄️', words: ['sql', 'database'] },
+  { icon: '🌐', words: ['web', 'html', 'css', 'api', 'network'] },
+  { icon: '🔐', words: ['cyber', 'security', 'crypto', 'hacking'] },
+  { icon: '🤖', words: ['robot', 'automation', 'ai ', 'machine learning'] },
+  { icon: '💻', words: ['computer', 'programming', 'software', 'coding', 'it'] },
+  { icon: '📐', words: ['math', 'algebra', 'geometry', 'calculus', 'statistic'] },
+  { icon: '🧪', words: ['chemistry'] },
+  { icon: '⚛️', words: ['physics'] },
+  { icon: '🧬', words: ['biology', 'genetic', 'anatomy'] },
+  { icon: '🔬', words: ['science'] },
+  { icon: '⚙️', words: ['engineering', 'mechanic'] },
+  { icon: '🏛️', words: ['architecture'] },
+  { icon: '🌍', words: ['geography', 'countries', 'capitals', 'earth'] },
+  { icon: '🏺', words: ['history', 'ancient', 'medieval', 'war'] },
+  { icon: '📚', words: ['english', 'literature', 'poetry', 'language', 'grammar'] },
+  { icon: '💼', words: ['business', 'marketing', 'entrepreneur', 'management'] },
+  { icon: '💰', words: ['finance', 'economics', 'invest', 'money', 'accounting'] },
+  { icon: '🩺', words: ['health', 'medic', 'nursing'] },
+  { icon: '🎨', words: ['art', 'design', 'painting'] },
+  { icon: '🎵', words: ['music'] },
+  { icon: '⚽', words: ['sport', 'football', 'soccer', 'fitness'] },
+  { icon: '🐾', words: ['animal', 'zoology'] },
+  { icon: '🚗', words: ['vehicle', 'cars', 'transport'] },
+  { icon: '⚖️', words: ['law', 'politic', 'government'] },
+  { icon: '🔮', words: ['mythology', 'philosophy'] },
+];
+
+// Generic pool so unknown subjects still look different from each other.
+const FALLBACK_ICONS = ['📘', '📗', '📙', '🧠', '💡', '🎯', '🧩', '🔭', '📝', '🎓'];
+
+const hash = str => {
+  let h = 0;
+  for (let i = 0; i < str.length; i += 1) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h;
+};
+
+export function getSubjectIcon(name) {
+  const text = ` ${fold(name)} `; // padded so 'it' / 'ai ' match whole words
+  if (text.trim() === '') return FALLBACK_ICONS[0];
+
+  const rule = ICON_RULES.find(({ words }) =>
+    words.some(word => text.includes(word.length <= 3 ? ` ${word.trim()} ` : word))
+  );
+
+  return rule ? rule.icon : FALLBACK_ICONS[hash(text) % FALLBACK_ICONS.length];
+}
 
 /* ==========================================================
    MAP HELPER
