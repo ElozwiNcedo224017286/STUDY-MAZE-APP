@@ -108,6 +108,7 @@ export default function TeacherDashboardScreen({ navigation }) {
 function CreateTab({ user, navigation }) {
   const [files, setFiles] = useState([]);
   const [topic, setTopic] = useState('');
+  const [moduleName, setModuleName] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [drafts, setDrafts] = useState([]);
@@ -143,7 +144,7 @@ function CreateTab({ user, navigation }) {
 
   const selectedAssignment = assignments.find((row) => row.class_subject_id === assignmentId);
   const publishDisabled = publishing || busy || assignmentsLoading || !!assignmentsError ||
-    !selectedAssignment || !topic.trim() || drafts.length === 0;
+    !selectedAssignment || !topic.trim() || !moduleName.trim() || drafts.length === 0;
 
   async function pickFiles() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -183,17 +184,19 @@ function CreateTab({ user, navigation }) {
       setStatus('Select an assigned class subject before publishing.');
       return;
     }
-    if (!topic.trim()) { setStatus('Enter a chapter name before publishing.'); return; }
+    if (!moduleName.trim() || !topic.trim()) { setStatus('Enter a module and chapter name before publishing.'); return; }
     if (drafts.length === 0) return;
     publishLock.current = true;
     setPublishing(true);
     setStatus('');
     try {
       const questions = drafts.map((question) => ({ ...question, subject: selectedAssignment.subject_name }));
-      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions);
+      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions, moduleName.trim());
       setStatus(`Published ${questions.length} questions for ${selectedAssignment.subject_name}.`);
       setDrafts([]);
       setFiles([]);
+      setModuleName('');
+      setTopic('');
     } catch (e) {
       setStatus(e.message || 'Could not publish. Please try again.');
     } finally {
@@ -234,6 +237,8 @@ function CreateTab({ user, navigation }) {
         </View>
       )}
 
+      <Text style={styles.label}>Module</Text>
+      <TextInput style={styles.input} value={moduleName} onChangeText={setModuleName} editable={!publishing} maxLength={100} placeholder="Module students can choose in Learn Hub" placeholderTextColor={colors.inkDim} />
       <Text style={styles.label}>Chapter name</Text>
       <TextInput style={styles.input} value={topic} onChangeText={setTopic} editable={!publishing} placeholder="e.g. Cell Structure" placeholderTextColor={colors.inkDim} />
 
@@ -353,6 +358,7 @@ function NotesTab() {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
+  const [moduleName, setModuleName] = useState('');
   const assignment = useTeacherSubjectAssignments();
   const postLock = useRef(false);
   const [grade, setGrade] = useState('');
@@ -370,12 +376,12 @@ function NotesTab() {
 
   async function post() {
     if (postLock.current || postDisabled) return;
-    if (!title.trim() || !content.trim()) { setStatus('Add a title and some content.'); return; }
+    if (!moduleName.trim() || !title.trim() || !content.trim()) { setStatus('Add a module name, title, and some content.'); return; }
     postLock.current = true;
     setBusy(true);
     try {
-      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, title: title.trim(), grade: grade.trim(), content: content.trim() });
-      setTitle(''); setGrade(''); setContent(''); setStatus('Note posted to students. 📚');
+      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, moduleName: moduleName.trim(), title: title.trim(), grade: grade.trim(), content: content.trim() });
+      setModuleName(''); setTitle(''); setGrade(''); setContent(''); setStatus('Note posted to students. 📚');
       await load();
     } catch (e) { setStatus(e.message); }
     postLock.current = false;
@@ -392,6 +398,8 @@ function NotesTab() {
       <Text style={styles.sub}>Share summaries and notes your students can read in the app.</Text>
 
       <TeacherSubjectPicker {...assignment} disabled={busy} />
+          <Text style={styles.label}>Module</Text>
+      <TextInput style={styles.input} value={moduleName} onChangeText={setModuleName} editable={!busy} maxLength={100} placeholder="Module students can choose in Learn Hub" placeholderTextColor={colors.inkDim} />
           <Text style={styles.label}>Title</Text>
       <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Cell Structure" placeholderTextColor={colors.inkDim} />
       <View style={styles.twoCol}>
@@ -413,7 +421,7 @@ function NotesTab() {
         <View key={m.id} style={styles.noteCard}>
           <View style={styles.genActions}><TouchableOpacity onPress={() => remove(m.id)}><Text style={styles.removeBtn}>×</Text></TouchableOpacity></View>
           <Text style={styles.noteTitle}>{m.title}</Text>
-          {(m.subject || m.grade) ? <Text style={styles.noteMeta}>{[m.subject, m.grade && `Grade ${m.grade}`].filter(Boolean).join(' · ')}</Text> : null}
+          {(m.subject || m.module_name || m.grade) ? <Text style={styles.noteMeta}>{[m.subject, m.module_name, m.grade && `Grade ${m.grade}`].filter(Boolean).join(' · ')}</Text> : null}
           <Text style={styles.noteBody} numberOfLines={4}>{m.content}</Text>
         </View>
       ))}

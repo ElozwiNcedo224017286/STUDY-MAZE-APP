@@ -562,7 +562,7 @@ export default function HomeScreen({ navigation }) {
             </Text>
             <Text style={styles.recommendDesc} numberOfLines={2}>
               {!isTeacher
-                ? (activeSubject && subjectStatus === 'ready' ? 'Choose a chapter in Maze or Quiz Rush.' : 'Set your current subject in My Subjects.')
+                ? (activeSubject && subjectStatus === 'ready' ? 'Play from your saved notes, or use teacher quizzes for extra practice.' : 'Set your current subject in My Subjects.')
                 : quizMeta
                 ? (isTeacher ? 'Students can play this now.' : `${quizCount} question${quizCount === 1 ? '' : 's'} ready`)
                 : (isTeacher ? 'Build one from Studio.' : 'Built-in questions are ready.')}

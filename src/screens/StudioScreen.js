@@ -59,6 +59,7 @@ function CreatePane({ user, navigation, bottom }) {
   const { colors } = useTheme();
   const [files, setFiles] = useState([]);
   const [topic, setTopic] = useState('');
+  const [moduleName, setModuleName] = useState('');
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [drafts, setDrafts] = useState([]);
@@ -94,7 +95,7 @@ function CreatePane({ user, navigation, bottom }) {
 
   const selectedAssignment = assignments.find((row) => row.class_subject_id === assignmentId);
   const publishDisabled = publishing || busy || assignmentsLoading || !!assignmentsError ||
-    !selectedAssignment || !topic.trim() || drafts.length === 0;
+    !selectedAssignment || !topic.trim() || !moduleName.trim() || drafts.length === 0;
 
   async function pickFiles() {
     const result = await DocumentPicker.getDocumentAsync({
@@ -131,17 +132,19 @@ function CreatePane({ user, navigation, bottom }) {
       setStatus('Select an assigned class subject before publishing.');
       return;
     }
-    if (!topic.trim()) { setStatus('Enter a chapter name before publishing.'); return; }
+    if (!moduleName.trim() || !topic.trim()) { setStatus('Enter a module and chapter name before publishing.'); return; }
     if (drafts.length === 0) return;
     publishLock.current = true;
     setPublishing(true);
     setStatus('');
     try {
       const questions = drafts.map((question) => ({ ...question, subject: selectedAssignment.subject_name }));
-      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions);
+      await api.publishQuizBank(selectedAssignment.class_subject_id, topic.trim(), questions, moduleName.trim());
       setStatus(`Published ${questions.length} questions for ${selectedAssignment.subject_name}.`);
       setDrafts([]);
       setFiles([]);
+      setModuleName('');
+      setTopic('');
     } catch (e) {
       setStatus(e.message || 'Could not publish. Please try again.');
     } finally {
@@ -178,6 +181,17 @@ function CreatePane({ user, navigation, bottom }) {
           ))}
         </View>
       )}
+
+      <Text style={styles.label}>Module</Text>
+      <TextInput
+        style={styles.input}
+        value={moduleName}
+        onChangeText={setModuleName}
+        editable={!publishing}
+        maxLength={100}
+        placeholder="Module name students can choose in Learn Hub"
+        placeholderTextColor={COLORS.textTertiary}
+      />
 
       <Text style={styles.label}>Chapter name</Text>
       <TextInput

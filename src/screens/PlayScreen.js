@@ -83,7 +83,7 @@ export default function PlayScreen({ navigation }) {
           <View style={styles.heroContent}>
             <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>YOUR STUDY</Text></View>
             <Text style={styles.heroTitle}>{status === 'loading' ? 'Loading current subject...' : status === 'error' ? 'Check your current subject' : activeSubject ? `Current subject: ${activeSubject.subject_name}` : 'Choose your current subject'}</Text>
-            <Text style={styles.heroSub}>Maze and Quiz Rush use your current subject. Choose its chapters inside each game.</Text>
+            <Text style={styles.heroSub}>All games can use your saved notes. Maze Runner and Quiz Rush also offer teacher-published quizzes as optional practice.</Text>
           </View>
           <Image source={require('../../assets/Artwork/icon-quiz-tray.png')} style={styles.heroImage} resizeMode="contain" />
         </LinearGradient>

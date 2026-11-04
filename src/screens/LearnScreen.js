@@ -17,7 +17,6 @@ import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { api } from '../api/client';
 import { useSubject } from '../context/SubjectContext';
-import useSubjectMaterials from '../hooks/useSubjectMaterials';
 import SubjectPrompt from '../components/SubjectPrompt';
 import { validatePdf } from '../utils/pdfValidation';
 import { useTheme } from '../context/ThemeContext';
@@ -64,7 +63,7 @@ export default function LearnScreen({ navigation }) {
         ))}
       </View>
 
-      {segment === 'teacher-notes' && <TeacherNotesPane insets={insets} />}
+      {segment === 'teacher-notes' && <TeacherNotesPane insets={insets} navigation={navigation} />}
       {/* Keep an opened Own Notes job mounted while switching Learn panes. */}
       {ownNotesOpened && (
         <View style={{ flex: 1, display: segment === 'own-notes' ? 'flex' : 'none' }}>
@@ -75,10 +74,92 @@ export default function LearnScreen({ navigation }) {
   );
 }
 
-function TeacherNotesPane({ insets }) {
+function TeacherNotesPane({ insets, navigation }) {
   const { activeSubject, status } = useSubject();
-  const { materials, loading, error, refresh: load } = useSubjectMaterials();
+  const subjectKey = status === 'ready' && activeSubject ? activeSubject.class_subject_id : null;
+  const [modulesState, setModulesState] = useState({ key: null, modules: [], loading: false, error: '' });
+  const [selectedModule, setSelectedModule] = useState('');
+  const [resourcesState, setResourcesState] = useState({
+    key: null, materials: [], chapters: [], loading: false, error: '',
+  });
+  const moduleRequest = useRef(0);
+  const resourceRequest = useRef(0);
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadModules = useCallback(async () => {
+    const request = ++moduleRequest.current;
+    if (!subjectKey) return;
+    setModulesState({ key: subjectKey, modules: [], loading: true, error: '' });
+    try {
+      const modules = await api.getSubjectModules(subjectKey);
+      if (request === moduleRequest.current) {
+        setModulesState({ key: subjectKey, modules, loading: false, error: '' });
+        setSelectedModule((previous) =>
+          modules.find((item) => item.module_name.toLowerCase() === previous.toLowerCase())?.module_name ||
+          modules[0]?.module_name || '');
+      }
+    } catch (moduleError) {
+      if (request === moduleRequest.current) {
+        setModulesState({
+          key: subjectKey,
+          modules: [],
+          loading: false,
+          error: moduleError.message || 'Could not load teacher modules.',
+        });
+        setSelectedModule('');
+      }
+    }
+  }, [subjectKey]);
+
+  useFocusEffect(useCallback(() => {
+    loadModules();
+    return () => {
+      moduleRequest.current += 1;
+      resourceRequest.current += 1;
+    };
+  }, [loadModules]));
+
+  const resourceKey = subjectKey && selectedModule
+    ? `${subjectKey}:${selectedModule.trim().toLowerCase()}`
+    : null;
+
+  const loadResources = useCallback(async () => {
+    const request = ++resourceRequest.current;
+    if (!subjectKey || !selectedModule) return;
+    setResourcesState({ key: resourceKey, materials: [], chapters: [], loading: true, error: '' });
+    try {
+      const [materialResult, chapters] = await Promise.all([
+        api.getSubjectModuleMaterials(subjectKey, selectedModule),
+        api.getSubjectChapters(subjectKey, selectedModule),
+      ]);
+      if (request === resourceRequest.current) {
+        setResourcesState({
+          key: resourceKey,
+          materials: materialResult.materials,
+          chapters,
+          loading: false,
+          error: '',
+        });
+      }
+    } catch (resourceError) {
+      if (request === resourceRequest.current) {
+        setResourcesState({
+          key: resourceKey,
+          materials: [],
+          chapters: [],
+          loading: false,
+          error: resourceError.message || 'Could not load this module’s teacher resources.',
+        });
+      }
+    }
+  }, [resourceKey, selectedModule, subjectKey]);
+
+  useEffect(() => {
+    if (resourceKey) loadResources();
+  }, [loadResources, resourceKey]);
+
+  const currentModules = modulesState.key === subjectKey ? modulesState.modules : [];
+  const currentResources = resourcesState.key === resourceKey ? resourcesState : null;
 
   return (
     <ScrollView
@@ -92,48 +173,97 @@ function TeacherNotesPane({ insets }) {
           refreshing={refreshing}
           onRefresh={async () => {
             setRefreshing(true);
-            await load();
-            setRefreshing(false);
+            try {
+              await loadModules();
+              if (selectedModule) await loadResources();
+            } finally {
+              setRefreshing(false);
+            }
           }}
           colors={[COLORS.primary]}
         />
       }
     >
-      {status !== 'ready' || !activeSubject ? <SubjectPrompt /> : loading ? (
-        <ActivityIndicator
-          color={COLORS.primary}
-          style={{ marginTop: 24 }}
-        />
-      ) : error ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText} accessibilityRole="alert">{error}</Text>
-          <TouchableOpacity onPress={load} accessibilityRole="button"><Text style={styles.emptyTitle}>Retry notes</Text></TouchableOpacity>
-        </View>
-      ) : materials.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No notes yet</Text>
-
-          <Text style={styles.emptyText}>
-            When your teacher posts summaries, they will appear here for
-            revision.
-          </Text>
-        </View>
-      ) : (
-        materials.map((m) => (
-          <View key={m.id} style={styles.noteCard}>
-            {(m.subject || m.grade) ? (
-              <Text style={styles.meta}>
-                {[m.subject, m.grade && `Grade ${m.grade}`]
-                  .filter(Boolean)
-                  .join(' · ')}
+      {status !== 'ready' || !activeSubject ? <SubjectPrompt /> : (
+        <>
+          <Text style={styles.sectionTitle}>Choose a teacher module</Text>
+          {modulesState.key !== subjectKey || modulesState.loading ? (
+            <ActivityIndicator color={COLORS.primary} style={{ marginTop: 12, marginBottom: 16 }} />
+          ) : modulesState.error ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText} accessibilityRole="alert">{modulesState.error}</Text>
+              <TouchableOpacity onPress={loadModules} accessibilityRole="button">
+                <Text style={styles.emptyTitle}>Retry modules</Text>
+              </TouchableOpacity>
+            </View>
+          ) : currentModules.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                No teacher modules are available for this subject yet. Ask your teacher to publish notes or a quiz for a module.
               </Text>
-            ) : null}
+            </View>
+          ) : currentModules.map((item) => (
+            <TouchableOpacity
+              key={item.module_name.toLowerCase()}
+              style={[styles.moduleChip, selectedModule.toLowerCase() === item.module_name.toLowerCase() && styles.moduleChipActive]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedModule.toLowerCase() === item.module_name.toLowerCase() }}
+              onPress={() => setSelectedModule(item.module_name)}
+            >
+              <Text style={[styles.moduleChipText, selectedModule.toLowerCase() === item.module_name.toLowerCase() && styles.moduleChipTextActive]}>
+                {item.module_name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {selectedModule ? <Text style={styles.meta}>Resources for {selectedModule}</Text> : null}
+          {!currentResources || currentResources.loading ? (
+            selectedModule ? <ActivityIndicator color={COLORS.primary} style={{ marginTop: 18 }} /> : null
+          ) : currentResources.error ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText} accessibilityRole="alert">{currentResources.error}</Text>
+              <TouchableOpacity onPress={loadResources} accessibilityRole="button">
+                <Text style={styles.emptyTitle}>Retry resources</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Teacher quizzes</Text>
+              {currentResources.chapters.length === 0 ? (
+                <Text style={styles.emptyText}>No teacher quizzes for this module yet.</Text>
+              ) : currentResources.chapters.map((chapter) => (
+                <TouchableOpacity
+                  key={chapter.test_id}
+                  style={styles.noteCard}
+                  accessibilityRole="button"
+                  onPress={() => navigation.getParent()?.navigate('QuizRush', {
+                    sourceMode: 'teacher', testId: chapter.test_id, moduleName: selectedModule,
+                  })}
+                >
+                  <Text style={styles.title}>{chapter.chapter_title}</Text>
+                  <Text style={styles.meta}>
+                    {chapter.teacher_name || 'Teacher'} · {chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}
+                  </Text>
+                  <Text style={styles.bodyText}>Tap to play this quiz in Quiz Rush.</Text>
+                </TouchableOpacity>
+              ))}
 
-            <Text style={styles.title}>{m.title}</Text>
-
-            <Text style={styles.bodyText}>{m.content}</Text>
-          </View>
-        ))
+              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Teacher notes</Text>
+              {currentResources.materials.length === 0 ? (
+                <Text style={styles.emptyText}>No teacher notes for this module yet.</Text>
+              ) : currentResources.materials.map((material) => (
+                <View key={material.material_id} style={styles.noteCard}>
+                  {(material.subject || material.grade) ? (
+                    <Text style={styles.meta}>
+                      {[material.subject, material.grade && `Grade ${material.grade}`].filter(Boolean).join(' · ')}
+                    </Text>
+                  ) : null}
+                  <Text style={styles.title}>{material.title}</Text>
+                  <Text style={styles.bodyText}>{material.content}</Text>
+                </View>
+              ))}
+            </>
+          )}
+        </>
       )}
     </ScrollView>
   );
@@ -821,6 +951,19 @@ const styles = StyleSheet.create({
     marginTop: 20,
     marginBottom: 10,
   },
+  moduleChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    marginBottom: 8,
+  },
+  moduleChipActive: { backgroundColor: COLORS.primarySoft, borderColor: COLORS.primary },
+  moduleChipText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
+  moduleChipTextActive: { color: COLORS.primary },
 
   selectedFileCard: {
     backgroundColor: COLORS.white,
@@ -830,7 +973,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...SHADOWS.small,
   },
-
   fileIconContainer: {
     width: 58,
     height: 64,

@@ -25,6 +25,7 @@ export default function NotesScreen() {
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
+  const [moduleName, setModuleName] = useState('');
   const assignment = useTeacherSubjectAssignments();
   const postLock = useRef(false);
   const [grade, setGrade] = useState('');
@@ -49,12 +50,12 @@ export default function NotesScreen() {
 
   async function post() {
     if (postLock.current || postDisabled) return;
-    if (!title.trim() || !content.trim()) { setStatus('Add a title and some content.'); return; }
+    if (!moduleName.trim() || !title.trim() || !content.trim()) { setStatus('Add a module name, title, and some content.'); return; }
     postLock.current = true;
     setBusy(true);
     try {
-      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, title: title.trim(), grade: grade.trim(), content: content.trim() });
-      setTitle(''); setGrade(''); setContent('');
+      await api.createStudyMaterial({ classSubjectId: assignment.selectedAssignment.class_subject_id, moduleName: moduleName.trim(), title: title.trim(), grade: grade.trim(), content: content.trim() });
+      setModuleName(''); setTitle(''); setGrade(''); setContent('');
       setStatus('Note posted to students.');
       await load();
     } catch (e) {
@@ -81,6 +82,8 @@ export default function NotesScreen() {
       >
         <View style={styles.form}>
           <TeacherSubjectPicker {...assignment} disabled={busy} />
+          <Text style={styles.label}>Module</Text>
+          <TextInput style={styles.input} value={moduleName} onChangeText={setModuleName} maxLength={100} placeholder="e.g. Cell Structure" placeholderTextColor={COLORS.textTertiary} />
           <Text style={styles.label}>Title</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Cell Structure" placeholderTextColor={COLORS.textTertiary} />
           <View style={styles.twoCol}>
@@ -106,7 +109,7 @@ export default function NotesScreen() {
               <Ionicons name="close" size={18} color={COLORS.error} />
             </TouchableOpacity>
             <Text style={styles.noteTitle}>{m.title}</Text>
-            {(m.subject || m.grade) ? <Text style={styles.noteMeta}>{[m.subject, m.grade && `Grade ${m.grade}`].filter(Boolean).join(' · ')}</Text> : null}
+            {(m.subject || m.module_name || m.grade) ? <Text style={styles.noteMeta}>{[m.subject, m.module_name, m.grade && `Grade ${m.grade}`].filter(Boolean).join(' · ')}</Text> : null}
             <Text style={styles.noteBody} numberOfLines={4}>{m.content}</Text>
           </View>
         ))}

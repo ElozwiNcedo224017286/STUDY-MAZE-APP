@@ -23,23 +23,26 @@ export default function MazeGameScreen({ route, navigation }) {
       </View>
     );
   }
-  const { classSubjectId, testId } = route.params;
-  if (typeof classSubjectId !== 'string' || !classSubjectId.trim() || typeof testId !== 'string' || !testId.trim()) {
+  const { classSubjectId, testId, sourceKind } = route.params;
+  const isNotesSource = sourceKind === 'student_notes';
+  if (typeof classSubjectId !== 'string' || !classSubjectId.trim() ||
+    (!isNotesSource && (typeof testId !== 'string' || !testId.trim())) ||
+    (isNotesSource && !Array.isArray(route.params.questionBank))) {
     return (
       <View style={styles.flex}>
-        <Text style={styles.title}>Choose a subject and chapter before starting Maze.</Text>
+        <Text style={styles.title}>Choose a subject and study source before starting Maze.</Text>
         <TouchableOpacity style={styles.ctrlBtn} onPress={() => navigation.navigate('MazeLevels')}>
-          <Text>Choose chapter</Text>
+          <Text>Choose study source</Text>
         </TouchableOpacity>
       </View>
     );
   }
-  return <MazeRun key={`${levelIndex}:${classSubjectId}:${testId}`} route={route} navigation={navigation} />;
+  return <MazeRun key={`${levelIndex}:${classSubjectId}:${sourceKind || 'teacher'}:${testId || 'notes'}`} route={route} navigation={navigation} />;
 }
 
 function MazeRun({ route, navigation }) {
   const insets = useSafeAreaInsets();
-  const { levelIndex, classSubjectId, testId, chapterTitle, subjectName } = route.params;
+  const { levelIndex, classSubjectId, testId, sourceKind, questionBank, chapterTitle, subjectName } = route.params;
   const level = LEVELS[levelIndex];
   const { recordGame } = useAuth();
 
@@ -134,9 +137,27 @@ function MazeRun({ route, navigation }) {
     try {
       if (!chapterBankRef.current) {
         if (retry) chapterPromiseRef.current = null;
-        // Retain the read promise across Strict Mode effect cleanup/setup.
-        if (!chapterPromiseRef.current) chapterPromiseRef.current = api.getMazeChapterBank(classSubjectId, testId);
-        const bank = await chapterPromiseRef.current;
+        let bank;
+        if (sourceKind === 'student_notes') {
+          if (!Array.isArray(questionBank) || questionBank.length < 2) {
+            throw new Error('Your saved notes need at least two explained concepts or examples to play Maze.');
+          }
+          bank = {
+            questions: questionBank.map((question) => {
+              if (!question || typeof question.q !== 'string' || !question.q.trim() ||
+                !Array.isArray(question.opts) || question.opts.length < 2 ||
+                question.opts.some((option) => typeof option !== 'string' || !option.trim()) ||
+                !Number.isInteger(question.correct) || question.correct < 0 || question.correct >= question.opts.length) {
+                throw new Error('Your saved notes contain an invalid Maze question.');
+              }
+              return { ...question, opts: [...question.opts] };
+            }),
+          };
+        } else {
+          // Retain the read promise across Strict Mode effect cleanup/setup.
+          if (!chapterPromiseRef.current) chapterPromiseRef.current = api.getMazeChapterBank(classSubjectId, testId);
+          bank = await chapterPromiseRef.current;
+        }
         if (!mountedRef.current || leavingRef.current || terminalRef.current) return;
         chapterBankRef.current = Object.freeze({
           ...bank,

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, AppState } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, AppState, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
@@ -7,6 +7,9 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { uuid } from 'expo-modules-core';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSubject } from '../context/SubjectContext';
+import SubjectPrompt from '../components/SubjectPrompt';
+import useStudentStudyNotes from '../hooks/useStudentStudyNotes';
 
 const PAIR_COUNT = 8;
 const GAME_TIME = 60;
@@ -17,6 +20,27 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Bleed the grid almost to the screen edges so cards read as real game pieces, not a shrunken preview.
 const CARD_SIZE = Math.floor((SCREEN_WIDTH - GRID_SIDE_MARGIN * 2 - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS);
 
+function countMemoryPairs(notes) {
+  const labels = new Set();
+  notes.forEach((note) => {
+    const concepts = Array.isArray(note.key_concepts) ? note.key_concepts : [];
+    const examples = Array.isArray(note.examples) ? note.examples : [];
+    concepts.forEach((item) => {
+      if (typeof item?.concept === 'string' && typeof item?.explanation === 'string' &&
+          item.concept.trim() && item.explanation.trim()) {
+        labels.add(item.concept.trim().toLowerCase());
+      }
+    });
+    examples.forEach((item) => {
+      if (typeof item?.title === 'string' && typeof item?.explanation === 'string' &&
+          item.title.trim() && item.explanation.trim()) {
+        labels.add(item.title.trim().toLowerCase());
+      }
+    });
+  });
+  return labels.size;
+}
+
 // Runtime-only recovery; no persisted session or private deck is stored here.
 let activeMemoryAttempt = null;
 const recordedMemoryResults = new Set();
@@ -24,6 +48,9 @@ const recordedMemoryResults = new Set();
 export default function MemoryFlipScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { user, recordGame } = useAuth();
+  const { activeSubject, status: subjectStatus } = useSubject();
+  const { notes, loading: notesLoading, error: notesError, refresh: refreshNotes } = useStudentStudyNotes();
+  const availablePairs = countMemoryPairs(notes);
   const [phase, setPhase] = useState('start');
   const [board, setBoard] = useState(null);
   const [timeLeft, setTimeLeft] = useState(GAME_TIME);
@@ -106,7 +133,7 @@ export default function MemoryFlipScreen({ navigation }) {
         attemptRef.current = attemptId;
       }
       if (request.kind === 'start') {
-        const started = await api.startMemoryMatchAttempt();
+        const started = await api.startMemoryMatchAttempt(request.classSubjectId);
         attemptId = started.attempt_id;
         // Keep the ID even if the screen leaves while the server starts the attempt.
         if (ownerRef.current === ownerId) activeMemoryAttempt = { ownerId, attemptId, pending: null };
@@ -199,9 +226,9 @@ export default function MemoryFlipScreen({ navigation }) {
   }, [visible, phase, board]);
 
   function startGame() {
-    if (pendingRef.current) return;
+    if (pendingRef.current || !activeSubject?.class_subject_id || availablePairs < PAIR_COUNT) return;
     if (attemptRef.current) { run({ kind: 'state' }); return; }
-    run({ kind: 'start' });
+    run({ kind: 'start', classSubjectId: activeSubject.class_subject_id });
   }
 
   function flip(cardId) {
@@ -242,7 +269,10 @@ export default function MemoryFlipScreen({ navigation }) {
       <Text style={styles.sub}>{error}</Text>
       <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={() => {
         const pending = activeMemoryAttempt?.pending;
-        run(pending || retryRef.current || { kind: attemptRef.current ? 'state' : 'start' });
+        run(pending || retryRef.current || {
+          kind: attemptRef.current ? 'state' : 'start',
+          classSubjectId: activeSubject?.class_subject_id,
+        });
       }}><Text style={styles.btnGhostText}>Retry request</Text></TouchableOpacity>
       {!!attemptRef.current && <TouchableOpacity style={styles.btnGhost} disabled={busy}
         onPress={() => run({ kind: 'state' })}><Text style={styles.btnGhostText}>Recover board</Text></TouchableOpacity>}
@@ -258,15 +288,48 @@ export default function MemoryFlipScreen({ navigation }) {
           </TouchableOpacity>
           <Text style={styles.title}>Memory Flip</Text>
         </View>
-        <View style={styles.card}>
-          <Text style={styles.heroTitle}>Match the Pairs</Text>
-          <Bullet icon="🃏" text="Flip two cards to find matching subjects" />
-          <Bullet icon="⏱️" text={`You have ${GAME_TIME} seconds on the clock`} />
-          <Bullet icon="🪙" text="Finish in time to earn coins — the faster, the more" />
-          <Bullet icon="⏳" text="Timer hits zero before you finish = you lose" />
-          {controls}
-          <TouchableOpacity style={styles.btn} disabled={busy} onPress={startGame}><Text style={styles.btnText}>Start Game</Text></TouchableOpacity>
-        </View>
+        <ScrollView contentContainerStyle={styles.startScroll} showsVerticalScrollIndicator={false}>
+          <View style={styles.card}>
+            <Text style={styles.heroTitle}>Match the Pairs</Text>
+            <Bullet icon="🃏" text="Match key concepts from your saved notes" />
+            <Bullet icon="⏱️" text={`You have ${GAME_TIME} seconds on the clock`} />
+            <Bullet icon="🪙" text="Finish in time to earn coins — the faster, the more" />
+            <Bullet icon="⏳" text="Timer hits zero before you finish = you lose" />
+            {!activeSubject || subjectStatus !== 'ready' ? <SubjectPrompt /> : (
+              <>
+                <Text style={styles.notesHeading}>{activeSubject.subject_name} notes</Text>
+                <Text style={styles.sub}>Pairs are drawn from your saved notes for this subject.</Text>
+                {notesLoading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading saved notes" /> : notesError ? (
+                  <>
+                    <Text style={styles.sub} accessibilityRole="alert">{notesError}</Text>
+                    <TouchableOpacity style={styles.btnGhost} onPress={refreshNotes}><Text style={styles.btnGhostText}>Retry notes</Text></TouchableOpacity>
+                  </>
+                ) : notes.length === 0 ? (
+                  <Text style={styles.sub}>No saved notes for this subject yet. Upload notes in Learn Hub → Own Notes first.</Text>
+                ) : notes.map((note) => {
+                  const upload = Array.isArray(note.student_uploads) ? note.student_uploads[0] : note.student_uploads;
+                  return (
+                    <View key={note.id} style={styles.notePreview}>
+                      <Text style={styles.noteTitle}>{upload?.title || upload?.file_name || 'Saved study notes'}</Text>
+                      <Text style={styles.noteText} numberOfLines={3}>{note.summary}</Text>
+                    </View>
+                  );
+                })}
+                {!notesLoading && !notesError && notes.length > 0 && availablePairs < PAIR_COUNT ? (
+                  <Text style={styles.sub}>
+                    Memory Flip needs {PAIR_COUNT} different explained concepts or example titles. Your notes have {availablePairs}; upload notes with more key concepts or examples to play.
+                  </Text>
+                ) : null}
+              </>
+            )}
+            {controls}
+            <TouchableOpacity
+              style={styles.btn}
+              disabled={busy || notesLoading || availablePairs < PAIR_COUNT || !activeSubject?.class_subject_id}
+              onPress={startGame}
+            ><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Game'}</Text></TouchableOpacity>
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -313,7 +376,12 @@ export default function MemoryFlipScreen({ navigation }) {
                 disabled={busy || !!error || card.matched || card.face_up}
                 onPress={() => flip(card.card_id)}
               >
-                <Text style={styles.mcardText}>{card.face_up || card.matched ? card.face_value : '❓'}</Text>
+                <Text
+                  style={[styles.mcardText, (card.face_up || card.matched) && styles.mcardNoteText]}
+                  numberOfLines={4}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.55}
+                >{card.face_up || card.matched ? card.face_value : '❓'}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -334,6 +402,7 @@ function Bullet({ icon, text }) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 20 },
+  startScroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
   topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   backBtn: {
     width: 38,
@@ -350,6 +419,10 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.white, borderRadius: 20, padding: 22, ...SHADOWS.small },
   heroTitle: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 19, marginBottom: 14, textAlign: 'center' },
   heroTitleLose: { color: COLORS.error },
+  notesHeading: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '800', marginTop: 10, marginBottom: 6 },
+  notePreview: { backgroundColor: COLORS.backgroundSecondary, borderRadius: 12, padding: 12, marginBottom: 8 },
+  noteTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '700', marginBottom: 4 },
+  noteText: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17 },
   icon: { fontSize: 42, textAlign: 'center', marginBottom: 6 },
   sub: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
   bullet: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 12 },
@@ -378,4 +451,5 @@ const styles = StyleSheet.create({
   mcardHidden: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   mcardMatched: { backgroundColor: COLORS.successLight, borderColor: COLORS.success, opacity: 0.75 },
   mcardText: { fontSize: Math.round(CARD_SIZE * 0.42) },
+  mcardNoteText: { fontSize: Math.min(15, Math.max(9, Math.round(CARD_SIZE * 0.17))), textAlign: 'center', paddingHorizontal: 2 },
 });

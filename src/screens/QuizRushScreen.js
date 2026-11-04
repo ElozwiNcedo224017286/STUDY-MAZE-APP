@@ -7,14 +7,35 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { useSubject } from '../context/SubjectContext';
 import SubjectPrompt from '../components/SubjectPrompt';
+import useStudentStudyNotes from '../hooks/useStudentStudyNotes';
 
 const RUSH_TARGET = 10;
 const RUSH_TIME = 10; // seconds per question
 
+function countQuizConcepts(notes) {
+  const concepts = new Map();
+  notes.forEach((note) => {
+    const items = [
+      ...(Array.isArray(note.key_concepts) ? note.key_concepts : []),
+      ...(Array.isArray(note.examples) ? note.examples.map((item) => ({
+        concept: typeof item?.title === 'string' ? `Example: ${item.title}` : '',
+        explanation: item?.explanation,
+      })) : []),
+    ];
+    items.forEach((item) => {
+      if (typeof item?.concept !== 'string' || typeof item?.explanation !== 'string' ||
+          !item.concept.trim() || !item.explanation.trim()) return;
+      const key = item.concept.trim().toLowerCase();
+      if (!concepts.has(key)) concepts.set(key, item.explanation.trim());
+    });
+  });
+  return new Set([...concepts.values()].map((explanation) => explanation.toLowerCase())).size;
+}
+
 // Legacy coins remain separate from trusted XP. Avoid duplicate writes on RPC retries/remounts.
 const recordedLegacyAttempts = new Set();
 
-export default function QuizRushScreen({ navigation }) {
+export default function QuizRushScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { recordGame, user } = useAuth();
   const [phase, setPhase] = useState('start');
@@ -29,16 +50,19 @@ export default function QuizRushScreen({ navigation }) {
   const [error, setError] = useState('');
   const { activeSubject, status: subjectStatus } = useSubject();
   const contextKey = subjectStatus === 'ready' && activeSubject ? `${user?.id}:${activeSubject.class_subject_id}` : null;
+  const routeModule = route?.params?.moduleName || '';
+  const { notes, loading: notesLoading, error: notesError, refresh: refreshNotes } = useStudentStudyNotes();
+  const availableNoteQuestions = countQuizConcepts(notes);
+  const [sourceMode, setSourceMode] = useState(route?.params?.sourceMode === 'teacher' ? 'teacher' : 'notes');
+  const [teacherModulesState, setTeacherModulesState] = useState({ key: null, rows: [], loading: false, error: '' });
+  const [selectedTeacherModule, setSelectedTeacherModule] = useState(routeModule);
+  const teacherModule = selectedTeacherModule;
+  const [chapterState, setChapterState] = useState({ key: null, moduleName: '', rows: [], loading: false, error: '' });
+  const [selectedChapter, setSelectedChapter] = useState(null);
   const liveKey = useRef(contextKey);
   liveKey.current = contextKey;
-  const [chapterState, setChapterState] = useState({ key: null, rows: [], loading: true, error: '' });
-  const [selectedSubject, setSelectedSubject] = useState(null);
-  const [selectedChapter, setSelectedChapter] = useState(null);
-  const current = contextKey && chapterState.key === contextKey;
-  const chapters = current ? chapterState.rows : [];
-  const browseLoading = !!contextKey && (!current || chapterState.loading);
-  const browseError = current ? chapterState.error : '';
-  const browseVersion = useRef(0);
+  const chapterRequest = useRef(0);
+  const moduleRequest = useRef(0);
   const attemptRef = useRef(null);
   const questionRef = useRef(null);
   const pendingRef = useRef(false);
@@ -48,50 +72,80 @@ export default function QuizRushScreen({ navigation }) {
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; browseVersion.current += 1; };
+    return () => { mountedRef.current = false; chapterRequest.current += 1; moduleRequest.current += 1; };
   }, []);
 
-  const loadChapters = useCallback(async () => {
-    const version = ++browseVersion.current;
-    if (!contextKey) return;
-    setChapterState({ key: contextKey, rows: [], loading: true, error: '' });
+  const loadTeacherModules = useCallback(async () => {
+    const request = ++moduleRequest.current;
+    if (!contextKey || !activeSubject?.class_subject_id) return;
+    setTeacherModulesState({ key: contextKey, rows: [], loading: true, error: '' });
     try {
-      const rows = await api.getSubjectChapters(activeSubject.class_subject_id);
-      if (mountedRef.current && version === browseVersion.current && liveKey.current === contextKey) {
-        setChapterState({ key: contextKey, rows, loading: false, error: '' });
+      const rows = await api.getSubjectModules(activeSubject.class_subject_id);
+      if (mountedRef.current && request === moduleRequest.current && liveKey.current === contextKey) {
+        setTeacherModulesState({ key: contextKey, rows, loading: false, error: '' });
+        setSelectedTeacherModule((previous) =>
+          routeModule || rows.find((row) => row.module_name.toLowerCase() === previous.toLowerCase())?.module_name ||
+          rows[0]?.module_name || '');
       }
-    } catch (err) {
-      if (mountedRef.current && version === browseVersion.current && liveKey.current === contextKey) {
-        setChapterState({ key: contextKey, rows: [], loading: false, error: err.message || 'Could not load chapters.' });
+    } catch (loadError) {
+      if (mountedRef.current && request === moduleRequest.current && liveKey.current === contextKey) {
+        setTeacherModulesState({
+          key: contextKey,
+          rows: [],
+          loading: false,
+          error: loadError.message || 'Could not load teacher modules.',
+        });
       }
     }
-  }, [contextKey, activeSubject?.class_subject_id]);
+  }, [activeSubject?.class_subject_id, contextKey, routeModule]);
+
+  const loadTeacherQuizzes = useCallback(async () => {
+    const request = ++chapterRequest.current;
+    if (!contextKey || !activeSubject?.class_subject_id || !teacherModule) return;
+    setChapterState({ key: contextKey, moduleName: teacherModule, rows: [], loading: true, error: '' });
+    try {
+      const rows = await api.getSubjectChapters(
+        activeSubject.class_subject_id,
+        teacherModule,
+      );
+      if (mountedRef.current && request === chapterRequest.current && liveKey.current === contextKey) {
+        setChapterState({ key: contextKey, moduleName: teacherModule, rows, loading: false, error: '' });
+      }
+    } catch (loadError) {
+      if (mountedRef.current && request === chapterRequest.current && liveKey.current === contextKey) {
+        setChapterState({
+          key: contextKey,
+          moduleName: teacherModule,
+          rows: [],
+          loading: false,
+          error: loadError.message || 'Could not load teacher quizzes.',
+        });
+      }
+    }
+  }, [activeSubject?.class_subject_id, contextKey, teacherModule]);
 
   useEffect(() => {
-    // A running attempt and its result remain bound to their original chapter.
-    if (phase !== 'start' || busy || pendingRef.current) return;
-    if (subjectStatus === 'ready' && selectedChapter && selectedChapter.contextKey !== contextKey) {
-      setSelectedChapter(null);
-      setError('');
-    }
-    if (!contextKey) {
-      browseVersion.current += 1;
-      return;
-    }
-    if (chapterState.key !== contextKey) {
-      setSelectedSubject(activeSubject);
-      loadChapters();
-    }
-  }, [phase, busy, subjectStatus, contextKey, chapterState.key, selectedChapter, activeSubject, loadChapters]);
+    if (sourceMode !== 'teacher' || !contextKey) return;
+    if (teacherModulesState.key !== contextKey) loadTeacherModules();
+  }, [sourceMode, contextKey, teacherModulesState.key, loadTeacherModules]);
 
-  function changeChapter() {
-    if (pendingRef.current || phase === 'playing') return;
-    setSelectedChapter(null);
-    setError('');
-    setPhase('start');
-    setSelectedSubject(activeSubject);
-    loadChapters();
-  }
+  useEffect(() => {
+    if (sourceMode !== 'teacher' || !contextKey || !teacherModule) return;
+    if (chapterState.key !== contextKey || chapterState.moduleName !== teacherModule) loadTeacherQuizzes();
+  }, [sourceMode, contextKey, chapterState.key, chapterState.moduleName, teacherModule, loadTeacherQuizzes]);
+
+  useEffect(() => {
+    if (route?.params?.sourceMode !== 'teacher') return;
+    setSourceMode('teacher');
+    const testId = route.params.testId;
+    if (!testId || chapterState.key !== contextKey ||
+      chapterState.moduleName !== teacherModule || chapterState.loading) return;
+    setSelectedChapter(chapterState.rows.find((chapter) => chapter.test_id === testId) || null);
+  }, [route?.params?.sourceMode, route?.params?.testId, routeModule, contextKey, teacherModule, chapterState.key, chapterState.moduleName, chapterState.loading, chapterState.rows]);
+
+  useEffect(() => {
+    if (routeModule) setSelectedTeacherModule(routeModule);
+  }, [routeModule]);
 
   function showQuestion(nextQuestion) {
     questionRef.current = nextQuestion;
@@ -102,12 +156,17 @@ export default function QuizRushScreen({ navigation }) {
   }
 
   async function startRun() {
-    if (pendingRef.current || !contextKey || selectedChapter?.contextKey !== contextKey || !selectedSubject?.class_subject_id || !selectedChapter?.test_id) return;
+    const classSubjectId = activeSubject?.class_subject_id;
+    if (pendingRef.current || !contextKey || !classSubjectId) return;
+    if (sourceMode === 'teacher' && !selectedChapter?.test_id) return;
+    if (sourceMode === 'notes' && availableNoteQuestions < 4) return;
     pendingRef.current = true;
     setBusy(true);
     setError('');
     try {
-      const attempt = await api.startStudyQuizChapterAttempt(selectedSubject.class_subject_id, selectedChapter.test_id);
+      const attempt = sourceMode === 'teacher'
+        ? await api.startStudyQuizChapterAttempt(classSubjectId, selectedChapter.test_id)
+        : await api.startStudyQuizAttempt(classSubjectId);
       if (!mountedRef.current) return;
       attemptRef.current = attempt.attempt_id;
       retryRef.current = null;
@@ -205,7 +264,7 @@ export default function QuizRushScreen({ navigation }) {
     }
   }
 
-  if (phase === 'start' && (!contextKey || !selectedChapter || selectedChapter.contextKey !== contextKey)) {
+  if (phase === 'start') {
     return (
       <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
         <View style={styles.topnav}>
@@ -216,48 +275,112 @@ export default function QuizRushScreen({ navigation }) {
         </View>
         <ScrollView contentContainerStyle={styles.browseScroll}>
           {!contextKey ? <SubjectPrompt /> : <>
-            <Text style={styles.heroTitle}>Choose Chapter</Text>
-            <Text style={styles.sub}>{activeSubject.subject_name} ? {activeSubject.class_name}</Text>
-            {browseLoading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading chapters" /> : browseError ? (
+            <Text style={styles.heroTitle}>Play from your notes</Text>
+            <Text style={styles.sub}>{activeSubject.subject_name} — {activeSubject.class_name}</Text>
+            <View style={styles.sourceTabs}>
+              <TouchableOpacity
+                style={[styles.sourceTab, sourceMode === 'notes' && styles.sourceTabActive]}
+                onPress={() => { setSourceMode('notes'); setSelectedChapter(null); setError(''); }}
+              ><Text style={[styles.sourceTabText, sourceMode === 'notes' && styles.sourceTabTextActive]}>My Notes</Text></TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.sourceTab, sourceMode === 'teacher' && styles.sourceTabActive]}
+                onPress={() => { setSourceMode('teacher'); setSelectedChapter(null); setError(''); }}
+              ><Text style={[styles.sourceTabText, sourceMode === 'teacher' && styles.sourceTabTextActive]}>Teacher Quizzes</Text></TouchableOpacity>
+            </View>
+            {sourceMode === 'notes' ? <>
+            <Text style={styles.browseText}>Quiz Rush questions are created from your saved notes for this subject.</Text>
+            {notesLoading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading saved notes" /> : notesError ? (
               <>
-                <Text style={styles.sub} accessibilityRole="alert">{browseError}</Text>
-                <TouchableOpacity style={styles.btnGhost} onPress={loadChapters}><Text style={styles.btnGhostText}>Retry chapters</Text></TouchableOpacity>
+                <Text style={styles.sub} accessibilityRole="alert">{notesError}</Text>
+                <TouchableOpacity style={styles.btnGhost} onPress={refreshNotes}><Text style={styles.btnGhostText}>Retry notes</Text></TouchableOpacity>
               </>
-            ) : chapters.length === 0 ? <Text style={styles.sub}>No published chapters for this subject yet.</Text> : chapters.map((chapter) => (
-              <TouchableOpacity key={chapter.test_id} style={[styles.card, styles.browseCard]} onPress={() => { setSelectedSubject(activeSubject); setSelectedChapter({ ...chapter, contextKey }); }}>
-                <Text style={styles.quizQ}>{chapter.chapter_title}</Text>
-                <Text style={styles.browseText}>Teacher: {chapter.teacher_name || 'Teacher'}</Text>
-                <Text style={styles.browseText}>{chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}</Text>
-              </TouchableOpacity>
-            ))}
+            ) : notes.length === 0 ? <Text style={styles.sub}>No saved notes for this subject yet. Upload your notes in Learn Hub → Own Notes first.</Text> : (
+              <>
+                {notes.map((note) => {
+                  const upload = Array.isArray(note.student_uploads) ? note.student_uploads[0] : note.student_uploads;
+                  return (
+                    <View key={note.id} style={[styles.card, styles.browseCard]}>
+                      <Text style={styles.quizQ}>{upload?.title || upload?.file_name || 'Saved study notes'}</Text>
+                      <Text style={styles.browseText} numberOfLines={3}>{note.summary}</Text>
+                    </View>
+                  );
+                })}
+                {availableNoteQuestions < 4 ? (
+                  <Text style={styles.sub}>
+                    Quiz Rush needs at least four different explained concepts or examples. Your notes have {availableNoteQuestions}; add more explained material to play.
+                  </Text>
+                ) : null}
+                <View style={styles.card}>
+                  <Text style={styles.heroTitle}>Beat the Clock</Text>
+                  <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
+                  <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
+                  <Bullet icon="💔" text="Wrong or too slow costs a life" />
+                  <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
+                  {!!error && <Text style={styles.sub}>{error}</Text>}
+                  <TouchableOpacity style={styles.btn} disabled={busy || availableNoteQuestions < 4} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
+                </View>
+              </>
+            )}
+            </> : <>
+              <Text style={styles.browseText}>Choose a module your teacher has published for this subject.</Text>
+              {teacherModulesState.key !== contextKey || teacherModulesState.loading ? (
+                <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading teacher modules" />
+              ) : teacherModulesState.error ? (
+                <>
+                  <Text style={styles.sub} accessibilityRole="alert">{teacherModulesState.error}</Text>
+                  <TouchableOpacity style={styles.btnGhost} onPress={loadTeacherModules}><Text style={styles.btnGhostText}>Retry modules</Text></TouchableOpacity>
+                </>
+              ) : teacherModulesState.rows.length === 0 ? (
+                <Text style={styles.sub}>No teacher modules are available for this subject yet.</Text>
+              ) : (
+                teacherModulesState.rows.map((item) => (
+                  <TouchableOpacity
+                    key={item.module_name.toLowerCase()}
+                    style={[styles.card, styles.browseCard, teacherModule.toLowerCase() === item.module_name.toLowerCase() && styles.chapterSelected]}
+                    onPress={() => { setSelectedTeacherModule(item.module_name); setSelectedChapter(null); setError(''); }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: teacherModule.toLowerCase() === item.module_name.toLowerCase() }}
+                  >
+                    <Text style={styles.quizQ}>{item.module_name}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+              {teacherModule ? (
+                chapterState.key !== contextKey || chapterState.moduleName !== teacherModule || chapterState.loading ? (
+                  <ActivityIndicator color={COLORS.primary} accessibilityLabel={`Loading ${teacherModule} quizzes`} />
+                ) : chapterState.error ? (
+                  <>
+                    <Text style={styles.sub} accessibilityRole="alert">{chapterState.error}</Text>
+                    <TouchableOpacity style={styles.btnGhost} onPress={loadTeacherQuizzes}><Text style={styles.btnGhostText}>Retry teacher quizzes</Text></TouchableOpacity>
+                  </>
+                ) : chapterState.rows.length === 0 ? (
+                  <Text style={styles.sub}>No teacher quizzes are available for this module yet.</Text>
+                ) : chapterState.rows.map((chapter) => (
+                  <TouchableOpacity
+                    key={chapter.test_id}
+                    style={[styles.card, styles.browseCard, selectedChapter?.test_id === chapter.test_id && styles.chapterSelected]}
+                    onPress={() => { setSelectedChapter(chapter); setError(''); }}
+                  >
+                    <Text style={styles.quizQ}>{chapter.chapter_title}</Text>
+                    <Text style={styles.browseText}>Teacher: {chapter.teacher_name || 'Teacher'}</Text>
+                    <Text style={styles.browseText}>{chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}</Text>
+                  </TouchableOpacity>
+                ))
+              ) : null}
+              {selectedChapter && (
+                <View style={styles.card}>
+                  <Text style={styles.heroTitle}>{selectedChapter.chapter_title}</Text>
+                  <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
+                  <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
+                  <Bullet icon="💔" text="Wrong or too slow costs a life" />
+                  <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
+                  {!!error && <Text style={styles.sub}>{error}</Text>}
+                  <TouchableOpacity style={styles.btn} disabled={busy} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Teacher Quiz'}</Text></TouchableOpacity>
+                </View>
+              )}
+            </>}
           </>}
         </ScrollView>
-      </View>
-    );
-  }
-
-  if (phase === 'start') {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.topnav}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Quiz Rush</Text>
-        </View>
-        <View style={styles.centerBody}>
-          <View style={styles.card}>
-            <Text style={styles.heroTitle}>Beat the Clock</Text>
-            <Text style={styles.sub}>{selectedSubject.subject_name} — {selectedChapter.chapter_title}</Text>
-            <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
-            <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
-            <Bullet icon="💔" text="Wrong or too slow costs a life" />
-            <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
-            {!!error && <Text style={styles.sub}>{error}</Text>}
-            <TouchableOpacity style={styles.btn} disabled={busy || !selectedSubject?.class_subject_id || !selectedChapter?.test_id} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
-          </View>
-        </View>
       </View>
     );
   }
@@ -276,7 +399,6 @@ export default function QuizRushScreen({ navigation }) {
             </Text>
             <Text style={styles.sub}>{resultData.xp} XP earned; {resultData.lives} lives remaining</Text>
             <TouchableOpacity style={styles.btn} disabled={busy} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
             <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
           </View>
         </View>
@@ -346,6 +468,12 @@ function Bullet({ icon, text }) {
 const styles = StyleSheet.create({
   browseScroll: { paddingBottom: 28, gap: 12 },
   browseCard: { marginTop: 4 },
+  chapterSelected: { borderWidth: 2, borderColor: COLORS.primary },
+  sourceTabs: { flexDirection: 'row', backgroundColor: COLORS.backgroundSecondary, padding: 4, borderRadius: 12, marginBottom: 12 },
+  sourceTab: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
+  sourceTabActive: { backgroundColor: COLORS.white, ...SHADOWS.small },
+  sourceTabText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '700' },
+  sourceTabTextActive: { color: COLORS.primary, fontWeight: '800' },
   browseText: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 14 },
   centerBody: { flex: 1, justifyContent: 'center' },

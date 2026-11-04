@@ -74,15 +74,15 @@ export function HelpSupportScreen({ navigation }) {
       category: 'Study materials',
       question: isTeacher ? 'How do I share study material with my class?' : 'How do I upload my study material?',
       answer: isTeacher
-        ? 'Use Notes to publish material under one of your assigned class subjects. Students see it in Smart Learn under Teacher Notes for their current subject.'
+        ? 'Use Notes to choose an assigned subject and enter the module for your material. Students can select that module in Learn Hub → Teacher Notes.'
         : 'Choose your current subject in Profile → My Subjects, then open Smart Learn → Own Notes to upload a personal PDF and generate notes for that subject. Teacher Notes shows material shared for your current subject.',
     },
     {
       category: 'Games and learning',
       question: 'How do I choose material for a game?',
       answer: isTeacher
-        ? 'Publish a chapter question bank in Studio under the correct assigned class subject. Students use their current subject and choose a published chapter in Maze or Quiz Rush.'
-        : 'Choose your current subject in Profile → My Subjects. In Play, Maze uses that subject, then lets you choose a chapter and level. Quiz Rush uses that subject, then lets you choose a chapter and start a run. Memory Match keeps its existing matching game; it does not use your Own Notes.',
+        ? 'Publish notes and quizzes under the assigned subject and enter a module name. Students can choose that module to read your notes or play your quizzes.'
+        : 'Choose your current subject in Profile → My Subjects and upload your PDF in Learn Hub → Own Notes. Memory Flip, Quiz Rush, and Maze Runner use your saved notes. To study teacher materials, open Teacher Notes and choose one of the modules your teacher published.',
     },
     {
       category: 'Games and learning',

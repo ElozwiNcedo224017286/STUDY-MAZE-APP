@@ -289,8 +289,9 @@ export const api = {
     return validateMazeResponse(data, 'completed', attemptId);
   },
 
-  startMemoryMatchAttempt: async () => {
-    const state = await callMemoryRpc('start_memory_match_attempt');
+  startMemoryMatchAttempt: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Choose your current subject first.');
+    const state = await callMemoryRpc('start_memory_match_attempt', { _class_subject_id: classSubjectId });
     if (typeof state.attempt_id !== 'string' || !state.attempt_id) throw new Error('Missing Memory Match attempt ID.');
     return { attempt_id: state.attempt_id };
   },
@@ -304,8 +305,11 @@ export const api = {
     await callMemoryRpc('timeout_memory_match_attempt', { _attempt_id: attemptId });
   },
 
-  startStudyQuizAttempt: async () => {
-    const { data, error } = await supabase.rpc('start_study_quiz_attempt');
+  startStudyQuizAttempt: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Choose your current subject first.');
+    const { data, error } = await supabase.rpc('start_study_quiz_attempt', {
+      _class_subject_id: classSubjectId,
+    });
     if (error) throw new Error(error.message || 'Could not start Study Quiz.');
     if (!Array.isArray(data) || data.length !== 1) throw new Error('Invalid Study Quiz start response.');
     const attempt = data[0];
@@ -402,11 +406,14 @@ export const api = {
     }));
   },
 
-  getSubjectChapters: async (classSubjectId) => {
+  getSubjectChapters: async (classSubjectId, moduleName) => {
     if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Select a subject first.');
-    const { data, error } = await supabase.rpc('student_list_subject_chapters', {
-      _class_subject_id: classSubjectId,
-    });
+    const moduleFilter = typeof moduleName === 'string' && moduleName.trim();
+    const { data, error } = moduleFilter
+      ? await supabase.rpc('student_list_subject_module_chapters', {
+        _class_subject_id: classSubjectId, _module_name: moduleName.trim(),
+      })
+      : await supabase.rpc('student_list_subject_chapters', { _class_subject_id: classSubjectId });
     if (error) throw error;
     if (data == null) return [];
     if (!Array.isArray(data)) throw new Error('Invalid subject chapters response.');
@@ -440,15 +447,17 @@ export const api = {
     }));
   },
 
-  publishQuizBank: async (classSubjectId, chapterTitle, questions) => {
+  publishQuizBank: async (classSubjectId, chapterTitle, questions, moduleName) => {
     if (!classSubjectId || typeof chapterTitle !== 'string' || !chapterTitle.trim() ||
-      !Array.isArray(questions) || questions.length === 0) {
-      throw new Error('Select an assigned subject, enter a chapter name, and add questions.');
+      !Array.isArray(questions) || questions.length === 0 ||
+      typeof moduleName !== 'string' || !moduleName.trim() || moduleName.trim().length > 100) {
+      throw new Error('Select an assigned subject, enter a module and chapter name, and add questions.');
     }
     const { data, error } = await supabase.rpc('teacher_publish_quiz_bank', {
       _class_subject_id: classSubjectId,
       _chapter_title: chapterTitle.trim(),
       _questions: questions.map(toDbQuestion),
+      _module_name: moduleName.trim(),
     });
     if (error) throw error;
     return data;
@@ -495,7 +504,7 @@ export const api = {
     if (!user) throw new Error('You must be signed in.');
     const { data, error } = await supabase
       .from('study_materials')
-      .select('id, title, subject, grade, content, created_at')
+      .select('id, title, subject, grade, content, module_name, created_at')
       .eq('teacher_id', user.id)
       .order('created_at', { ascending: false });
     if (error) throw new Error(error.message || 'Could not load notes.');
@@ -519,11 +528,42 @@ export const api = {
     return { materials: data || [] };
   },
 
-  createStudyMaterial: async ({ classSubjectId, title, grade, content }) => {
+  getSubjectModules: async (classSubjectId) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Choose your current subject first.');
+    const { data, error } = await supabase.rpc('student_list_subject_modules', {
+      _class_subject_id: classSubjectId,
+    });
+    if (error) throw error;
+    if (data != null && (!Array.isArray(data) ||
+      data.some((row) => typeof row?.module_name !== 'string' || !row.module_name.trim()))) {
+      throw new Error('Invalid subject modules response.');
+    }
+    return data || [];
+  },
+
+  getSubjectModuleMaterials: async (classSubjectId, moduleName) => {
+    if (typeof classSubjectId !== 'string' || !classSubjectId.trim() ||
+      typeof moduleName !== 'string' || !moduleName.trim()) {
+      throw new Error('Choose a subject and module to view teacher materials.');
+    }
+    const { data, error } = await supabase.rpc('student_list_subject_module_materials', {
+      _class_subject_id: classSubjectId,
+      _module_name: moduleName.trim(),
+    });
+    if (error) throw error;
+    if (data != null && !Array.isArray(data)) throw new Error('Invalid subject materials response.');
+    return { materials: data || [] };
+  },
+
+  createStudyMaterial: async ({ classSubjectId, moduleName, title, grade, content }) => {
     if (typeof classSubjectId !== 'string' || !classSubjectId.trim()) throw new Error('Select an assigned class subject first.');
+    if (typeof moduleName !== 'string' || !moduleName.trim() || moduleName.trim().length > 100) {
+      throw new Error('Enter a module name up to 100 characters.');
+    }
     if (!title?.trim() || !content?.trim()) throw new Error('Add a title and some content.');
     const { data, error } = await supabase.rpc('teacher_publish_study_material', {
-      _class_subject_id: classSubjectId, _title: title.trim(), _grade: grade?.trim() || null, _content: content.trim(),
+      _class_subject_id: classSubjectId, _title: title.trim(), _grade: grade?.trim() || null,
+      _content: content.trim(), _module_name: moduleName.trim(),
     });
     if (error) throw new Error(error.message || 'Could not post the note.');
     return { material: data };
