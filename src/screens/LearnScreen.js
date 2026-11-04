@@ -120,7 +120,7 @@ function TeacherNotesPane({ insets }) {
         </View>
       ) : (
         materials.map((m) => (
-          <View key={m.id} style={styles.noteCard}>
+          <View key={m.material_id} style={styles.noteCard}>
             {(m.subject || m.grade) ? (
               <Text style={styles.meta}>
                 {[m.subject, m.grade && `Grade ${m.grade}`]
