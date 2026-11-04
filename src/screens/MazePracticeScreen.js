@@ -29,6 +29,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import QuestAction from '../components/learn/QuestAction';
+import StudyHero from '../components/learn/StudyHero';
 import * as Haptics from 'expo-haptics'; // npx expo install expo-haptics
 
 import styles from './mazeStyles';
@@ -3319,7 +3321,7 @@ export default function MazePracticeScreen({ route, navigation }) {
             </TouchableOpacity>
 
             <View style={styles.headerInfo}>
-              <Text style={styles.title}>Practice Maze</Text>
+              <Text style={styles.title}>Maze Runner</Text>
               <Text style={styles.subtitle}>
                 Search subjects and build your practice streak
               </Text>
@@ -3337,37 +3339,9 @@ export default function MazePracticeScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
-          <LinearGradient
-            colors={COLORS.gradients.hero}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.hero}
-          >
-            <View style={styles.heroContent}>
-              <View style={styles.heroIcon}>
-                <Ionicons
-                  name="game-controller"
-                  size={28}
-                  color={COLORS.accent}
-                />
-              </View>
-              <Text style={styles.heroTitle}>Study Maze</Text>
-              <Text style={styles.heroText}>
-                Choose a subject and difficulty. Practice tokens and progress are saved on this device.
-              </Text>
-            </View>
+          <StudyHero eyebrow="EXPLORE & DISCOVER" title="Find your own way" description="Choose a subject and a challenge. Build your practice streak." image={require('../../assets/Artwork/maze-hero-portal.png')} />
 
-            <View style={styles.heroBadge}>
-              <Ionicons
-                name="sparkles"
-                size={14}
-                color={COLORS.accent}
-              />
-              <Text style={styles.heroBadgeText}>
-                Learn • Play • Earn
-              </Text>
-            </View>
-          </LinearGradient>
+          <QuestAction icon="school-outline" title="Class chapters" description="Use your teacher's questions and earn class game rewards." onPress={() => navigation.navigate('MazeChapters')} />
 
           {/* Daily challenge */}
           <TouchableOpacity

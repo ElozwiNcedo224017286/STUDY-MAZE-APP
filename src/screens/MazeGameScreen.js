@@ -28,7 +28,7 @@ export default function MazeGameScreen({ route, navigation }) {
     return (
       <View style={styles.flex}>
         <Text style={styles.title}>Choose a subject and chapter before starting Maze.</Text>
-        <TouchableOpacity style={styles.ctrlBtn} onPress={() => navigation.navigate('MazeLevels')}>
+        <TouchableOpacity style={styles.ctrlBtn} onPress={() => navigation.navigate('MazeChapters')}>
           <Text>Choose chapter</Text>
         </TouchableOpacity>
       </View>

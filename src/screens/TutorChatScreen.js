@@ -1,4 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTheme } from '../context/ThemeContext';
+import StackHeader from '../components/StackHeader';
+import StudyHero from '../components/learn/StudyHero';
+import { TYPE, PAGE_CONTENT, SPACE } from '../theme/layout';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -33,6 +37,8 @@ const GUIDED_PROMPTS = [
 ];
 
 export default function TutorChatScreen({ navigation, route }) {
+  const { colors: COLORS, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const mode = route.params?.mode || 'general';
   const setupFiles = route.params?.files || [];
@@ -159,17 +165,7 @@ export default function TutorChatScreen({ navigation, route }) {
   function renderEmpty() {
     return (
       <View style={styles.empty}>
-        <View style={styles.emptyIcon}>
-          <Ionicons name="sparkles" size={28} color={COLORS.primary} />
-        </View>
-        <Text style={styles.emptyTitle}>
-          {mode === 'guided' ? 'Material is ready' : 'Ask Maze Mentor'}
-        </Text>
-        <Text style={styles.emptyText}>
-          {mode === 'guided'
-            ? 'Your file is attached. Ask about it, or wait for Mentor to summarise the key ideas.'
-            : 'Type anytime. You can also attach extra study files from the chat bar.'}
-        </Text>
+        <StudyHero eyebrow="YOUR STUDY COMPANION" title="Start with a question" description="Type below or pick a prompt. Your mentor will help you take the next step." image={require('../../assets/Artwork/profile-avatar.png')} />
         <View style={styles.chips}>
           {prompts.map((prompt) => (
             <TouchableOpacity key={prompt} style={styles.chip} onPress={() => handleSend({ type: 'text', text: prompt })}>
@@ -183,30 +179,8 @@ export default function TutorChatScreen({ navigation, route }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()} activeOpacity={0.75}>
-          <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Animated.View style={[styles.logoWrap, { transform: [{ scale: pulse }] }]}>
-          <LinearGradient colors={COLORS.gradients.hero} style={styles.logo}>
-            <Ionicons name="sparkles" size={20} color={COLORS.white} />
-          </LinearGradient>
-        </Animated.View>
-        <View style={styles.brand}>
-          <View style={styles.brandRow}>
-            <Text style={styles.brandName}>Maze Mentor</Text>
-            <View style={styles.aiChip}>
-              <Text style={styles.aiChipText}>AI</Text>
-            </View>
-          </View>
-          <Text style={styles.session} numberOfLines={1}>{title}</Text>
-        </View>
-        <View style={styles.statusPill}>
-          <View style={[styles.dot, typing && styles.dotBusy]} />
-          <Text style={[styles.status, typing && styles.statusBusy]}>{typing ? 'Thinking' : 'Online'}</Text>
-        </View>
-      </View>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <StackHeader title="Maze Mentor" subtitle={title} onBack={() => navigation.goBack()} />
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <FlatList
@@ -216,6 +190,7 @@ export default function TutorChatScreen({ navigation, route }) {
           renderItem={({ item, index }) => (
             <MessageBubble
               message={item}
+              themeColors={COLORS}
               isFirstInGroup={index === 0 || messages[index - 1]?.sender !== item.sender}
             />
           )}
@@ -233,8 +208,7 @@ export default function TutorChatScreen({ navigation, route }) {
             if (messages.length) listRef.current?.scrollToEnd({ animated: false });
           }}
         />
-        <ChatInput
-          onSend={handleSend}
+        <ChatInput themeColors={COLORS} initialText={route.params?.starterPrompt || ''} onSend={handleSend}
           disabled={typing}
           allowAudio={false}
         />
@@ -243,13 +217,13 @@ export default function TutorChatScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
   flex: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 14,
     paddingBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -298,7 +272,8 @@ const styles = StyleSheet.create({
   status: { fontSize: 11, fontWeight: '700', color: COLORS.success },
   statusBusy: { color: COLORS.warning },
   list: { paddingHorizontal: 16, paddingVertical: 16, flexGrow: 1 },
-  empty: { alignItems: 'center', paddingTop: 36, paddingHorizontal: 8 },
+  empty: {
+    width: '100%', alignItems: 'center', paddingTop: 36, paddingHorizontal: 8 },
   emptyIcon: {
     width: 64,
     height: 64,

@@ -26,11 +26,11 @@ function VoiceRecorder(props) {
   return <AudioRecorder {...props} />;
 }
 
-export default function ChatInput({ onSend, disabled, allowMedia = true, allowAudio = true, mediaOptions = DEFAULT_MEDIA_OPTIONS, themeColors, placeholder = 'Ask Maze Mentor…' }) {
+export default function ChatInput({ onSend, disabled, allowMedia = true, allowAudio = true, mediaOptions = DEFAULT_MEDIA_OPTIONS, themeColors, initialText = '', placeholder = 'Ask Maze Mentor…' }) {
   const COLORS = themeColors || DEFAULT_COLORS;
   const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
   const [images, setImages] = useState([]);
   const [recording, setRecording] = useState(false);
   const [audioUri, setAudioUri] = useState(null);

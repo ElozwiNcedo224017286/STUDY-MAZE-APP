@@ -74,22 +74,22 @@ export function HelpSupportScreen({ navigation }) {
       category: 'Study materials',
       question: isTeacher ? 'How do I share study material with my class?' : 'How do I upload my study material?',
       answer: isTeacher
-        ? 'Use Notes to publish material under one of your assigned class subjects. Students see it in Smart Learn under Teacher Notes for their current subject.'
-        : 'Choose your current subject in Profile → My Subjects, then open Smart Learn → Own notes under Your study materials to upload a PDF. Teacher notes shows material shared for that subject. The four study tools above let you chat, solve a question, revise, or practise speaking.',
+        ? 'Use Notes to publish material under one of your assigned class subjects. Students see it in Smart Learn → Revision Notes → Class notes for their current subject.'
+        : 'Choose your current subject in Profile → My Subjects, then open Smart Learn → Revision Notes → My PDFs to upload a PDF. Class notes shows material shared for that subject. The four study tools let you chat, solve a question, revise, or practise speaking.',
     },
     {
       category: 'Games and learning',
       question: 'How do I choose material for a game?',
       answer: isTeacher
         ? 'Publish a chapter question bank in Studio under the correct assigned class subject. Students use their current subject and choose a published chapter in Maze or Quiz Rush.'
-        : 'Choose your current subject in Profile → My Subjects. In Play, Maze uses that subject, then lets you choose a chapter and level. Quiz Rush uses that subject, then lets you choose a chapter and start a run. Memory Match keeps its existing matching game; it does not use your Own Notes.',
+        : 'Choose your current subject in Profile → My Subjects. In Play → Maze Runner, explore practice subjects or open Class chapters to choose a teacher chapter and level. Quiz Rush uses your current subject and a published chapter. Memory Flip is a separate matching challenge.',
     },
     {
       category: 'Games and learning',
       question: 'Where can I find my notes and learning progress?',
       answer: isTeacher
         ? 'Use Notes to review summaries you have posted and Profile to see your account details. Students can open your shared summaries in Learn.'
-        : 'Smart Learn brings Maze Mentor, Smart Solver, Revision Notes and Voice Lab together. Open Teacher notes or Own notes under Your study materials for your current subject. Challenges contains your class leaderboard, daily streak, rewards and achievements. Your account and learning progress stay in Profile.',
+        : 'Smart Learn brings Maze Mentor, Smart Solver, Revision Notes and Voice Lab together. Revision Notes contains Class notes, My PDFs and a Practice pack. Challenges contains your class leaderboard, daily streak, rewards and achievements. Your account and learning progress stay in Profile.',
     },
     {
       category: 'Troubleshooting',

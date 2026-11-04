@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Dimensions, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../api/client';
 import { useSubject } from '../context/SubjectContext';
 import SubjectPrompt from '../components/SubjectPrompt';
+import { useTheme } from '../context/ThemeContext';
+import { PAGE_CONTENT } from '../theme/layout';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_IMAGE_SIZE = Math.min(SCREEN_WIDTH * 0.62, 230);
@@ -21,6 +23,8 @@ function levelReward() {
 }
 
 export default function MazeLevelsScreen({ navigation }) {
+  const { colors: COLORS } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const { balanceLabel } = useTrustedCoinBalance();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -67,10 +71,10 @@ export default function MazeLevelsScreen({ navigation }) {
   return (
     <ScrollView style={styles.flex} contentContainerStyle={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.topnav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Maze Runner</Text>
+        <Text style={styles.title}>Class chapters</Text>
       </View>
 
       <LinearGradient colors={COLORS.gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
@@ -154,7 +158,7 @@ export default function MazeLevelsScreen({ navigation }) {
                 <Text style={styles.lockedBtnText}>Complete{'\n'}Level {lvl.id - 1}</Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.playBtn} onPress={() => navigation.navigate('MazeGame', {
+              <TouchableOpacity style={styles.playBtn} accessibilityRole="button" accessibilityLabel={`Play level ${lvl.id}`} onPress={() => navigation.navigate('MazeGame', {
                 levelIndex: i, classSubjectId: activeSubject.class_subject_id, testId: selectedChapter.test_id,
                 chapterTitle: selectedChapter.chapter_title, subjectName: activeSubject.subject_name,
               })}>
@@ -173,18 +177,18 @@ export default function MazeLevelsScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = COLORS => StyleSheet.create({
   selection: { marginBottom: 18 },
   selectionCopy: { flex: 1 },
   selectionText: { color: COLORS.textSecondary, fontSize: 13, lineHeight: 19, marginVertical: 5 },
   flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  container: { padding: 20, paddingBottom: 40 },
+  container: { ...PAGE_CONTENT, paddingBottom: 40 },
   topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
   backBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
     alignItems: 'center',
@@ -238,7 +242,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 14,
     marginBottom: 12,

@@ -19,20 +19,11 @@ const GAMES = [
   {
     key: 'MazeLevels',
     title: 'Maze Runner',
-    description: 'Dodge ghosts, collect tokens, and answer quiz nodes across 3 levels.',
+    description: 'Explore subjects, daily mazes and difficulty levels, or play your class chapters.',
     icon: 'map-outline',
     tag: 'Adventure',
     image: require('../../assets/Artwork/game-maze-runner.png'),
     reward: MAZE_TOTAL_REWARD,
-  },
-  {
-    key: 'MazePractice',
-    title: 'Practice Maze',
-    description: 'Search subjects, choose a difficulty, and explore daily mazes with offline questions.',
-    icon: 'compass-outline',
-    tag: 'Practice',
-    image: require('../../assets/Artwork/game-maze-runner.png'),
-    reward: null,
   },
   {
     key: 'QuizRush',
@@ -85,7 +76,7 @@ export default function PlayScreen({ navigation }) {
           <View style={styles.heroContent}>
             <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>YOUR STUDY</Text></View>
             <Text style={styles.heroTitle}>{status === 'loading' ? 'Loading current subject...' : status === 'error' ? 'Check your current subject' : activeSubject ? `Current subject: ${activeSubject.subject_name}` : 'Choose your current subject'}</Text>
-            <Text style={styles.heroSub}>Use your class chapters in Maze Runner and Quiz Rush, or explore any subject in Practice Maze.</Text>
+            <Text style={styles.heroSub}>Take on class chapters in Quiz Rush or Maze Runner, and explore more subjects in the maze.</Text>
             <TouchableOpacity onPress={() => navigation.getParent()?.navigate('MySubjects')} accessibilityRole="button" style={{ paddingTop: 12, minHeight: 44 }}><Text style={{ ...TYPE.label, color: '#FFFFFF' }}>Change subject →</Text></TouchableOpacity>
           </View>
           <Image source={require('../../assets/Artwork/icon-quiz-tray.png')} style={styles.heroImage} resizeMode="contain" accessibilityElementsHidden />
@@ -97,6 +88,8 @@ export default function PlayScreen({ navigation }) {
         {GAMES.map((game) => (
           <TouchableOpacity
             key={game.key}
+            accessibilityRole="button"
+            accessibilityLabel={game.title}
             style={styles.gameCard}
             activeOpacity={0.85}
             onPress={() => navigation.getParent()?.navigate(game.key)}
@@ -113,7 +106,7 @@ export default function PlayScreen({ navigation }) {
               <View style={styles.gameBottomRow}>
                 <View style={styles.rewardPill}>
                   <Text style={styles.rewardCoin}>🪙</Text>
-                  <Text style={styles.rewardText}>{game.reward == null ? 'Local progress' : `+${game.reward}`}</Text>
+                  <Text style={styles.rewardText}>{game.key === 'MazeLevels' ? 'Class chapter rewards' : `Up to ${game.reward} coins`}</Text>
                 </View>
                 <View style={styles.goArrow}>
                   <Ionicons name="chevron-forward" size={18} color={COLORS.white} />

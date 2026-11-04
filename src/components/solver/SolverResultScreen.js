@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../../theme/colors';
 import MarkdownText from '../chat/MarkdownText';
+import { useTheme } from '../../context/ThemeContext';
+import { PAGE_CONTENT } from '../../theme/layout';
 
 function difficultyColor(value) {
   const key = String(value || '').toLowerCase();
@@ -31,6 +33,8 @@ export default function SolverResultScreen({
   onClose,
   onNewAnalysis,
 }) {
+  const { colors: COLORS, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const insets = useSafeAreaInsets();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -60,15 +64,15 @@ export default function SolverResultScreen({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         <LinearGradient
-          colors={toolConfig.lightGradient}
+          colors={isDark ? [COLORS.surface, COLORS.backgroundSecondary] : toolConfig.lightGradient}
           style={[styles.header, { paddingTop: insets.top + 12 }]}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity style={styles.roundBtn} onPress={onClose}>
+            <TouchableOpacity style={styles.roundBtn} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close solution">
               <Ionicons name="close" size={22} color={COLORS.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Solution</Text>
@@ -126,7 +130,7 @@ export default function SolverResultScreen({
               <Text style={styles.sectionTitle}>The question</Text>
             </View>
             <View style={styles.card}>
-              <MarkdownText text={result.question} />
+              <MarkdownText text={result.question} textColor={COLORS.textPrimary} />
             </View>
           </View>
 
@@ -143,7 +147,7 @@ export default function SolverResultScreen({
                       <Text style={styles.stepNumText}>{index + 1}</Text>
                     </View>
                     <View style={styles.stepBody}>
-                      <MarkdownText text={String(step)} />
+                      <MarkdownText text={String(step)} textColor={COLORS.textPrimary} />
                     </View>
                   </View>
                 ))}
@@ -168,7 +172,7 @@ export default function SolverResultScreen({
                 <Text style={styles.sectionTitle}>Quick check</Text>
               </View>
               <View style={styles.card}>
-                <MarkdownText text={String(result.check)} />
+                <MarkdownText text={String(result.check)} textColor={COLORS.textPrimary} />
               </View>
             </View>
           ) : null}
@@ -180,7 +184,7 @@ export default function SolverResultScreen({
                 <Text style={styles.sectionTitle}>Memory tip</Text>
               </View>
               <View style={styles.card}>
-                <MarkdownText text={String(result.tip)} />
+                <MarkdownText text={String(result.tip)} textColor={COLORS.textPrimary} />
               </View>
             </View>
           ) : null}
@@ -208,7 +212,7 @@ export default function SolverResultScreen({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = COLORS => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
   header: { paddingBottom: 18, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 },
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
@@ -216,12 +220,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
-  body: { padding: 20 },
+  body: { ...PAGE_CONTENT, paddingTop: 20 },
   scoreCard: { borderRadius: 20, overflow: 'hidden', marginBottom: 20, ...SHADOWS.small },
   scoreGradient: { padding: 22, alignItems: 'center' },
   scoreCircle: {
@@ -229,7 +233,7 @@ const styles = StyleSheet.create({
     height: 112,
     borderRadius: 56,
     borderWidth: 8,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -252,7 +256,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 18 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary },
-  card: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, ...SHADOWS.small },
+  card: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 16, ...SHADOWS.small },
   photo: { width: '100%', height: 180, borderRadius: 12 },
   question: { fontSize: 15, lineHeight: 22, fontWeight: '700', color: COLORS.textPrimary },
   stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
@@ -276,7 +280,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     paddingVertical: 14,
     borderWidth: 1.5,

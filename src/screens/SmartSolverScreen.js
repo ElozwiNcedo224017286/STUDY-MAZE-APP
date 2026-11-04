@@ -1,3 +1,5 @@
+import StudyHero from '../components/learn/StudyHero';
+import QuestAction from '../components/learn/QuestAction';
 import StackHeader from '../components/StackHeader';
 import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
 import { useTheme } from '../context/ThemeContext';
@@ -52,6 +54,8 @@ export default function SmartSolverScreen({ navigation }) {
   const [tab, setTab] = useState('start');
   const [history, setHistory] = useState([]);
   const [search, setSearch] = useState('');
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const loadHistory = useCallback(async () => {
     const items = await historyStorage.list('solver');
@@ -90,20 +94,19 @@ export default function SmartSolverScreen({ navigation }) {
   }
 
   async function handleUploadPhoto() {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Gallery access is required to upload a question photo.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: false,
-      quality: 0.8,
-      preferredAssetRepresentationMode: 'compatible',
-    });
-    if (result.canceled) return;
-    setSelectedImage({ uri: result.assets[0].uri });
-    setShowPreview(true);
+    if (picking) return;
+    setPicking(true);
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') { Alert.alert('Photo access needed', 'Allow gallery access to choose a question photo.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: false, quality: 0.8, preferredAssetRepresentationMode: 'compatible' });
+      if (result.canceled) return;
+      const image = result.assets?.[0];
+      if (!image?.uri) throw new Error('The photo could not be read.');
+      setSelectedImage({ uri: image.uri });
+      setShowPreview(true);
+    } catch { Alert.alert('Could not open that photo', 'Please choose the question photo again.'); }
+    finally { setPicking(false); }
   }
 
   function simulateProgress() {
@@ -222,49 +225,14 @@ export default function SmartSolverScreen({ navigation }) {
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 28 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.infoCard}>
-          <Ionicons name="information-circle" size={20} color={COLORS.warning} />
-          <View style={styles.infoCopy}>
-            <Text style={styles.infoTitle}>Scan tips</Text>
-            <Text style={styles.infoText}>
-              • Fill the frame with the question{'\n'}
-              • Use bright, even light{'\n'}
-              • One clear problem works best
-            </Text>
-          </View>
-        </View>
-
-        <Text style={styles.sectionTitle}>Select image source</Text>
-        <View style={styles.options}>
-          <TouchableOpacity style={styles.optionCard} onPress={() => setShowScanner(true)} activeOpacity={0.8}>
-            <LinearGradient colors={['rgba(109,40,217,0.14)', 'rgba(109,40,217,0.05)']} style={styles.optionGradient}>
-              <View style={[styles.optionIcon, { backgroundColor: 'rgba(109,40,217,0.16)' }]}>
-                <Ionicons name="camera" size={28} color={TOOL.color} />
-              </View>
-              <Text style={styles.optionTitle}>Scan with camera</Text>
-              <Text style={styles.optionText}>Live frame with AI scan line</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.optionCard} onPress={handleUploadPhoto} activeOpacity={0.8}>
-            <LinearGradient colors={['rgba(99,102,241,0.14)', 'rgba(99,102,241,0.05)']} style={styles.optionGradient}>
-              <View style={[styles.optionIcon, { backgroundColor: 'rgba(99,102,241,0.16)' }]}>
-                <Ionicons name="images" size={28} color={COLORS.info} />
-              </View>
-              <Text style={styles.optionTitle}>Upload photo</Text>
-              <Text style={styles.optionText}>Pick from your gallery</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.tipCard}>
-          <View style={styles.tipHeader}>
-            <Ionicons name="sparkles" size={18} color={TOOL.color} />
-            <Text style={styles.tipTitle}>What you get</Text>
-          </View>
-          <Text style={styles.tipText}>
-            Smart Solver returns the question, taught steps, the final answer, a check, and a memory tip you can reuse in Quiz Rush.
-          </Text>
-        </View>
+        <StudyHero eyebrow="SCAN & SOLVE" title="From stuck to solved" description="Bring one clear question. Discover the steps that make it click." image={require('../../assets/Artwork/icon-quiz-tray.png')} />
+        <Text style={styles.sectionTitle}>Choose your starting point</Text>
+        <QuestAction icon="camera-outline" title="Scan a question" description="Frame a question with your camera." onPress={() => setShowScanner(true)} />
+        <QuestAction icon="images-outline" title="Choose a photo" description="Use a question saved in your gallery." onPress={handleUploadPhoto} disabled={picking} />
+        <TouchableOpacity onPress={() => setHelpOpen(value => !value)} accessibilityRole="button" accessibilityLabel="Tips for a clear scan" accessibilityState={{ expanded: helpOpen }} style={[styles.tipCard, { marginTop: SPACE.md }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACE.sm }}><Ionicons name="bulb-outline" size={21} color={COLORS.primaryText} /><Text style={[styles.tipTitle, { flex: 1 }]}>Tips for a clear scan</Text><Ionicons name={helpOpen ? 'chevron-up' : 'chevron-down'} size={18} color={COLORS.primaryText} /></View>
+          {helpOpen && <Text style={[styles.tipText, { marginTop: SPACE.md }]}>Use bright light, fill the frame with the text, and include one complete question.</Text>}
+        </TouchableOpacity>
       </ScrollView>
       )}
 

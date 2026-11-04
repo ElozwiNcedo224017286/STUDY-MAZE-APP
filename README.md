@@ -2,11 +2,13 @@
 
 ## Combined Branch Features
 
-The Play tab includes both **Maze Runner**, which uses the active subject's
-teacher-published chapters and trusted rewards, and **Practice Maze**, which adds
-subject search, favorites, four difficulties, daily challenges, power-ups,
-missed-question review, and local progress. Practice tokens stay on the device.
-The built-in practice subjects work without an online question provider.
+The Play tab opens the updated **Maze Runner** dashboard with subject search,
+favorites, four difficulties, daily challenges, power-ups, missed-question review,
+and local progress. **Class chapters** inside that dashboard opens the active
+subject's teacher-published chapter game with trusted rewards. Practice tokens
+stay on the device. Built-in practice subjects work without an online provider.
+Memory Flip and Quiz Rush use refreshed game screens while retaining main's
+server-controlled attempts, answers, rewards and recovery behavior.
 
 For optional online subject search, add `QUIZAPI_KEY` to `backend/.env` and run
 Flask alongside Expo. The app uses the backend's read-only QuizAPI proxy; keep
@@ -18,8 +20,8 @@ Voice Lab accepts recordings, uploaded audio and video clips, and typed answers.
 Spoken replies are optional: text feedback remains available if speech or local
 audio storage fails. Revision Notes retains the active subject's teacher notes
 and includes a Business Studies revision pack with progress tracking and PDF or
-Word export. Open all four study tools from Smart Learn. Teacher notes and personal
-PDF notes are available under Your study materials. The fourth student tab,
+Word export. Smart Learn has four distinct study tools. **Revision Notes** brings
+**Class notes**, **My PDFs**, and the **Practice pack** into one library. The fourth student tab,
 Challenges, contains class standings and links to streaks, rewards and achievements.
 The updated navigation and visual guidelines are described in
 [the Smart Learn UI notes](docs/smart-learn-ui-2026-11-04.md).

@@ -11,6 +11,7 @@ import {
   StatusBar,
   RefreshControl,
   ActivityIndicator,
+  Image,
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
@@ -282,37 +283,15 @@ export function OwnNotesPane({ insets }) {
         </>
       ) : !selectedFile ? (
         <>
-          <View style={styles.ownNotesCard}>
-            <Text style={styles.ownNotesIcon}>📝</Text>
-
-            <Text style={styles.ownNotesTitle}>
-              Create your own study notes
-            </Text>
-
-            <Text style={styles.ownNotesText}>
-              Turn your study slides into simple, easy-to-understand notes
-              with helpful examples.
-            </Text>
-
-            <View style={styles.uploadHint}>
-              <Text style={styles.uploadHintText}>
-                PDF • 1–5 pages
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.uploadButton}
-              activeOpacity={0.8}
-              onPress={pickPdf}
-              disabled={!!processing}
-            >
-              <Text style={styles.uploadButtonText}>
-                + Upload slides
-              </Text>
-            </TouchableOpacity>
+          <View style={[styles.ownNotesCard, { borderWidth: 1, borderColor: palette.border }]}>
+            <Image source={require('../../assets/Artwork/icon-upload.png')} style={{ width: 74, height: 74, marginBottom: 12 }} resizeMode="contain" accessible={false} />
+            <Text style={styles.ownNotesTitle}>Give your PDF a fresh start</Text>
+            <Text style={styles.ownNotesText}>Create clear explanations and examples for {activeSubject?.subject_name || 'your current subject'}.</Text>
+            <View style={styles.uploadHint}><Text style={styles.uploadHintText}>PDF · 1–5 pages</Text></View>
+            <TouchableOpacity style={styles.uploadButton} onPress={pickPdf} disabled={!!processing} accessibilityRole="button" accessibilityLabel="Choose a study PDF"><Text style={styles.uploadButtonText}>Choose a PDF</Text></TouchableOpacity>
           </View>
 
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Your notes</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Saved notes</Text>
 
           {!!uploadError && <Text style={styles.uploadError}>{uploadError}</Text>}
           {savedNotesLoading ? (
@@ -405,7 +384,7 @@ export function OwnNotesPane({ insets }) {
               </>
             ) : (
               <Text style={styles.uploadButtonText}>
-                {uploaded ? 'Notes created' : 'Upload slides'}
+                {uploaded ? 'Notes created' : 'Create study notes'}
               </Text>
             )}
             </TouchableOpacity>
@@ -437,7 +416,7 @@ export function OwnNotesPane({ insets }) {
             loadSavedNotes();
           }}><Text style={styles.changeButtonText}>View saved notes</Text></TouchableOpacity>}
           {generatedNotes ? (
-            <GeneratedStudyNotes notes={generatedNotes} />
+            <GeneratedStudyNotes notes={generatedNotes} defaultExpanded />
           ) : (
             <View style={styles.nextStepCard}>
               <Text style={styles.nextStepIcon}>✨</Text>
@@ -458,7 +437,8 @@ export function OwnNotesPane({ insets }) {
   );
 }
 
-function GeneratedStudyNotes({ notes }) {
+function GeneratedStudyNotes({ notes, defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const { colors: palette } = useTheme();
   const COLORS = palette;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -473,27 +453,16 @@ function GeneratedStudyNotes({ notes }) {
 
   return (
     <View style={styles.generatedNotesWrap}>
-      <View style={styles.generatedNotesHeader}>
-        <Text style={styles.generatedNotesIcon}>✨</Text>
-
+      <TouchableOpacity style={styles.generatedNotesHeader} accessibilityRole="button" accessibilityLabel={upload?.title || upload?.file_name || 'Study notes'} accessibilityState={{ expanded }} onPress={() => setExpanded(value => !value)}>
+        <View style={{ width: 42, height: 46, borderRadius: 13, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="document-text-outline" size={22} color={palette.primaryText} /></View>
         <View style={styles.generatedNotesHeaderText}>
-          <Text style={styles.generatedNotesTitle}>
-            Your study notes
-          </Text>
-
-          {upload?.file_name ? (
-            <Text
-              style={styles.generatedNotesFile}
-              numberOfLines={1}
-              ellipsizeMode="middle"
-            >
-              {upload.file_name}
-              {upload.page_count ? ` · ${upload.page_count} pages` : ''}
-            </Text>
-          ) : null}
+          <Text style={styles.generatedNotesTitle}>{upload?.title || upload?.file_name || 'Study notes'}</Text>
+          <Text style={styles.generatedNotesFile}>{(notes.key_concepts || []).length} key concepts{upload?.page_count ? ' · ' + upload.page_count + ' pages' : ''}</Text>
         </View>
-      </View>
-
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={19} color={palette.primaryText} />
+      </TouchableOpacity>
+      {!expanded && <Text style={[styles.studySummary, { paddingHorizontal: 16, paddingBottom: 16 }]} numberOfLines={2}>{notes.summary}</Text>}
+      {expanded && <>
       <View style={styles.studySectionCard}>
         <Text style={styles.studySectionLabel}>
           TOPIC SUMMARY
@@ -603,6 +572,7 @@ function GeneratedStudyNotes({ notes }) {
           </View>
         </View>
       ) : null}
+      </>}
     </View>
   );
 }

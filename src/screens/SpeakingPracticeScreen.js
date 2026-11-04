@@ -1,3 +1,6 @@
+import StudyHero from '../components/learn/StudyHero';
+import QuestAction from '../components/learn/QuestAction';
+import { TYPE, SPACE, PAGE_CONTENT } from '../theme/layout';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, StatusBar, FlatList, KeyboardAvoidingView,
@@ -12,9 +15,9 @@ import { aiApi, removeResponseAudio } from '../api/ai';
 import { chatStorage } from '../services/chatStorage';
 
 const PROMPTS = [
-  'Help me practise explaining a topic for an oral presentation.',
-  'Ask me a study question, then help me explain my answer clearly.',
-  'Help me rehearse a short introduction to my favourite subject.',
+  { title: 'Quick warm-up', icon: 'flash-outline', description: 'Answer one short question out loud.', text: 'Ask me one study question to answer out loud, then help me explain my answer clearly.' },
+  { title: 'Explain an idea', icon: 'bulb-outline', description: 'Make a topic click in your own words.', text: 'Help me practise explaining a study topic in my own words.' },
+  { title: 'Rehearse a presentation', icon: 'mic-outline', description: 'Give your introduction a confident start.', text: 'Help me rehearse a short introduction for an oral presentation.' },
 ];
 
 export default function SpeakingPracticeScreen({ navigation }) {
@@ -90,26 +93,14 @@ export default function SpeakingPracticeScreen({ navigation }) {
               isFirstInGroup={index === 0 || messages[index - 1]?.sender !== item.sender}
             />
           )}
-          ListHeaderComponent={
-            <View style={[styles.intro, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="mic-outline" size={28} color={colors.primaryText} />
-              <Text style={[styles.title, { color: colors.textPrimary }]}>Practise out loud</Text>
-              <Text style={[styles.description, { color: colors.textSecondary }]}>
-                Record, upload an audio or video clip, or type an answer and hear an AI reply. The transcript stays here to read.
-                If speech is unavailable, you can keep practising with text. This conversation lasts while this screen is open.
-              </Text>
-              {messages.length === 0 && PROMPTS.map((prompt) => (
-                <TouchableOpacity
-                  key={prompt}
-                  style={[styles.prompt, { borderColor: colors.border }]}
-                  disabled={sending}
-                  onPress={() => handleSend({ type: 'text', text: prompt })}
-                >
-                  <Text style={[styles.promptText, { color: colors.primaryText }]}>{prompt}</Text>
-                </TouchableOpacity>
-              ))}
+          ListHeaderComponent={messages.length === 0 ? (
+            <View>
+              <StudyHero eyebrow="SPEAK & GROW" title="Say it your way" description="Take a small speaking challenge. Let your confidence grow." image={require('../../assets/Artwork/login-student.png')} />
+              <Text style={{ ...TYPE.sectionTitle, color: colors.textPrimary, marginBottom: SPACE.lg }}>Pick a warm-up</Text>
+              {PROMPTS.map(prompt => <QuestAction key={prompt.title} title={prompt.title} description={prompt.description} icon={prompt.icon} disabled={sending} onPress={() => handleSend({ type: 'text', text: prompt.text })} />)}
+              <Text style={{ ...TYPE.caption, color: colors.textSecondary, marginBottom: SPACE.md }}>Record, upload a clip, or type below. Your reply includes a transcript.</Text>
             </View>
-          }
+          ) : null}
           ListFooterComponent={
             <>
               {sending && (
@@ -138,7 +129,7 @@ export default function SpeakingPracticeScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { padding: 16, flexGrow: 1 },
+  list: { ...PAGE_CONTENT, paddingTop: SPACE.lg, flexGrow: 1 },
   intro: { padding: 18, borderRadius: 18, borderWidth: 1, marginBottom: 18 },
   title: { fontSize: 20, fontWeight: '800', marginTop: 8 },
   description: { fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 12 },

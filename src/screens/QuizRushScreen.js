@@ -1,21 +1,13 @@
+import QuizRushView from '../components/games/QuizRushView';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { useSubject } from '../context/SubjectContext';
-import SubjectPrompt from '../components/SubjectPrompt';
-
-const RUSH_TARGET = 10;
-const RUSH_TIME = 10; // seconds per question
 
 // Legacy coins remain separate from trusted XP. Avoid duplicate writes on RPC retries/remounts.
 const recordedLegacyAttempts = new Set();
 
 export default function QuizRushScreen({ navigation }) {
-  const insets = useSafeAreaInsets();
   const { recordGame, user } = useAuth();
   const [phase, setPhase] = useState('start');
   const [lives, setLives] = useState(0);
@@ -205,188 +197,7 @@ export default function QuizRushScreen({ navigation }) {
     }
   }
 
-  if (phase === 'start' && (!contextKey || !selectedChapter || selectedChapter.contextKey !== contextKey)) {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.topnav}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()} accessibilityLabel="Back">
-            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Quiz Rush</Text>
-        </View>
-        <ScrollView contentContainerStyle={styles.browseScroll}>
-          {!contextKey ? <SubjectPrompt /> : <>
-            <Text style={styles.heroTitle}>Choose Chapter</Text>
-            <Text style={styles.sub}>{activeSubject.subject_name} ? {activeSubject.class_name}</Text>
-            {browseLoading ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Loading chapters" /> : browseError ? (
-              <>
-                <Text style={styles.sub} accessibilityRole="alert">{browseError}</Text>
-                <TouchableOpacity style={styles.btnGhost} onPress={loadChapters}><Text style={styles.btnGhostText}>Retry chapters</Text></TouchableOpacity>
-              </>
-            ) : chapters.length === 0 ? <Text style={styles.sub}>No published chapters for this subject yet.</Text> : chapters.map((chapter) => (
-              <TouchableOpacity key={chapter.test_id} style={[styles.card, styles.browseCard]} onPress={() => { setSelectedSubject(activeSubject); setSelectedChapter({ ...chapter, contextKey }); }}>
-                <Text style={styles.quizQ}>{chapter.chapter_title}</Text>
-                <Text style={styles.browseText}>Teacher: {chapter.teacher_name || 'Teacher'}</Text>
-                <Text style={styles.browseText}>{chapter.question_count} question{chapter.question_count === 1 ? '' : 's'}</Text>
-              </TouchableOpacity>
-            ))}
-          </>}
-        </ScrollView>
-      </View>
-    );
-  }
-
-  if (phase === 'start') {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.topnav}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-          </TouchableOpacity>
-          <Text style={styles.title}>Quiz Rush</Text>
-        </View>
-        <View style={styles.centerBody}>
-          <View style={styles.card}>
-            <Text style={styles.heroTitle}>Beat the Clock</Text>
-            <Text style={styles.sub}>{selectedSubject.subject_name} — {selectedChapter.chapter_title}</Text>
-            <Bullet icon="⏱️" text="Each question gives you 10 seconds" />
-            <Bullet icon="🪙" text="Correct = +20 coins and a streak point" />
-            <Bullet icon="💔" text="Wrong or too slow costs a life" />
-            <Bullet icon="🏁" text={`Answer ${RUSH_TARGET} correctly to win the run`} />
-            {!!error && <Text style={styles.sub}>{error}</Text>}
-            <TouchableOpacity style={styles.btn} disabled={busy || !selectedSubject?.class_subject_id || !selectedChapter?.test_id} onPress={startRun}><Text style={styles.btnText}>{busy ? 'Starting...' : 'Start Run'}</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  if (phase === 'result') {
-    return (
-      <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-        <View style={styles.centerBody}>
-          <View style={styles.card}>
-            <Text style={styles.icon}>{resultData.won ? '🏁' : '💀'}</Text>
-            <Text style={[styles.heroTitle, !resultData.won && styles.heroTitleLose]}>{resultData.won ? 'Run complete!' : 'Run over'}</Text>
-            <Text style={styles.sub}>
-              {resultData.won
-                ? `You answered ${resultData.streak} correctly. Coins earned: ${resultData.coins}`
-                : `You got ${resultData.streak} correct this run. Coins kept: ${resultData.coins}`}
-            </Text>
-            <Text style={styles.sub}>{resultData.xp} XP earned; {resultData.lives} lives remaining</Text>
-            <TouchableOpacity style={styles.btn} disabled={busy} onPress={() => setPhase('start')}><Text style={styles.btnText}>Play Again</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={changeChapter}><Text style={styles.btnGhostText}>Change Chapter</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnGhost} onPress={() => navigation.navigate('Main')}><Text style={styles.btnGhostText}>Back to Home</Text></TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    );
-  }
-
-  const pct = Math.min(100, Math.max(0, (timeLeft / RUSH_TIME) * 100));
-  return (
-    <View style={[styles.flex, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.topnav}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Quiz Rush</Text>
-      </View>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.playScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.hudRow}>
-          <View style={styles.lives}>{[0, 1, 2].map((i) => <Text key={i} style={[styles.heart, i >= lives && styles.heartDead]}>❤️</Text>)}</View>
-          <Text style={styles.streakText}>Correct: {streak}/{RUSH_TARGET}</Text>
-        </View>
-        <View style={styles.timerTrack}><View style={[styles.timerFill, { width: `${pct}%` }, pct < 35 && styles.timerFillDanger]} /></View>
-        {!!error && (
-          <View>
-            <Text style={styles.sub}>{error}</Text>
-            <TouchableOpacity style={styles.btnGhost} disabled={busy} onPress={() => retryRef.current && resolveQuestion(retryRef.current)}>
-              <Text style={styles.btnGhostText}>{busy ? 'Retrying...' : 'Retry submission'}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        {busy && !feedback && <Text style={styles.sub}>Checking with server...</Text>}
-        {feedback && <Text style={styles.sub}>{feedback === 'correct' ? 'Correct!' : feedback === 'timeout' ? 'Time expired' : 'Incorrect'}</Text>}
-        {question && (
-          <View style={styles.card}>
-            <Text style={styles.quizTag}>{question.subject}</Text>
-            <Text style={styles.quizQ}>{question.prompt}</Text>
-            {question.options.map((opt) => {
-              const isCorrect = answeredId === opt.id && feedback === 'correct';
-              const isWrong = answeredId === opt.id && feedback === 'incorrect';
-              return (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[styles.quizOpt, isCorrect && styles.quizOptCorrect, isWrong && styles.quizOptWrong]}
-                  onPress={() => answer(opt.id)}
-                  disabled={busy || !!error || !!feedback}
-                >
-                  <Text style={styles.quizOptText}>{opt.text}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
+  const validChapter = contextKey && selectedChapter?.contextKey === contextKey ? selectedChapter : null;
+  return <QuizRushView navigation={navigation} phase={phase} contextReady={!!contextKey} selectedChapter={validChapter} selectedSubject={selectedSubject} activeSubject={activeSubject} chapters={chapters} browseLoading={browseLoading} browseError={browseError} busy={busy} error={error} result={resultData} lives={lives} correct={streak} question={question} timeLeft={timeLeft} answeredId={answeredId} feedback={feedback}
+    onSelectChapter={chapter => { setSelectedSubject(activeSubject); setSelectedChapter({ ...chapter, contextKey }); setError(''); }} onRefresh={loadChapters} onStart={startRun} onChangeChapter={changeChapter} onReplay={() => setPhase('start')} onAnswer={answer} onRetry={() => retryRef.current && resolveQuestion(retryRef.current)} />;
 }
-
-function Bullet({ icon, text }) {
-  return (
-    <View style={styles.bullet}>
-      <Text style={styles.bulletIcon}>{icon}</Text>
-      <Text style={styles.bulletText}>{text}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  browseScroll: { paddingBottom: 28, gap: 12 },
-  browseCard: { marginTop: 4 },
-  browseText: { color: COLORS.textSecondary, fontSize: 14, marginTop: 4 },
-  flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, paddingHorizontal: 14 },
-  centerBody: { flex: 1, justifyContent: 'center' },
-  playScroll: { flexGrow: 1, justifyContent: 'center', paddingBottom: 24 },
-  topnav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 18 },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOWS.small,
-  },
-  title: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 18 },
-  card: { backgroundColor: COLORS.white, borderRadius: 20, padding: 24, ...SHADOWS.small },
-  heroTitle: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 20, marginBottom: 16, textAlign: 'center' },
-  heroTitleLose: { color: COLORS.error },
-  icon: { fontSize: 46, textAlign: 'center', marginBottom: 8 },
-  sub: { color: COLORS.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 21, marginBottom: 22 },
-  bullet: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 14 },
-  bulletIcon: { fontSize: 20, width: 28, textAlign: 'center' },
-  bulletText: { color: COLORS.textPrimary, fontSize: 15, flex: 1 },
-  btn: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 17, alignItems: 'center', marginTop: 10, ...SHADOWS.small },
-  btnText: { color: COLORS.white, fontWeight: '800', fontSize: 16 },
-  btnGhost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 12 },
-  btnGhostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
-  hudRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  lives: { flexDirection: 'row', gap: 4 },
-  heart: { fontSize: 20 },
-  heartDead: { opacity: 0.25 },
-  streakText: { color: COLORS.primary, fontSize: 14, fontWeight: '700' },
-  timerTrack: { height: 10, backgroundColor: COLORS.backgroundTertiary, borderRadius: 6, overflow: 'hidden', marginBottom: 20 },
-  timerFill: { height: '100%', backgroundColor: COLORS.primary },
-  timerFillDanger: { backgroundColor: COLORS.error },
-  quizTag: { color: COLORS.primary, fontSize: 12, letterSpacing: 1, marginBottom: 12, fontWeight: '800' },
-  quizQ: { color: COLORS.textPrimary, fontSize: 17, lineHeight: 23, marginBottom: 18, fontWeight: '600' },
-  quizOpt: { backgroundColor: COLORS.backgroundSecondary, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, padding: 16, marginBottom: 12 },
-  quizOptCorrect: { borderColor: COLORS.success, backgroundColor: COLORS.successLight },
-  quizOptWrong: { borderColor: COLORS.error, backgroundColor: COLORS.errorLight },
-  quizOptText: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '600' },
-});
