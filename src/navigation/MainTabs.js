@@ -1,5 +1,6 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
@@ -9,7 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import HomeScreen from '../screens/HomeScreen';
 import PlayScreen from '../screens/PlayScreen';
 import LearnScreen from '../screens/LearnScreen';
-import MentorHubScreen from '../screens/MentorHubScreen';
+import ChallengeLeaderboardScreen from '../screens/ChallengeLeaderboardScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import StudioScreen from '../screens/StudioScreen';
 import ClassScreen from '../screens/ClassScreen';
@@ -20,16 +21,18 @@ import AdminClassesScreen from '../screens/AdminClassesScreen';
 import AdminChallengesScreen from '../screens/AdminChallengesScreen';
 
 import AdminRewardsScreen from '../screens/AdminRewardsScreen';
+import { FONT_FAMILY } from '../theme/layout';
 
 const Tab = createBottomTabNavigator();
 
 function tabIcon(name) {
-  return ({ color, size }) => <Ionicons name={name} size={size} color={color} />;
+  return ({ color, focused }) => <Ionicons name={focused ? name : `${name}-outline`} size={22} color={color} />;
 }
 
 export default function MainTabs() {
   const { user } = useAuth();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const isTeacher = user?.role === 'teacher';
 
   return (
@@ -39,7 +42,8 @@ export default function MainTabs() {
         tabBarActiveTintColor: colors.primaryText,
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarLabelStyle: styles.tabLabel,
-        tabBarStyle: [styles.tabBar, { backgroundColor: colors.surface, borderTopColor: colors.border }],
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: [styles.tabBar, { backgroundColor: colors.surface, borderTopColor: colors.border, height: 64 + insets.bottom, paddingBottom: Math.max(insets.bottom, 8) }],
         tabBarBackground: () => (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface }]} />
         ),
@@ -109,11 +113,11 @@ export default function MainTabs() {
             }}
           />
           <Tab.Screen
-            name="Mentor"
-            component={MentorHubScreen}
+            name="Challenges"
+            component={ChallengeLeaderboardScreen}
             options={{
-              tabBarLabel: 'Mentor',
-              tabBarIcon: tabIcon('chatbubbles'),
+              tabBarLabel: 'Challenges',
+              tabBarIcon: tabIcon('trophy'),
             }}
           />
         </>
@@ -138,13 +142,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: COLORS.border,
-    elevation: 8,
-    height: Platform.OS === 'ios' ? 88 : 68,
-    paddingTop: 6,
+    elevation: 0,
+    paddingTop: 8,
   },
   tabLabel: {
     fontSize: 11,
+    fontFamily: FONT_FAMILY,
     fontWeight: '600',
-    marginBottom: Platform.OS === 'ios' ? 0 : 4,
+    marginTop: 4,
   },
 });

@@ -23,6 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { TYPE, PAGE_CONTENT } from '../theme/layout';
 
 const DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -42,6 +44,8 @@ function getMonthName(date) {
 }
 
 export default function StreakScreen({ navigation }) {
+  const { colors: COLORS } = useTheme();
+  const styles = useMemo(() => createStyles(COLORS), [COLORS]);
   const { getUserStreak } = useAuth();
 
   const [streak, setStreak] = useState(null);
@@ -801,7 +805,7 @@ export default function StreakScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (COLORS) => StyleSheet.create({
   // --------------------------------------------------
   // Screen
   // --------------------------------------------------

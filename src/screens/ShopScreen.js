@@ -1,4 +1,6 @@
-﻿import React, { useCallback, useRef, useState } from 'react';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import { useTheme } from '../context/ThemeContext';
+import React, {useCallback, useRef, useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, StatusBar, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -14,6 +16,10 @@ const statusLabel = { pending: 'Pending', fulfilled: 'Fulfilled', cancelled: 'Ca
 const dateLabel = (value) => new Date(value).toLocaleString();
 
 export default function ShopScreen({ navigation }) {
+  const { colors: designColors, isDark: designDark } = useTheme();
+  const COLORS = designColors;
+  const styles = useMemo(() => createStyles(designColors), [designColors]);
+
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [state, setState] = useState({ owner: null, data: null, loading: true, error: '' });
@@ -71,7 +77,7 @@ export default function ShopScreen({ navigation }) {
   }
 
   return <View style={styles.container}>
-    <StatusBar barStyle="dark-content" />
+    <StatusBar barStyle={designDark ? 'light-content' : 'dark-content'} />
     <ScreenHeader title="Rewards" titleHighlight="Shop" subtitle="Use your trusted coins to redeem Study Maze rewards." onBack={() => navigation.goBack()} />
     <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 100 }]} showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => { if (!lock.current) load(); }} colors={[COLORS.primary]} tintColor={COLORS.primary} />}>
@@ -125,21 +131,47 @@ export default function ShopScreen({ navigation }) {
   </View>;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  body: { paddingHorizontal: 20, paddingTop: 4 },
-  balance: { borderRadius: 20, padding: 20, marginBottom: 16, ...SHADOWS.medium },
-  balanceLabel: { color: 'rgba(255,255,255,0.8)', fontWeight: '600', fontSize: 12 },
-  balanceValue: { color: COLORS.white, fontSize: 36, fontWeight: '900', marginTop: 4 },
-  balanceHint: { color: 'rgba(255,255,255,0.82)', fontSize: 12, marginTop: 8, lineHeight: 18 },
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary
+  },
+  body: {
+    ...PAGE_CONTENT,
+    paddingHorizontal: 20,
+    paddingTop: 4
+  },
+  balance: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    ...SHADOWS.medium
+  },
+  balanceLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '600',
+    fontSize: 12
+  },
+  balanceValue: {
+    color: COLORS.white,
+    fontSize: 36,
+    fontWeight: "800",
+    marginTop: 4
+  },
+  balanceHint: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 18
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
   iconWrap: {
     width: 46,
@@ -148,18 +180,64 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 12
   },
-  icon: { fontSize: 20 },
-  info: { flex: 1 },
-  name: { fontSize: 15, fontWeight: '700', color: COLORS.textPrimary },
-  partner: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  redeem: { backgroundColor: COLORS.primary, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12 },
-  redeemOff: { backgroundColor: COLORS.backgroundTertiary },
-  redeemText: { color: COLORS.white, fontWeight: '700', fontSize: 12 },
-  redeemTextOff: { color: COLORS.textTertiary },
-  historyCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12, gap: 8, ...SHADOWS.small },
-  sectionTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginTop: 12, marginBottom: 12 },
-  error: { color: COLORS.error, fontSize: 14, lineHeight: 20, marginBottom: 10 },
-  toast: { color: COLORS.success, textAlign: 'center', marginTop: 8, fontWeight: '600' },
+  icon: {
+    fontSize: 20
+  },
+  info: {
+    flex: 1
+  },
+  name: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary
+  },
+  partner: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2
+  },
+  redeem: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12
+  },
+  redeemOff: {
+    backgroundColor: COLORS.backgroundTertiary
+  },
+  redeemText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 12
+  },
+  redeemTextOff: {
+    color: COLORS.textTertiary
+  },
+  historyCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    gap: 8,
+    ...SHADOWS.small
+  },
+  sectionTitle: {
+    ...TYPE.sectionTitle,
+    color: COLORS.textPrimary,
+    marginTop: 12,
+    marginBottom: 12
+  },
+  error: {
+    color: COLORS.error,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 10
+  },
+  toast: {
+    color: COLORS.success,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '600'
+  }
 });

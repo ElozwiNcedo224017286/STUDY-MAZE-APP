@@ -1,21 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../../theme/colors';
+import { useTheme } from '../../context/ThemeContext';
+import { TYPE, SPACE, RADIUS } from '../../theme/layout';
 
 export default function LearnToolCard({ tool, width, onPress, index }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      delay: index * 90,
-      useNativeDriver: true,
-    }).start();
-  }, [fadeAnim, index]);
 
   function pressIn() {
     Animated.spring(scaleAnim, { toValue: 0.98, useNativeDriver: true }).start();
@@ -31,11 +25,7 @@ export default function LearnToolCard({ tool, width, onPress, index }) {
         styles.wrap,
         {
           width,
-          opacity: fadeAnim,
-          transform: [
-            { scale: scaleAnim },
-            { translateY: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
-          ],
+          transform: [{ scale: scaleAnim }],
         },
       ]}
     >
@@ -46,19 +36,12 @@ export default function LearnToolCard({ tool, width, onPress, index }) {
         onPress={onPress}
         disabled={tool.soon}
         style={styles.touchable}
+        accessibilityRole="button"
+        accessibilityLabel={tool.title}
+        accessibilityHint={tool.text}
+        testID={`study-tool-${tool.key}`}
       >
         <View style={[styles.card, tool.soon && styles.cardSoon]}>
-          <View style={[styles.badge, tool.soon ? styles.badgeSoon : styles.badgeLive]}>
-            <Ionicons
-              name={tool.soon ? 'time-outline' : 'sparkles'}
-              size={10}
-              color={tool.soon ? COLORS.warning : COLORS.primary}
-            />
-            <Text style={[styles.badgeText, tool.soon ? styles.badgeSoonText : styles.badgeLiveText]}>
-              {tool.soon ? 'Soon' : 'AI'}
-            </Text>
-          </View>
-
           <LinearGradient
             colors={tool.colors}
             style={styles.icon}
@@ -68,10 +51,10 @@ export default function LearnToolCard({ tool, width, onPress, index }) {
             <Ionicons name={tool.icon} size={26} color={COLORS.white} />
           </LinearGradient>
 
-          <Text style={styles.title} numberOfLines={1}>{tool.title}</Text>
-          <Text style={styles.text} numberOfLines={2}>{tool.text}</Text>
+          <Text style={styles.title}>{tool.title}</Text>
+          <Text style={styles.text}>{tool.text}</Text>
 
-          <View style={[styles.action, { backgroundColor: tool.soon ? COLORS.border : tool.actionColor }]}>
+          <View style={[styles.action, { backgroundColor: tool.soon ? colors.border : tool.colors[0] }]}>
             <Text style={[styles.actionText, tool.soon && styles.actionSoon]}>{tool.actionText}</Text>
           </View>
         </View>
@@ -80,19 +63,18 @@ export default function LearnToolCard({ tool, width, onPress, index }) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { marginBottom: 14 },
+const createStyles = (COLORS) => StyleSheet.create({
+  wrap: { flexGrow: 0 },
   touchable: { flex: 1 },
   card: {
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingTop: 18,
-    paddingBottom: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.card,
+    padding: SPACE.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
-    minHeight: 228,
+    borderColor: COLORS.border,
+    minHeight: 226,
+    flex: 1,
     ...SHADOWS.small,
   },
   cardSoon: { opacity: 0.88 },
@@ -113,37 +95,35 @@ const styles = StyleSheet.create({
   badgeLiveText: { color: COLORS.primary },
   badgeSoonText: { color: COLORS.warning },
   icon: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
-    marginTop: 6,
+    marginBottom: SPACE.lg,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '800',
+    ...TYPE.cardTitle,
     color: COLORS.textPrimary,
     textAlign: 'center',
     marginBottom: 6,
   },
   text: {
-    fontSize: 12,
-    lineHeight: 17,
+    ...TYPE.caption,
     color: COLORS.textSecondary,
-    fontWeight: '600',
     textAlign: 'center',
-    minHeight: 34,
-    marginBottom: 14,
+    minHeight: 36,
+    marginBottom: SPACE.lg,
   },
   action: {
     width: '100%',
-    borderRadius: 20,
-    paddingVertical: 10,
+    borderRadius: RADIUS.small,
+    paddingVertical: SPACE.md,
+    paddingHorizontal: SPACE.xs,
+    minHeight: 44,
     alignItems: 'center',
     marginTop: 'auto',
   },
-  actionText: { color: COLORS.white, fontSize: 13, fontWeight: '800' },
+  actionText: { ...TYPE.label, color: COLORS.white, textAlign: 'center' },
   actionSoon: { color: COLORS.textTertiary },
 });

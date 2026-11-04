@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { useTheme } from '../context/ThemeContext';
+import { TYPE, SPACE } from '../theme/layout';
 
 export default function ProfileMenuItem({
   icon,
@@ -16,7 +17,7 @@ export default function ProfileMenuItem({
   const { colors } = useTheme();
 
   return (
-    <TouchableOpacity style={[styles.container, { borderBottomColor: colors.divider }, disabled && styles.disabled]} onPress={onPress} activeOpacity={0.7} disabled={disabled}>
+    <TouchableOpacity style={[styles.container, { borderBottomColor: colors.divider }, disabled && styles.disabled]} onPress={onPress} activeOpacity={0.7} disabled={disabled} accessibilityRole="button" accessibilityLabel={title}>
       <View style={[styles.iconWrap, { backgroundColor: danger ? COLORS.errorLight : COLORS.primarySoft }]}>
         <Ionicons name={icon} size={18} color={danger ? COLORS.error : colors.primaryText} />
       </View>
@@ -33,8 +34,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    padding: SPACE.lg,
+    minHeight: 72,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.divider,
   },
@@ -51,12 +52,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 15,
-    fontWeight: '600',
+    ...TYPE.cardTitle,
     color: COLORS.textPrimary,
   },
   description: {
-    fontSize: 12,
+    ...TYPE.caption,
     color: COLORS.textSecondary,
     marginTop: 2,
   },

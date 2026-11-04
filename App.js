@@ -21,6 +21,7 @@ import ShopScreen from './src/screens/ShopScreen';
 import ChallengeLeaderboardScreen from './src/screens/ChallengeLeaderboardScreen';
 import StreakScreen from './src/screens/StreakScreen';
 import StudyNotesScreen from './src/screens/StudyNotesScreen';
+import NotesWorkspaceScreen from './src/screens/NotesWorkspaceScreen';
 import SpeakingPracticeScreen from './src/screens/SpeakingPracticeScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import MySubjectsScreen from './src/screens/MySubjectsScreen';
@@ -93,6 +94,7 @@ function AppShell() {
 
             <Stack.Screen name="Shop" component={ShopScreen} />
             <Stack.Screen name="ChallengeLeaderboard" component={ChallengeLeaderboardScreen} />
+            <Stack.Screen name="NotesWorkspace" component={NotesWorkspaceScreen} />
 
             <Stack.Screen
               name="MentorHub"

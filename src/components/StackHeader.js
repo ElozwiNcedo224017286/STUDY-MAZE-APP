@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useTheme } from '../context/ThemeContext';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
 
 export default function StackHeader({ title, subtitle, onBack, right }) {
   const insets = useSafeAreaInsets();
@@ -16,10 +17,10 @@ export default function StackHeader({ title, subtitle, onBack, right }) {
           <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.text}>
-          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>{title}</Text>
-          {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={1}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
+          {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
-        {right ? <View style={styles.right}>{right}</View> : <View style={styles.back} />}
+        {right ? <View style={styles.right}>{right}</View> : null}
       </View>
     </View>
   );
@@ -28,23 +29,22 @@ export default function StackHeader({ title, subtitle, onBack, right }) {
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: SPACE.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: COLORS.border,
   },
-  row: { flexDirection: 'row', alignItems: 'center' },
+  row: { ...PAGE_CONTENT, flexDirection: 'row', alignItems: 'center' },
   back: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.small,
     backgroundColor: COLORS.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     ...SHADOWS.small,
   },
   text: { flex: 1, marginHorizontal: 12 },
-  title: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, letterSpacing: -0.3 },
-  subtitle: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2, fontWeight: '600' },
+  title: { ...TYPE.cardTitle, fontSize: 18, lineHeight: 25, color: COLORS.textPrimary },
+  subtitle: { ...TYPE.caption, color: COLORS.textSecondary, marginTop: SPACE.xs },
   right: { minWidth: 38, alignItems: 'flex-end' },
 });

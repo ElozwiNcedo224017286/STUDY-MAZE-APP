@@ -1,4 +1,7 @@
-import React, { useCallback, useRef, useState } from 'react';
+import StackHeader from '../components/StackHeader';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import { useTheme } from '../context/ThemeContext';
+import React, {useCallback, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -33,6 +36,10 @@ const TOOL = {
 };
 
 export default function SmartSolverScreen({ navigation }) {
+  const { colors: designColors, isDark: designDark } = useTheme();
+  const COLORS = designColors;
+  const styles = useMemo(() => createStyles(designColors), [designColors]);
+
   const insets = useSafeAreaInsets();
   const cancelled = useRef(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -187,28 +194,8 @@ export default function SmartSolverScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <LinearGradient
-        colors={TOOL.lightGradient}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-            <View style={styles.backButtonInner}>
-              <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
-            </View>
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>{TOOL.title}</Text>
-            <Text style={styles.headerDescription}>{TOOL.description}</Text>
-          </View>
-          <View style={styles.headerIcon}>
-            <Ionicons name="scan" size={36} color={TOOL.color} />
-          </View>
-        </View>
-      </LinearGradient>
+      <StatusBar barStyle={designDark ? 'light-content' : 'dark-content'} />
+      <StackHeader title={TOOL.title} subtitle={TOOL.description} onBack={() => navigation.goBack()} />
 
       <FeatureTabBar active={tab} onChange={setTab} color={TOOL.color} />
 
@@ -323,57 +310,135 @@ export default function SmartSolverScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  header: { paddingBottom: 16, borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
-  headerContent: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 },
-  backButton: { marginRight: 12 },
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary
+  },
+  header: {
+    paddingBottom: 16,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16
+  },
+  backButton: {
+    marginRight: 12
+  },
   backButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-  headerText: { flex: 1 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary },
-  headerDescription: { fontSize: 13, color: COLORS.textSecondary, marginTop: 3, fontWeight: '600' },
-  headerIcon: { marginLeft: 8 },
-  body: { padding: 20 },
+  headerText: {
+    flex: 1
+  },
+  headerTitle: {
+    ...TYPE.pageTitle,
+    color: COLORS.textPrimary
+  },
+  headerDescription: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    marginTop: 3
+  },
+  headerIcon: {
+    marginLeft: 8
+  },
+  body: {
+    ...PAGE_CONTENT,
+    padding: 20
+  },
   infoCard: {
     flexDirection: 'row',
     backgroundColor: COLORS.warningLight,
-    borderRadius: 14,
     padding: 14,
     marginBottom: 20,
     gap: 10,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-  infoCopy: { flex: 1 },
-  infoTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 4 },
-  infoText: { fontSize: 12, lineHeight: 18, color: COLORS.textSecondary, fontWeight: '600' },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 12 },
-  options: { flexDirection: 'row', gap: 12 },
-  optionCard: { flex: 1, borderRadius: 18, overflow: 'hidden', ...SHADOWS.small },
-  optionGradient: { padding: 18, alignItems: 'center', minHeight: 168 },
+  infoCopy: {
+    flex: 1
+  },
+  infoTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 4
+  },
+  infoText: {
+    ...TYPE.body,
+    color: COLORS.textSecondary
+  },
+  sectionTitle: {
+    ...TYPE.sectionTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 12
+  },
+  options: {
+    flexDirection: 'row',
+    gap: 12
+  },
+  optionCard: {
+    flex: 1,
+    overflow: 'hidden',
+    ...SHADOWS.small,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  optionGradient: {
+    padding: 18,
+    alignItems: 'center',
+    minHeight: 168
+  },
   optionIcon: {
     width: 60,
     height: 60,
     borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 12
   },
-  optionTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary, textAlign: 'center', marginBottom: 4 },
-  optionText: { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', fontWeight: '600' },
+  optionTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 4
+  },
+  optionText: {
+    ...TYPE.caption,
+    color: COLORS.textSecondary,
+    textAlign: 'center'
+  },
   tipCard: {
     marginTop: 20,
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
+    backgroundColor: COLORS.surface,
     padding: 16,
     ...SHADOWS.small,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-  tipHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  tipTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  tipText: { fontSize: 13, lineHeight: 19, color: COLORS.textSecondary, fontWeight: '600' },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8
+  },
+  tipTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary
+  },
+  tipText: {
+    ...TYPE.body,
+    color: COLORS.textSecondary
+  }
 });

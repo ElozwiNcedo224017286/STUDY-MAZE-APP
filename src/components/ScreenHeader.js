@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useTheme } from '../context/ThemeContext';
 import StackHeader from './StackHeader';
+import { TYPE, SPACE, PAGE_CONTENT } from '../theme/layout';
 
 export default function ScreenHeader({
   title,
@@ -22,14 +23,14 @@ export default function ScreenHeader({
 
   if (children) {
     return (
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + SPACE.lg }]}>
         {children}
       </View>
     );
   }
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+    <View style={[styles.header, { paddingTop: insets.top + SPACE.lg }]}>
       <View style={styles.row}>
         <View style={styles.textBlock}>
           {(title || titleHighlight) ? (
@@ -74,8 +75,8 @@ export const headerStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    ...PAGE_CONTENT,
+    paddingBottom: SPACE.lg,
     backgroundColor: 'transparent',
   },
   row: {
@@ -91,23 +92,19 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   titleRow: {
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -0.6,
-    lineHeight: 34,
+    ...TYPE.pageTitle,
   },
   titlePart: {
     color: COLORS.textPrimary,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   titleHighlightPart: {
     color: COLORS.primary,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   subtitle: {
-    fontSize: 13,
+    ...TYPE.body,
     color: COLORS.textSecondary,
-    marginTop: 6,
-    lineHeight: 18,
+    marginTop: SPACE.xs,
   },
 });

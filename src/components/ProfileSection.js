@@ -2,13 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useTheme } from '../context/ThemeContext';
+import { TYPE, SPACE, RADIUS } from '../theme/layout';
 
 export default function ProfileSection({ title, children }) {
   const { colors } = useTheme();
   return (
     <View style={styles.container}>
       {title ? <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>{title}</Text> : null}
-      <View style={[styles.sectionContent, { backgroundColor: colors.surface }]}>{children}</View>
+      <View style={[styles.sectionContent, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View>
     </View>
   );
 }
@@ -18,14 +19,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...TYPE.sectionTitle,
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
   sectionContent: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
     overflow: 'hidden',
     ...SHADOWS.small,
   },

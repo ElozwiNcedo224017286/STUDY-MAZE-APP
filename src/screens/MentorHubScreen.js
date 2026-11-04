@@ -1,4 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import StackHeader from '../components/StackHeader';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import React, {useCallback, useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,9 +27,14 @@ const TOOL = {
 };
 
 export default function MentorHubScreen({ navigation, route }) {
+  const { colors: designColors, isDark: designDark } = useTheme();
+  const COLORS = designColors;
+  const styles = useMemo(() => createStyles(designColors), [designColors]);
+
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState('start');
+  const [tab, setTab] = useState(route?.params?.initialTab === 'history' ? 'history' : 'start');
+  useEffect(() => { if (route?.params?.initialTab) setTab(route.params.initialTab === 'history' ? 'history' : 'start'); }, [route?.params?.initialTab]);
   const [history, setHistory] = useState([]);
   const [search, setSearch] = useState('');
 
@@ -60,44 +67,10 @@ export default function MentorHubScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar
-        barStyle="dark-content"
+        barStyle={designDark ? 'light-content' : 'dark-content'}
       />
 
-      <LinearGradient
-        colors={TOOL.lightGradient}
-        style={[styles.header, { paddingTop: insets.top + 12 }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          {route?.name === 'MentorHub' && <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <View style={styles.backButtonInner}>
-              <Ionicons
-                name="arrow-back"
-                size={22}
-                color={COLORS.textPrimary}
-              />
-            </View>
-          </TouchableOpacity>}
-
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>{TOOL.title}</Text>
-            <Text style={styles.headerDescription}>
-              {TOOL.description}
-            </Text>
-          </View>
-
-          <Ionicons
-            name="sparkles"
-            size={32}
-            color={TOOL.color}
-          />
-        </View>
-      </LinearGradient>
+      <StackHeader title={TOOL.title} subtitle={TOOL.description} onBack={() => navigation.goBack()} />
 
       <FeatureTabBar
         active={tab}
@@ -233,113 +206,95 @@ export default function MentorHubScreen({ navigation, route }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = COLORS => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.backgroundSecondary,
+    backgroundColor: COLORS.backgroundSecondary
   },
-
   header: {
     paddingBottom: 16,
     borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
+    borderBottomRightRadius: 36
   },
-
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 16
   },
-
   backButton: {
-    marginRight: 12,
+    marginRight: 12
   },
-
   backButtonInner: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-
   headerText: {
-    flex: 1,
+    flex: 1
   },
-
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.textPrimary,
+    ...TYPE.pageTitle,
+    color: COLORS.textPrimary
   },
-
   headerDescription: {
-    fontSize: 13,
+    ...TYPE.body,
     color: COLORS.textSecondary,
-    marginTop: 3,
-    fontWeight: '600',
+    marginTop: 3
   },
-
   body: {
-    padding: 20,
+    ...PAGE_CONTENT,
+    padding: 20
   },
-
   infoCard: {
     flexDirection: 'row',
     backgroundColor: 'rgba(109,40,217,0.15)',
-    borderRadius: 14,
     padding: 14,
     marginBottom: 24,
     gap: 10,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-
   infoCopy: {
-    flex: 1,
+    flex: 1
   },
-
   infoTitle: {
-    fontSize: 14,
-    fontWeight: '800',
+    ...TYPE.cardTitle,
     color: COLORS.textPrimary,
-    marginBottom: 4,
+    marginBottom: 4
   },
-
   infoText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: COLORS.textSecondary,
-    fontWeight: '600',
+    ...TYPE.body,
+    color: COLORS.textSecondary
   },
-
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    ...TYPE.sectionTitle,
     color: COLORS.textPrimary,
-    marginBottom: 12,
+    marginBottom: 12
   },
-
   optionCard: {
-    borderRadius: 20,
     overflow: 'hidden',
     ...SHADOWS.small,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 16,
     marginTop: 16,
-    borderWidth: 1,
+    borderWidth: 1
   },
-
   optionIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-
+    justifyContent: 'center'
+  }
 });

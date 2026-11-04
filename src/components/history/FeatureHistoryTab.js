@@ -1,4 +1,6 @@
-import React from 'react';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../../theme/layout';
+import { useTheme } from '../../context/ThemeContext';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -35,6 +37,10 @@ export default function FeatureHistoryTab({
   emptyText,
   color = COLORS.primary,
 }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   const query = (search || '').trim().toLowerCase();
   const filtered = query
     ? items.filter((item) =>
@@ -110,8 +116,10 @@ export default function FeatureHistoryTab({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1
+  },
   searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -119,42 +127,102 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 14,
     marginBottom: 8,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 14,
     paddingHorizontal: 12,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  search: { flex: 1, height: 44, color: COLORS.textPrimary, fontWeight: '600' },
-  list: { paddingHorizontal: 20, paddingBottom: 28, flexGrow: 1 },
+  search: {
+    flex: 1,
+    height: 44,
+    color: COLORS.textPrimary,
+    fontWeight: '600'
+  },
+  list: {
+    ...PAGE_CONTENT,
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+    flexGrow: 1
+  },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 12,
     marginTop: 10,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  thumb: { width: 56, height: 56, borderRadius: 12, backgroundColor: COLORS.backgroundSecondary },
-  thumbIcon: { alignItems: 'center', justifyContent: 'center' },
-  copy: { flex: 1, marginLeft: 12, marginRight: 8 },
-  title: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  subtitle: { fontSize: 12, lineHeight: 17, color: COLORS.textSecondary, fontWeight: '600', marginTop: 3 },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
-  date: { fontSize: 11, color: COLORS.textTertiary, fontWeight: '600' },
-  badge: { marginLeft: 6, backgroundColor: COLORS.primarySoft, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { fontSize: 10, fontWeight: '800' },
-  trash: { padding: 6 },
-  empty: { alignItems: 'center', paddingTop: 56, paddingHorizontal: 24 },
+  thumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: COLORS.backgroundSecondary
+  },
+  thumbIcon: {
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  copy: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8
+  },
+  title: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary
+  },
+  subtitle: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    marginTop: 3
+  },
+  meta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 6
+  },
+  date: {
+    ...TYPE.caption,
+    color: COLORS.textTertiary
+  },
+  badge: {
+    marginLeft: 6,
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 2
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800'
+  },
+  trash: {
+    padding: 6
+  },
+  empty: {
+    alignItems: 'center',
+    paddingTop: 56,
+    paddingHorizontal: 24
+  },
   emptyIcon: {
     width: 72,
     height: 72,
     borderRadius: 24,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 14
   },
-  emptyTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 6 },
-  emptyText: { fontSize: 13, lineHeight: 19, color: COLORS.textSecondary, textAlign: 'center', fontWeight: '600' },
+  emptyTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 6
+  },
+  emptyText: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    textAlign: 'center'
+  }
 });

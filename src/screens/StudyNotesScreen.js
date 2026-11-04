@@ -1,3 +1,5 @@
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import { useTheme } from '../context/ThemeContext';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,6 +30,10 @@ const FILTERS = [
 ];
 
 function TeacherNoteCard({ note }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   const meta = [note.subject, note.grade && `Grade ${note.grade}`].filter(Boolean).join(' | ');
   return (
     <View style={styles.teacherCard}>
@@ -39,6 +45,10 @@ function TeacherNoteCard({ note }) {
 }
 
 function FlowDiagram({ diagram }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.diagram}>
       <Text style={styles.diagramTitle}>{diagram.title}</Text>
@@ -61,6 +71,10 @@ function FlowDiagram({ diagram }) {
 }
 
 function MatrixDiagram({ diagram }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.diagram}>
       <Text style={styles.diagramTitle}>{diagram.title}</Text>
@@ -84,6 +98,10 @@ function LessonDiagram({ diagram }) {
 }
 
 function RevisionTopic({ note, expanded, complete, answerVisible, onToggle, onComplete, onReveal }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={[styles.topicCard, complete && styles.topicCardComplete]}>
       <TouchableOpacity style={styles.topicHeader} onPress={onToggle} activeOpacity={0.72}>
@@ -158,6 +176,10 @@ function RevisionTopic({ note, expanded, complete, answerVisible, onToggle, onCo
 }
 
 export default function StudyNotesScreen({ navigation }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   const insets = useSafeAreaInsets();
   const { activeSubject, status } = useSubject();
   const { materials, loading, error, refresh: load } = useSubjectMaterials();
@@ -336,86 +358,472 @@ export default function StudyNotesScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  teacherSection: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 },
-  sectionEyebrow: { fontSize: 11, fontWeight: '900', color: COLORS.textSecondary, marginBottom: 10, letterSpacing: 0 },
-  loader: { marginVertical: 18 },
-  emptyText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20, marginBottom: 16 },
-  teacherCard: { backgroundColor: COLORS.white, borderRadius: 8, padding: 18, marginBottom: 12, borderLeftWidth: 3, borderLeftColor: COLORS.info, ...SHADOWS.small },
-  teacherMeta: { color: COLORS.info, fontSize: 11, fontWeight: '800', marginBottom: 6, letterSpacing: 0 },
-  teacherTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
-  teacherBody: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 21 },
-  packHeader: { backgroundColor: COLORS.white, borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.border, paddingHorizontal: 20, paddingVertical: 22 },
-  packMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 },
-  subjectTag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.primaryFaded, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 6 },
-  subjectTagText: { fontSize: 11, fontWeight: '900', color: COLORS.primary },
-  packType: { flexShrink: 1, fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textAlign: 'right' },
-  packTitle: { fontSize: 24, lineHeight: 30, fontWeight: '900', color: COLORS.textPrimary, marginBottom: 8 },
-  packDescription: { fontSize: 14, lineHeight: 21, color: COLORS.textSecondary, marginBottom: 18 },
-  downloadRow: { flexDirection: 'row', gap: 10 },
-  downloadButton: { height: 42, minWidth: 104, borderRadius: 7, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16 },
-  wordButton: { height: 42, minWidth: 104, borderRadius: 7, borderWidth: 1, borderColor: COLORS.primary, backgroundColor: COLORS.white, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 16 },
-  downloadPrimaryText: { color: COLORS.white, fontSize: 13, fontWeight: '800' },
-  downloadSecondaryText: { color: COLORS.primary, fontSize: 13, fontWeight: '800' },
-  progressBand: { backgroundColor: COLORS.inkDark, paddingHorizontal: 20, paddingVertical: 17 },
-  progressTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 11 },
-  progressLabel: { color: COLORS.accentLight, fontSize: 10, fontWeight: '900', letterSpacing: 0 },
-  progressCount: { color: COLORS.white, fontSize: 13, fontWeight: '700', marginTop: 3 },
-  progressPercent: { color: COLORS.accent, fontSize: 22, fontWeight: '900' },
-  progressTrack: { height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.16)', overflow: 'hidden' },
-  progressFill: { height: '100%', minWidth: 0, borderRadius: 4, backgroundColor: COLORS.accent },
-  lessonSection: { paddingHorizontal: 16, paddingTop: 16 },
-  filters: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 14 },
-  filterTab: { flex: 1, alignItems: 'center', paddingVertical: 11, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  filterTabActive: { borderBottomColor: COLORS.primary },
-  filterText: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
-  filterTextActive: { color: COLORS.primary },
-  topicCard: { backgroundColor: COLORS.white, borderRadius: 8, marginBottom: 11, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOWS.small },
-  topicCardComplete: { borderColor: 'rgba(16, 185, 129, 0.45)' },
-  topicHeader: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14 },
-  topicNumber: { width: 34, height: 34, borderRadius: 7, backgroundColor: COLORS.primaryFaded, alignItems: 'center', justifyContent: 'center' },
-  topicNumberComplete: { backgroundColor: COLORS.success },
-  topicNumberText: { fontSize: 11, fontWeight: '900', color: COLORS.primary },
-  topicHeading: { flex: 1, minWidth: 0 },
-  topicTitle: { fontSize: 15, lineHeight: 20, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 3 },
-  topicSummary: { fontSize: 12, lineHeight: 17, color: COLORS.textSecondary },
-  topicContent: { borderTopWidth: 1, borderTopColor: COLORS.divider, padding: 16 },
-  paragraph: { fontSize: 14, lineHeight: 21, color: COLORS.textSecondary, marginBottom: 12 },
-  bulletList: { marginBottom: 14, gap: 9 },
-  bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 9 },
-  bullet: { width: 6, height: 6, borderRadius: 2, backgroundColor: COLORS.accentDark, marginTop: 7 },
-  bulletText: { flex: 1, fontSize: 13, lineHeight: 20, color: COLORS.textPrimary },
-  keyPoint: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: COLORS.successLight, borderLeftWidth: 3, borderLeftColor: COLORS.success, paddingHorizontal: 12, paddingVertical: 11, marginBottom: 16 },
-  keyPointCopy: { flex: 1 },
-  keyPointLabel: { fontSize: 10, fontWeight: '900', color: COLORS.success, marginBottom: 3, textTransform: 'uppercase' },
-  keyPointText: { fontSize: 13, lineHeight: 19, color: COLORS.textPrimary, fontWeight: '600' },
-  diagram: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.divider, paddingVertical: 15, marginBottom: 16 },
-  diagramTitle: { fontSize: 11, fontWeight: '900', color: COLORS.textPrimary, textTransform: 'uppercase', marginBottom: 12 },
-  flowNode: { minHeight: 43, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 3, paddingHorizontal: 11, paddingVertical: 8 },
-  flowNodePurple: { backgroundColor: COLORS.primaryFaded, borderLeftColor: COLORS.primary },
-  flowNodeGreen: { backgroundColor: COLORS.successLight, borderLeftColor: COLORS.success },
-  flowNumber: { width: 28, fontSize: 10, fontWeight: '900', color: COLORS.textSecondary },
-  flowText: { flex: 1, fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
-  flowConnector: { height: 26, alignItems: 'center', justifyContent: 'center' },
-  flowLine: { position: 'absolute', width: 2, top: 0, bottom: 7, backgroundColor: COLORS.accentDark },
-  matrix: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  matrixCell: { width: '48%', minHeight: 82, padding: 11, borderTopWidth: 3 },
-  matrixPurple: { backgroundColor: COLORS.primaryFaded, borderTopColor: COLORS.primary },
-  matrixGreen: { backgroundColor: COLORS.successLight, borderTopColor: COLORS.success },
-  matrixLabel: { fontSize: 12, lineHeight: 16, fontWeight: '900', color: COLORS.textPrimary, marginBottom: 5 },
-  matrixDetail: { fontSize: 11, lineHeight: 16, color: COLORS.textSecondary },
-  quickCheck: { borderTopWidth: 1, borderTopColor: COLORS.divider, paddingTop: 15, marginBottom: 15 },
-  quickCheckHeading: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
-  quickCheckLabel: { fontSize: 11, fontWeight: '900', color: COLORS.primary, textTransform: 'uppercase' },
-  question: { fontSize: 13, lineHeight: 19, color: COLORS.textPrimary, fontWeight: '700', marginBottom: 9 },
-  answer: { fontSize: 13, lineHeight: 19, color: COLORS.textSecondary, backgroundColor: COLORS.backgroundSecondary, padding: 11, borderLeftWidth: 3, borderLeftColor: COLORS.accent, marginBottom: 9 },
-  revealButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
-  revealText: { fontSize: 12, fontWeight: '800', color: COLORS.primary },
-  completeButton: { height: 40, borderRadius: 7, borderWidth: 1, borderColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  completeButtonActive: { backgroundColor: COLORS.success, borderColor: COLORS.success },
-  completeText: { fontSize: 12, fontWeight: '900', color: COLORS.primary },
-  completeTextActive: { color: COLORS.white },
-  filterEmpty: { alignItems: 'center', paddingVertical: 30 },
-  filterEmptyText: { fontSize: 13, color: COLORS.textSecondary, fontWeight: '700', marginTop: 8 },
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary
+  },
+  teacherSection: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8
+  },
+  sectionEyebrow: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    letterSpacing: 0
+  },
+  loader: {
+    marginVertical: 18
+  },
+  emptyText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16
+  },
+  teacherCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    padding: 18,
+    marginBottom: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.info,
+    ...SHADOWS.small
+  },
+  teacherMeta: {
+    color: COLORS.info,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 6,
+    letterSpacing: 0
+  },
+  teacherTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 8
+  },
+  teacherBody: {
+    ...TYPE.body,
+    color: COLORS.textSecondary
+  },
+  packHeader: {
+    backgroundColor: COLORS.surface,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 20,
+    paddingVertical: 22
+  },
+  packMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 12
+  },
+  subjectTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: COLORS.primaryFaded,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 6
+  },
+  subjectTagText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.primaryText
+  },
+  packType: {
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textAlign: 'right'
+  },
+  packTitle: {
+    ...TYPE.pageTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 8
+  },
+  packDescription: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: COLORS.textSecondary,
+    marginBottom: 18
+  },
+  downloadRow: {
+    flexDirection: 'row',
+    gap: 10
+  },
+  downloadButton: {
+    height: 42,
+    minWidth: 104,
+    borderRadius: 7,
+    backgroundColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 16
+  },
+  wordButton: {
+    height: 42,
+    minWidth: 104,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 16
+  },
+  downloadPrimaryText: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  downloadSecondaryText: {
+    color: COLORS.primaryText,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  progressBand: {
+    backgroundColor: COLORS.inkDark,
+    paddingHorizontal: 20,
+    paddingVertical: 17
+  },
+  progressTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 11
+  },
+  progressLabel: {
+    color: COLORS.accentLight,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0
+  },
+  progressCount: {
+    color: COLORS.white,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 3
+  },
+  progressPercent: {
+    color: COLORS.accent,
+    fontSize: 22,
+    fontWeight: "800"
+  },
+  progressTrack: {
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    minWidth: 0,
+    borderRadius: 4,
+    backgroundColor: COLORS.accent
+  },
+  lessonSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16
+  },
+  filters: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    marginBottom: 14
+  },
+  filterTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 11,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent'
+  },
+  filterTabActive: {
+    borderBottomColor: COLORS.primary
+  },
+  filterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary
+  },
+  filterTextActive: {
+    color: COLORS.primaryText
+  },
+  topicCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 8,
+    marginBottom: 11,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    ...SHADOWS.small
+  },
+  topicCardComplete: {
+    borderColor: 'rgba(16, 185, 129, 0.45)'
+  },
+  topicHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    padding: 14
+  },
+  topicNumber: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
+    backgroundColor: COLORS.primaryFaded,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  topicNumberComplete: {
+    backgroundColor: COLORS.success
+  },
+  topicNumberText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.primaryText
+  },
+  topicHeading: {
+    flex: 1,
+    minWidth: 0
+  },
+  topicTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 3
+  },
+  topicSummary: {
+    ...TYPE.body,
+    color: COLORS.textSecondary
+  },
+  topicContent: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+    padding: 16
+  },
+  paragraph: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    marginBottom: 12
+  },
+  bulletList: {
+    marginBottom: 14,
+    gap: 9
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9
+  },
+  bullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 2,
+    backgroundColor: COLORS.accentDark,
+    marginTop: 7
+  },
+  bulletText: {
+    ...TYPE.body,
+    flex: 1,
+    color: COLORS.textPrimary
+  },
+  keyPoint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: COLORS.successLight,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.success,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    marginBottom: 16
+  },
+  keyPointCopy: {
+    flex: 1
+  },
+  keyPointLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.success,
+    marginBottom: 3,
+    textTransform: 'uppercase'
+  },
+  keyPointText: {
+    ...TYPE.body,
+    color: COLORS.textPrimary
+  },
+  diagram: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: COLORS.divider,
+    paddingVertical: 15,
+    marginBottom: 16
+  },
+  diagramTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    textTransform: 'uppercase',
+    marginBottom: 12
+  },
+  flowNode: {
+    minHeight: 43,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderLeftWidth: 3,
+    paddingHorizontal: 11,
+    paddingVertical: 8
+  },
+  flowNodePurple: {
+    backgroundColor: COLORS.primaryFaded,
+    borderLeftColor: COLORS.primary
+  },
+  flowNodeGreen: {
+    backgroundColor: COLORS.successLight,
+    borderLeftColor: COLORS.success
+  },
+  flowNumber: {
+    width: 28,
+    fontSize: 10,
+    fontWeight: "800",
+    color: COLORS.textSecondary
+  },
+  flowText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary
+  },
+  flowConnector: {
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  flowLine: {
+    position: 'absolute',
+    width: 2,
+    top: 0,
+    bottom: 7,
+    backgroundColor: COLORS.accentDark
+  },
+  matrix: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8
+  },
+  matrixCell: {
+    width: '48%',
+    minHeight: 82,
+    padding: 11,
+    borderTopWidth: 3
+  },
+  matrixPurple: {
+    backgroundColor: COLORS.primaryFaded,
+    borderTopColor: COLORS.primary
+  },
+  matrixGreen: {
+    backgroundColor: COLORS.successLight,
+    borderTopColor: COLORS.success
+  },
+  matrixLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    marginBottom: 5
+  },
+  matrixDetail: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: COLORS.textSecondary
+  },
+  quickCheck: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+    paddingTop: 15,
+    marginBottom: 15
+  },
+  quickCheckHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 7
+  },
+  quickCheckLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: COLORS.primaryText,
+    textTransform: 'uppercase'
+  },
+  question: {
+    ...TYPE.body,
+    color: COLORS.textPrimary,
+    marginBottom: 9
+  },
+  answer: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.backgroundSecondary,
+    padding: 11,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.accent,
+    marginBottom: 9
+  },
+  revealButton: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6
+  },
+  revealText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: COLORS.primaryText
+  },
+  completeButton: {
+    height: 40,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7
+  },
+  completeButtonActive: {
+    backgroundColor: COLORS.success,
+    borderColor: COLORS.success
+  },
+  completeText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: COLORS.primaryText
+  },
+  completeTextActive: {
+    color: COLORS.white
+  },
+  filterEmpty: {
+    alignItems: 'center',
+    paddingVertical: 30
+  },
+  filterEmptyText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    marginTop: 8
+  }
 });

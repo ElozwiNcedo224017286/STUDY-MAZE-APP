@@ -1,4 +1,5 @@
-import React, { useCallback, useState } from 'react';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import React, {useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,12 +24,17 @@ import { useAuth } from '../context/AuthContext';
 import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { api } from '../api/client';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 import { useSubject } from '../context/SubjectContext';
 import useSubjectMaterials from '../hooks/useSubjectMaterials';
 
 const TOTAL_MAZE_LEVELS = 3;
 
 export default function ProfileScreen({ navigation }) {
+  const { colors: designColors } = useTheme();
+  const COLORS = designColors;
+  const styles = useMemo(() => createStyles(designColors), [designColors]);
+
   const { balanceLabel } = useTrustedCoinBalance();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -142,29 +148,17 @@ export default function ProfileScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <View style={styles.headerSide}>
-          <View style={styles.brandRow}>
-            <View style={styles.brandLogoWrap}>
-              <Image source={require('../../assets/logo.png')} style={styles.brandLogo} />
-            </View>
-            <Text style={styles.brandText}>
-              <Text style={[styles.brandStudy, { color: colors.textPrimary }]}>Study</Text>
-              <Text style={[styles.brandMaze, { color: colors.primaryText }]}>Maze</Text>
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Profile</Text>
-        <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
+      <ScreenHeader title="Profile" subtitle="Your progress, subjects and account." right={
           <TouchableOpacity
             style={styles.settingsBtn}
             activeOpacity={0.75}
             onPress={() => navigation.getParent()?.navigate('Settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
           >
             <Ionicons name="settings-outline" size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-        </View>
-      </View>
+      } />
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={COLORS.gradients.hero} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
@@ -380,44 +374,70 @@ export default function ProfileScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 12
   },
-  headerSide: { flex: 1 },
-  brandRow: { flexDirection: 'row', alignItems: 'center' },
+  headerSide: {
+    flex: 1
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   brandLogoWrap: {
     width: 34,
     height: 34,
     borderRadius: 10,
     overflow: 'hidden',
     marginRight: 8,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  brandLogo: { width: '100%', height: '100%' },
-  brandText: { fontSize: 17, letterSpacing: -0.4 },
-  brandStudy: { color: COLORS.textPrimary, fontWeight: '900' },
-  brandMaze: { color: COLORS.primary, fontWeight: '900' },
-  headerTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, textAlign: 'center' },
+  brandLogo: {
+    width: '100%',
+    height: '100%'
+  },
+  brandText: {
+    fontSize: 17,
+    letterSpacing: -0.4
+  },
+  brandStudy: {
+    color: COLORS.textPrimary,
+    fontWeight: "800"
+  },
+  brandMaze: {
+    color: COLORS.primaryText,
+    fontWeight: "800"
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    textAlign: 'center'
+  },
   settingsBtn: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-
-  body: { paddingHorizontal: 20, paddingBottom: 4 },
-
+  body: {
+    ...PAGE_CONTENT,
+    paddingHorizontal: 20,
+    paddingBottom: 4
+  },
   hero: {
     borderRadius: 26,
     paddingVertical: 26,
@@ -425,12 +445,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     marginBottom: 18,
-    ...SHADOWS.medium,
+    ...SHADOWS.medium
   },
-  decorStarOne: { position: 'absolute', top: 18, left: 24 },
-  decorSquare: { position: 'absolute', top: 46, right: 40, transform: [{ rotate: '20deg' }] },
-  decorSchool: { position: 'absolute', top: 20, right: 20 },
-
+  decorStarOne: {
+    position: 'absolute',
+    top: 18,
+    left: 24
+  },
+  decorSquare: {
+    position: 'absolute',
+    top: 46,
+    right: 40,
+    transform: [{
+      rotate: '20deg'
+    }]
+  },
+  decorSchool: {
+    position: 'absolute',
+    top: 20,
+    right: 20
+  },
   avatarWrap: {
     width: 100,
     height: 100,
@@ -440,9 +474,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'visible',
+    overflow: 'visible'
   },
-  avatarImg: { width: '100%', height: '100%', borderRadius: 50 },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50
+  },
   cameraBtn: {
     position: 'absolute',
     right: -2,
@@ -450,22 +488,35 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     alignItems: 'center',
     justifyContent: 'center',
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  name: { color: COLORS.white, fontSize: 21, fontWeight: '800', marginTop: 14 },
-  role: { color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '600', marginTop: 2 },
+  name: {
+    color: COLORS.white,
+    fontSize: 21,
+    fontWeight: '800',
+    marginTop: 14
+  },
+  role: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 2
+  },
   editBtn: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    marginTop: 14,
+    marginTop: 14
   },
-  editBtnText: { color: COLORS.primary, fontWeight: '800', fontSize: 13 },
-
+  editBtnText: {
+    color: COLORS.primaryText,
+    fontWeight: '800',
+    fontSize: 13
+  },
   statsBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -473,81 +524,252 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 12,
     marginTop: 18,
-    width: '100%',
+    width: '100%'
   },
-  statItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  statDivider: { width: 1, height: 22, backgroundColor: 'rgba(255,255,255,0.25)' },
-  statText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
-  statCoin: { fontSize: 13 },
-
+  statItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6
+  },
+  statDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: 'rgba(255,255,255,0.25)'
+  },
+  statText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  statCoin: {
+    fontSize: 13
+  },
   progressCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 18,
+    backgroundColor: COLORS.surface,
     padding: 16,
     marginBottom: 18,
     ...SHADOWS.small,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-  progressTop: { flexDirection: 'row', alignItems: 'center' },
-  progressTitle: { fontSize: 16, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
-  progressLevelRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  progressTop: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  progressTitle: {
+    ...TYPE.cardTitle,
+    color: COLORS.textPrimary,
+    marginBottom: 8
+  },
+  progressLevelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10
+  },
   progressBadge: {
     width: 26,
     height: 26,
     borderRadius: 13,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-  progressLevelText: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: COLORS.backgroundTertiary, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 4 },
-  progressCaption: { fontSize: 12, color: COLORS.textSecondary, marginTop: 8, fontWeight: '600' },
-  progressIcon: { width: 56, height: 56, marginLeft: 12 },
-
-  achievementsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
-  viewAllRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  viewAllText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
-
-  achievementsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  progressLevelText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textPrimary
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.backgroundTertiary,
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 4
+  },
+  progressCaption: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    fontWeight: '600'
+  },
+  progressIcon: {
+    width: 56,
+    height: 56,
+    marginLeft: 12
+  },
+  achievementsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  sectionTitle: {
+    ...TYPE.sectionTitle,
+    color: COLORS.textPrimary
+  },
+  viewAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2
+  },
+  viewAllText: {
+    color: COLORS.primaryText,
+    fontWeight: '700',
+    fontSize: 13
+  },
+  achievementsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24
+  },
   achievementCard: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  achievementImage: { width: 48, height: 48, marginBottom: 8 },
-  achievementImageLocked: { opacity: 0.3 },
-  achievementLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textPrimary, textAlign: 'center' },
-  achievementLabelLocked: { color: COLORS.textTertiary },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: COLORS.white, borderRadius: 20, padding: 22, width: '100%', ...SHADOWS.large },
-  notificationsCard: { backgroundColor: COLORS.white, borderRadius: 20, padding: 20, width: '100%', maxHeight: '78%', ...SHADOWS.large },
-  notificationsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  emptyNotifications: { color: COLORS.textSecondary, textAlign: 'center', paddingVertical: 28, fontSize: 13 },
-  notificationItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: COLORS.borderLight, gap: 10 },
-  notificationUnread: { backgroundColor: COLORS.backgroundWarm },
-  notificationCopy: { flex: 1 },
-  notificationTitle: { color: COLORS.textPrimary, fontSize: 14, fontWeight: '800' },
-  notificationMessage: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  notificationDate: { color: COLORS.textTertiary, fontSize: 10, marginTop: 5 },
-  unreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primary, marginTop: 6 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 14 },
-  modalLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6 },
+  achievementImage: {
+    width: 48,
+    height: 48,
+    marginBottom: 8
+  },
+  achievementImageLocked: {
+    opacity: 0.3
+  },
+  achievementLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textAlign: 'center'
+  },
+  achievementLabelLocked: {
+    color: COLORS.textTertiary
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24
+  },
+  modalCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 22,
+    width: '100%',
+    ...SHADOWS.large
+  },
+  notificationsCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxHeight: '78%',
+    ...SHADOWS.large
+  },
+  notificationsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  emptyNotifications: {
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingVertical: 28,
+    fontSize: 13
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+    gap: 10
+  },
+  notificationUnread: {
+    backgroundColor: COLORS.backgroundWarm
+  },
+  notificationCopy: {
+    flex: 1
+  },
+  notificationTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  notificationMessage: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 3
+  },
+  notificationDate: {
+    color: COLORS.textTertiary,
+    fontSize: 10,
+    marginTop: 5
+  },
+  unreadDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+    marginTop: 6
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginBottom: 14
+  },
+  modalLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginBottom: 6
+  },
   modalInput: {
     backgroundColor: COLORS.backgroundSecondary,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 15,
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary
   },
-  modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
-  modalCancel: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12 },
-  modalCancelText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
-  modalSave: { backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 12 },
-  modalSaveText: { color: COLORS.white, fontWeight: '800', fontSize: 14 },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 18
+  },
+  modalCancel: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12
+  },
+  modalCancelText: {
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    fontSize: 14
+  },
+  modalSave: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12
+  },
+  modalSaveText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 14
+  }
 });

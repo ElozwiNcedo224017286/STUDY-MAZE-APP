@@ -1,9 +1,15 @@
-import React from 'react';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../../theme/layout';
+import { useTheme } from '../../context/ThemeContext';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 
 export default function FeatureTabBar({ active, onChange, color = COLORS.primary }) {
+  const { colors: palette } = useTheme();
+  const COLORS = palette;
+  const styles = useMemo(() => createStyles(palette), [palette]);
+
   const tabs = [
     { key: 'start', label: 'Start', icon: 'sparkles-outline' },
     { key: 'history', label: 'History', icon: 'time-outline' },
@@ -25,12 +31,13 @@ export default function FeatureTabBar({ active, onChange, color = COLORS.primary
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = COLORS => StyleSheet.create({
   bar: {
+    ...PAGE_CONTENT,
     flexDirection: 'row',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.borderLight,
+    borderBottomColor: COLORS.borderLight
   },
   tab: {
     flex: 1,
@@ -39,15 +46,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     gap: 6,
-    position: 'relative',
+    position: 'relative'
   },
-  label: { fontSize: 13, fontWeight: '700', color: COLORS.textTertiary },
+  label: {
+    ...TYPE.label,
+    color: COLORS.textTertiary
+  },
   indicator: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     height: 3,
-    borderRadius: 2,
-  },
+    borderRadius: 2
+  }
 });

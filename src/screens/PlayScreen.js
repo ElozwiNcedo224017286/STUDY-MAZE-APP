@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
+import React, {useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, StatusBar, RefreshControl, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +10,7 @@ import useTrustedCoinBalance from '../hooks/useTrustedCoinBalance';
 import { useSubject } from '../context/SubjectContext';
 import { LEVELS } from './mazeData';
 import { useTheme } from '../context/ThemeContext';
+import ScreenHeader from '../components/ScreenHeader';
 
 // Each accepted Maze level win awards 100 trusted coins.
 const MAZE_TOTAL_REWARD = LEVELS.length * 100;
@@ -53,6 +55,10 @@ const GAMES = [
 ];
 
 export default function PlayScreen({ navigation }) {
+  const { colors: designColors } = useTheme();
+  const COLORS = designColors;
+  const styles = useMemo(() => createStyles(designColors), [designColors]);
+
   const { balanceLabel, refreshBalance } = useTrustedCoinBalance();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -64,22 +70,9 @@ export default function PlayScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>
-            <Text style={[styles.headerPlay, { color: colors.textPrimary }]}>Play </Text>
-            <Text style={[styles.headerZone, { color: colors.primaryText }]}>Zone</Text>
-          </Text>
-          <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Choose a game and learn at your pace.</Text>
-        </View>
-        <View style={styles.statPill}>
-          <Text style={styles.statCoin}>🪙</Text>
-          <Text style={styles.statText}>{balanceLabel}</Text>
-          <View style={styles.statDivider} />
-          <Ionicons name="flame" size={15} color="#F97316" />
-          <Text style={styles.statText}>{user?.streakDays ?? 0}</Text>
-        </View>
-      </View>
+      <ScreenHeader title="Play" subtitle="Build your knowledge, one game at a time."
+        right={<View style={styles.statPill}><Ionicons name="wallet-outline" size={17} color={colors.primaryText} /><Text style={styles.statText}>{balanceLabel}</Text></View>}
+      />
 
       <ScrollView
         contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]}
@@ -92,9 +85,10 @@ export default function PlayScreen({ navigation }) {
           <View style={styles.heroContent}>
             <View style={styles.liveBadge}><Text style={styles.liveBadgeText}>YOUR STUDY</Text></View>
             <Text style={styles.heroTitle}>{status === 'loading' ? 'Loading current subject...' : status === 'error' ? 'Check your current subject' : activeSubject ? `Current subject: ${activeSubject.subject_name}` : 'Choose your current subject'}</Text>
-            <Text style={styles.heroSub}>Maze and Quiz Rush use your current subject. Choose its chapters inside each game.</Text>
+            <Text style={styles.heroSub}>Use your class chapters in Maze Runner and Quiz Rush, or explore any subject in Practice Maze.</Text>
+            <TouchableOpacity onPress={() => navigation.getParent()?.navigate('MySubjects')} accessibilityRole="button" style={{ paddingTop: 12, minHeight: 44 }}><Text style={{ ...TYPE.label, color: '#FFFFFF' }}>Change subject →</Text></TouchableOpacity>
           </View>
-          <Image source={require('../../assets/Artwork/icon-quiz-tray.png')} style={styles.heroImage} resizeMode="contain" />
+          <Image source={require('../../assets/Artwork/icon-quiz-tray.png')} style={styles.heroImage} resizeMode="contain" accessibilityElementsHidden />
         </LinearGradient>
 
         <Text style={styles.eyebrow}>GAMES</Text>
@@ -113,8 +107,7 @@ export default function PlayScreen({ navigation }) {
                 <View style={styles.gameIconWrap}>
                   <Ionicons name={game.icon} size={18} color={COLORS.white} />
                 </View>
-                <Text style={styles.gameTitle} numberOfLines={1}>{game.title}</Text>
-                <View style={styles.tagPill}><Text style={styles.tagText}>{game.tag}</Text></View>
+                <Text style={styles.gameTitle}>{game.title}</Text>
               </View>
               <Text style={styles.gameDesc}>{game.description}</Text>
               <View style={styles.gameBottomRow}>
@@ -134,31 +127,67 @@ export default function PlayScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.backgroundSecondary },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, gap: 12 },
-  headerTitle: { fontSize: 30, letterSpacing: -0.6 },
-  headerPlay: { color: COLORS.textPrimary, fontWeight: '900' },
-  headerZone: { color: COLORS.primary, fontWeight: '900' },
-  headerSub: { fontSize: 13, color: COLORS.textSecondary, marginTop: 4, lineHeight: 18 },
+const createStyles = COLORS => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSecondary
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    gap: 12
+  },
+  headerTitle: {
+    fontSize: 30,
+    letterSpacing: -0.6
+  },
+  headerPlay: {
+    color: COLORS.textPrimary,
+    fontWeight: "800"
+  },
+  headerZone: {
+    color: COLORS.primaryText,
+    fontWeight: "800"
+  },
+  headerSub: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    lineHeight: 18
+  },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-  statCoin: { fontSize: 14 },
-  statText: { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
-  statDivider: { width: 1, height: 14, backgroundColor: COLORS.border, marginHorizontal: 2 },
-
-  body: { paddingHorizontal: 20, paddingTop: 4 },
-
+  statCoin: {
+    fontSize: 14
+  },
+  statText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: COLORS.textPrimary
+  },
+  statDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 2
+  },
+  body: {
+    ...PAGE_CONTENT,
+    paddingHorizontal: 20,
+    paddingTop: 4
+  },
   hero: {
     borderRadius: 22,
     padding: 20,
@@ -167,43 +196,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     minHeight: 130,
-    ...SHADOWS.medium,
+    ...SHADOWS.medium
   },
-  heroContent: { flex: 1, paddingRight: 10 },
-  liveBadge: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, alignSelf: 'flex-start', marginBottom: 8 },
-  liveBadgeText: { color: COLORS.white, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 },
-  heroTitle: { color: COLORS.white, fontWeight: '800', fontSize: 16, marginBottom: 6 },
-  heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, lineHeight: 18 },
-  heroImage: { width: 74, height: 74 },
-
-  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, color: COLORS.primary, marginTop: 8 },
-  sectionTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary, marginTop: 4, marginBottom: 14 },
-
+  heroContent: {
+    flex: 1,
+    paddingRight: 10
+  },
+  liveBadge: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+    marginBottom: 8
+  },
+  liveBadgeText: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 0.5
+  },
+  heroTitle: {
+    color: COLORS.white,
+    fontWeight: '800',
+    fontSize: 16,
+    marginBottom: 6
+  },
+  heroSub: {
+    ...TYPE.body,
+    color: 'rgba(255,255,255,0.85)'
+  },
+  heroImage: {
+    width: 74,
+    height: 74
+  },
+  eyebrow: {
+    ...TYPE.eyebrow,
+    color: COLORS.primaryText,
+    marginTop: 8
+  },
+  sectionTitle: {
+    ...TYPE.sectionTitle,
+    color: COLORS.textPrimary,
+    marginTop: 4,
+    marginBottom: 14
+  },
   gameCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
+    backgroundColor: COLORS.surface,
     marginBottom: 16,
     padding: 12,
     ...SHADOWS.small,
+    borderRadius: RADIUS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border
   },
-  gameImage: { width: 88, height: 88, borderRadius: 16, marginRight: 12 },
-  gameInfo: { flex: 1, justifyContent: 'space-between' },
-  gameTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  gameImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 16,
+    marginRight: 12
+  },
+  gameInfo: {
+    flex: 1,
+    justifyContent: 'space-between'
+  },
+  gameTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6
+  },
   gameIconWrap: {
     width: 30,
     height: 30,
     borderRadius: 10,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-  gameTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
-  tagPill: { backgroundColor: COLORS.primarySoft, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4 },
-  tagText: { color: COLORS.primary, fontWeight: '700', fontSize: 11 },
-  gameDesc: { fontSize: 12.5, color: COLORS.textSecondary, lineHeight: 17, marginBottom: 10 },
-  gameBottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  gameTitle: {
+    ...TYPE.cardTitle,
+    flex: 1,
+    color: COLORS.textPrimary
+  },
+  tagPill: {
+    backgroundColor: COLORS.primarySoft,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 4
+  },
+  tagText: {
+    color: COLORS.primaryText,
+    fontWeight: '700',
+    fontSize: 11
+  },
+  gameDesc: {
+    ...TYPE.body,
+    color: COLORS.textSecondary,
+    marginBottom: 10
+  },
+  gameBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
   rewardPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -211,16 +309,21 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.backgroundSecondary,
     borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingVertical: 6
   },
-  rewardCoin: { fontSize: 12 },
-  rewardText: { fontSize: 12, fontWeight: '800', color: COLORS.primary },
+  rewardCoin: {
+    fontSize: 12
+  },
+  rewardText: {
+    ...TYPE.label,
+    color: COLORS.primaryText
+  },
   goArrow: {
     width: 30,
     height: 30,
     borderRadius: 15,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
+    justifyContent: 'center'
+  }
 });
