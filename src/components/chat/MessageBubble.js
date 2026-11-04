@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS as DEFAULT_COLORS, SHADOWS } from '../../theme/colors';
 import MarkdownText from './MarkdownText';
 import AudioPlayer from './AudioPlayer';
+import ChatVideoPlayer from './ChatVideoPlayer';
 
 export default function MessageBubble({ message, isFirstInGroup, themeColors }) {
   const COLORS = themeColors || DEFAULT_COLORS;
@@ -39,6 +40,7 @@ export default function MessageBubble({ message, isFirstInGroup, themeColors }) 
           </View>
         ) : null}
         {message.audioUri ? <AudioPlayer uri={message.audioUri} isUser={isUser} autoPlay={message.autoPlay} themeColors={themeColors} /> : null}
+        {message.videoUri ? <ChatVideoPlayer uri={message.videoUri} /> : null}
         {message.text ? <MarkdownText text={message.text} isUser={isUser} textColor={themeColors && (isUser ? COLORS.white : COLORS.textPrimary)} /> : null}
         {message.isError ? (
           <View style={styles.errorRow}>

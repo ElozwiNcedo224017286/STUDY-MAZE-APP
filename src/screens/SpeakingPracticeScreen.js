@@ -41,7 +41,7 @@ export default function SpeakingPracticeScreen({ navigation }) {
   async function handleSend(payload) {
     // Ref guard also blocks taps before React has rendered the disabled controls.
     if (!mounted.current || inFlight.current) return;
-    if (!payload?.text?.trim() && !payload?.audioUri) return;
+    if (!payload?.text?.trim() && !payload?.audioUri && !payload?.videoUri) return;
     inFlight.current = true;
     setSending(true);
     setError('');
@@ -95,7 +95,7 @@ export default function SpeakingPracticeScreen({ navigation }) {
               <Ionicons name="mic-outline" size={28} color={colors.primaryText} />
               <Text style={[styles.title, { color: colors.textPrimary }]}>Practise out loud</Text>
               <Text style={[styles.description, { color: colors.textSecondary }]}>
-                Record or type an answer and hear an AI reply. The transcript stays here to read.
+                Record, upload an audio or video clip, or type an answer and hear an AI reply. The transcript stays here to read.
                 If speech is unavailable, you can keep practising with text. This conversation lasts while this screen is open.
               </Text>
               {messages.length === 0 && PROMPTS.map((prompt) => (
@@ -126,9 +126,10 @@ export default function SpeakingPracticeScreen({ navigation }) {
         <ChatInput
           onSend={handleSend}
           disabled={sending}
-          allowMedia={false}
+          allowMedia
+          mediaOptions={['audio', 'video']}
           themeColors={colors}
-          placeholder="Type or tap the microphone..."
+          placeholder="Record, upload, or type an answer..."
         />
       </KeyboardAvoidingView>
     </View>

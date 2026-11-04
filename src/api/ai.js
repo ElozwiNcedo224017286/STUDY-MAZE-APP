@@ -1,8 +1,8 @@
 import { File } from 'expo-file-system';
-import { mimeFromFileName } from '../constants/studyFiles';
+import { mimeFromFileName, videoMimeFromFileName } from '../constants/studyFiles';
 
 const API_CONFIG = {
-  BASE_URL: process.env.EXPO_PUBLIC_FLASK_API_URL || inferFlaskUrl(),
+  BASE_URL: (process.env.EXPO_PUBLIC_FLASK_API_URL?.trim() || inferFlaskUrl()).replace(/\/+$/, ''),
   TIMEOUT: 120000,
 };
 
@@ -98,9 +98,10 @@ function validateMessageData(messageData) {
   const hasText = messageData.text && messageData.text.trim().length > 0;
   const hasImages = messageData.images && messageData.images.length > 0;
   const hasAudio = Boolean(messageData.audioUri);
+  const hasVideo = Boolean(messageData.videoUri);
   const hasDocument = Boolean(messageData.documentUri);
-  if (!hasText && !hasImages && !hasAudio && !hasDocument) {
-    throw new Error('Send text, a photo, a voice note, or a document.');
+  if (!hasText && !hasImages && !hasAudio && !hasVideo && !hasDocument) {
+    throw new Error('Send text, a photo, an audio or video clip, or a document.');
   }
   return true;
 }
@@ -202,10 +203,22 @@ async function createChatFormData(messageData, conversationId, extras = {}) {
   if (messageData.audioUri) {
     appendEncodedFile(formData, 'audio', await readAttachment(
       messageData.audioUri,
-      guessName(messageData.audioUri, `audio_${Date.now()}.m4a`),
-      'audio/aac',
+      messageData.audioName || guessName(messageData.audioUri, `audio_${Date.now()}.m4a`),
+      messageData.audioMimeType || 'audio/aac',
       `audio_${Date.now()}.m4a`,
       'audio/aac'
+    ));
+  }
+
+  if (messageData.videoUri) {
+    const fallbackName = `video_${Date.now()}.mp4`;
+    const videoName = messageData.videoName || guessName(messageData.videoUri, fallbackName);
+    appendEncodedFile(formData, 'video', await readAttachment(
+      messageData.videoUri,
+      videoName,
+      messageData.videoMimeType || videoMimeFromFileName(videoName),
+      fallbackName,
+      'video/mp4'
     ));
   }
 

@@ -44,7 +44,24 @@ const MIME_BY_EXT = {
   mp4: 'audio/aac',
 };
 
+const VIDEO_MIME_BY_EXT = {
+  mp4: 'video/mp4',
+  mpeg: 'video/mpeg',
+  mpg: 'video/mpg',
+  mov: 'video/mov',
+  avi: 'video/avi',
+  flv: 'video/x-flv',
+  webm: 'video/webm',
+  wmv: 'video/wmv',
+  '3gp': 'video/3gpp',
+};
+
 export function mimeFromFileName(name, fallback = 'application/pdf') {
   const ext = String(name || '').split('.').pop()?.toLowerCase();
   return MIME_BY_EXT[ext] || fallback;
+}
+
+export function videoMimeFromFileName(name, fallback = 'video/mp4') {
+  const ext = String(name || '').split('.').pop()?.toLowerCase();
+  return VIDEO_MIME_BY_EXT[ext] || fallback;
 }
