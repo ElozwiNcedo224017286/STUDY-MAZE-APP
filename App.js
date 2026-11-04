@@ -80,6 +80,8 @@ function AppShell() {
             <Stack.Screen name="MazeLevels" component={MazeLevelsScreen} />
             <Stack.Screen name="MazeGame" component={MazeGameScreen} />
             <Stack.Screen name="MazeResult" component={MazeResultScreen} />
+            <Stack.Screen name="MazePractice" getComponent={() => require('./src/screens/MazePracticeScreen').default} />
+            <Stack.Screen name="MazePracticeResult" getComponent={() => require('./src/screens/MazePracticeResultScreen').default} />
 
             <Stack.Screen name="QuizRush" component={QuizRushScreen} />
             <Stack.Screen name="MemoryFlip" component={MemoryFlipScreen} />

@@ -1,0 +1,97 @@
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { COLORS, SHADOWS } from '../theme/colors';
+
+const starsText = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
+
+export default function MazePracticeResultScreen({ route, navigation }) {
+  const {
+    outcome,
+    coins = 0,
+    score = 0,
+    subject = null,
+    difficulty = null,
+    stars = 0,
+    level = 1,
+    missedCount = 0,
+    daily = false,
+  } = route.params || {};
+
+  const isWin = outcome === 'win';
+
+  // The daily challenge is a single run, so it has no retry or next level.
+  const canReplay = !!subject && !!difficulty && !daily;
+
+  const playLevel = startLevel =>
+    navigation.replace('MazePractice', {
+      selectedSubject: subject,
+      selectedDifficulty: difficulty,
+      startLevel,
+    });
+
+  return (
+    <View style={styles.flex}>
+      <View style={styles.card}>
+        <Text style={styles.icon}>{isWin ? '🏆' : '💀'}</Text>
+
+        <Text style={[styles.title, !isWin && styles.titleLose]}>
+          {isWin ? `Level ${level} complete!` : 'Game over'}
+        </Text>
+
+        {isWin ? <Text style={styles.stars}>{starsText(stars)}</Text> : null}
+
+        <Text style={styles.sub}>
+          {isWin
+            ? `Practice tokens: ${coins} · Score: ${score}`
+            : `The ghosts got you. Practice tokens: ${coins}`}
+          {missedCount > 0
+            ? `\n${missedCount} question${missedCount === 1 ? '' : 's'} to review`
+            : ''}
+        </Text>
+
+        {canReplay && isWin ? (
+          <TouchableOpacity
+            style={styles.btnPrimary}
+            onPress={() => playLevel(level + 1)}
+          >
+            <Text style={styles.btnPrimaryText}>
+              Continue to level {level + 1}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {canReplay && !isWin ? (
+          <TouchableOpacity
+            style={styles.btnRetry}
+            onPress={() => playLevel(level)}
+          >
+            <Text style={styles.btnRetryText}>Retry level</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.btnGhost}
+          onPress={() => navigation.navigate('Main')}
+        >
+          <Text style={styles.btnGhostText}>Back to Home</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: COLORS.backgroundSecondary, justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: COLORS.white, borderRadius: 22, padding: 26, ...SHADOWS.medium },
+  icon: { fontSize: 44, textAlign: 'center', marginBottom: 8 },
+  title: { color: COLORS.textPrimary, fontWeight: '900', fontSize: 20, textAlign: 'center', marginBottom: 10 },
+  titleLose: { color: COLORS.error },
+  stars: { color: COLORS.accent, fontSize: 30, textAlign: 'center', letterSpacing: 4, marginBottom: 8 },
+  sub: { color: COLORS.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 20, marginBottom: 22 },
+  btnPrimary: { backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 15, alignItems: 'center', ...SHADOWS.small },
+  btnPrimaryText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  btnRetry: { backgroundColor: COLORS.error, borderRadius: 14, paddingVertical: 15, alignItems: 'center', ...SHADOWS.small },
+  btnRetryText: { color: COLORS.white, fontWeight: '800', fontSize: 15 },
+  btnGhost: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
+  btnGhostText: { color: COLORS.textSecondary, fontWeight: '700', fontSize: 14 },
+});

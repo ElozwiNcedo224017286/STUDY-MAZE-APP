@@ -32,11 +32,18 @@ function inferFlaskUrl() {
   }
 }
 
-function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT) {
-  return Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), timeout)),
-  ]);
+async function fetchWithTimeout(url, options = {}, timeout = API_CONFIG.TIMEOUT) {
+  let timer;
+  try {
+    return await Promise.race([
+      fetch(url, options),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('Request timeout')), timeout);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function buildUrl(endpoint) {

@@ -1,5 +1,39 @@
 # Study Maze
 
+## Combined Branch Features
+
+The Play tab includes both **Maze Runner**, which uses the active subject's
+teacher-published chapters and trusted rewards, and **Practice Maze**, which adds
+subject search, favorites, four difficulties, daily challenges, power-ups,
+missed-question review, and local progress. Practice tokens stay on the device.
+The built-in practice subjects work without an online question provider.
+
+For optional online subject search, add `QUIZAPI_KEY` to `backend/.env` and run
+Flask alongside Expo. The app uses the backend's read-only QuizAPI proxy; keep
+the provider key out of public Expo environment variables. See the
+[QuizAPI documentation](https://quizapi.io/docs/quizzes) for obtaining and using
+an API key.
+
+Voice Lab accepts recordings, uploaded audio and video clips, and typed answers.
+Spoken replies are optional: text feedback remains available if speech or local
+audio storage fails. Revision Notes retains the active subject's teacher notes
+and includes a Business Studies revision pack with progress tracking and PDF or
+Word export. Open it from the Mentor tab.
+
+Run the regression checks from the repository root:
+
+```powershell
+npm ci
+npm test
+py -m pip install -r backend/requirements.txt
+py -m unittest discover -s backend -p test_integration.py -v
+npx expo install --check
+npx expo export --platform all
+```
+
+Merge decisions and branch coverage are recorded in
+[the integration report](docs/branch-integration-2026-11-04.md).
+
 Study Maze is an Expo / React Native learning app. The mobile app is already expected to be set up on your machine. This README focuses on running the Python Flask backend correctly and making sure the app connects to it.
 
 The Flask backend powers the AI features:

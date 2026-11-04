@@ -185,6 +185,25 @@ export default function MentorHubScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[styles.optionCard, styles.optionRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => navigation.navigate('StudyNotes')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Open Revision Notes"
+          >
+            <View style={[styles.optionIcon, { backgroundColor: colors.primarySoft }]}>
+              <Ionicons name="document-text-outline" size={24} color={colors.primaryText} />
+            </View>
+            <View style={styles.infoCopy}>
+              <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Revision Notes</Text>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Review teacher notes and revision topics, or save a PDF or Word pack.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.primaryText} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={[
               styles.optionCard,
               styles.optionRow,

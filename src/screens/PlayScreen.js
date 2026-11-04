@@ -24,6 +24,15 @@ const GAMES = [
     reward: MAZE_TOTAL_REWARD,
   },
   {
+    key: 'MazePractice',
+    title: 'Practice Maze',
+    description: 'Search subjects, choose a difficulty, and explore daily mazes with offline questions.',
+    icon: 'compass-outline',
+    tag: 'Practice',
+    image: require('../../assets/Artwork/game-maze-runner.png'),
+    reward: null,
+  },
+  {
     key: 'QuizRush',
     title: 'Quiz Rush',
     description: 'Beat the clock on rapid-fire questions. Three lives. One streak.',
@@ -111,7 +120,7 @@ export default function PlayScreen({ navigation }) {
               <View style={styles.gameBottomRow}>
                 <View style={styles.rewardPill}>
                   <Text style={styles.rewardCoin}>🪙</Text>
-                  <Text style={styles.rewardText}>+{game.reward}</Text>
+                  <Text style={styles.rewardText}>{game.reward == null ? 'Local progress' : `+${game.reward}`}</Text>
                 </View>
                 <View style={styles.goArrow}>
                   <Ionicons name="chevron-forward" size={18} color={COLORS.white} />

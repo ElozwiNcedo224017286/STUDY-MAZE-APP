@@ -12,6 +12,9 @@ import zipfile
 import traceback
 from io import BytesIO
 from xml.etree import ElementTree as ET
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from dotenv import load_dotenv
 import json
 from werkzeug.datastructures import FileStorage
@@ -697,6 +700,37 @@ def run_chat(mode="tutor"):
             "status": "error",
             "processing_time": round(time.time() - start_time, 2),
         }), 500
+
+
+@app.route("/api/quiz/<resource>", methods=["GET"])
+def quiz_questions(resource):
+    # Keep provider credentials on the server and restrict this proxy to reads.
+    if resource not in {"quizzes", "questions"}:
+        return jsonify({"error": "Unknown quiz resource."}), 404
+    api_key = (os.getenv("QUIZAPI_KEY") or "").strip()
+    if not api_key:
+        return jsonify({"error": "Online subject search is unavailable. Built-in practice subjects work offline."}), 503
+    allowed = {"topic", "category", "difficulty", "quiz_id", "include_answers", "type", "limit", "sort", "random"}
+    params = {key: value[:200] for key, value in request.args.items() if key in allowed}
+    try:
+        params["limit"] = str(max(1, min(int(params.get("limit", "20")), 50)))
+    except ValueError:
+        return jsonify({"error": "Invalid question limit."}), 400
+    provider_request = Request(
+        f"https://quizapi.io/api/v1/{resource}?{urlencode(params)}",
+        headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"},
+    )
+    try:
+        with urlopen(provider_request, timeout=10) as response:
+            payload = json.load(response)
+        if not isinstance(payload, dict):
+            raise ValueError("Unexpected quiz response")
+        return jsonify(payload)
+    except HTTPError as error:
+        status = 429 if error.code == 429 else 502
+        return jsonify({"error": "Online questions are unavailable. Try again later or use a built-in subject."}), status
+    except (URLError, TimeoutError, ValueError):
+        return jsonify({"error": "Could not reach online questions. Built-in practice subjects still work."}), 502
 
 
 @app.route("/health", methods=["GET"])
