@@ -805,25 +805,23 @@ export default function StreakScreen({ navigation }) {
   );
 }
 
-const createStyles = (COLORS) => StyleSheet.create({
+const createStyles = COLORS => StyleSheet.create({
   // --------------------------------------------------
   // Screen
   // --------------------------------------------------
 
   screen: {
     flex: 1,
-    backgroundColor: COLORS.backgroundSecondary,
+    backgroundColor: COLORS.backgroundSecondary
   },
-
   scrollView: {
-    flex: 1,
+    flex: 1
   },
-
   container: {
+    ...PAGE_CONTENT,
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 40
   },
-
   // --------------------------------------------------
   // Loading
   // --------------------------------------------------
@@ -832,21 +830,19 @@ const createStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.backgroundSecondary,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-
   loadingText: {
     color: COLORS.textSecondary,
     fontSize: 13,
-    marginTop: 12,
+    marginTop: 12
   },
-
   // --------------------------------------------------
   // Hero
   // --------------------------------------------------
 
   heroCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderRadius: 22,
     paddingVertical: 28,
     paddingHorizontal: 20,
@@ -854,9 +850,8 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden',
-    ...SHADOWS.medium,
+    ...SHADOWS.medium
   },
-
   heroGlow: {
     position: 'absolute',
     width: 180,
@@ -864,9 +859,8 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderRadius: 90,
     backgroundColor: COLORS.primaryFaded,
     top: -90,
-    right: -60,
+    right: -60
   },
-
   fireCircle: {
     width: 64,
     height: 64,
@@ -874,34 +868,29 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 8
   },
-
   fire: {
-    fontSize: 38,
+    fontSize: 38
   },
-
   streakNumber: {
     color: COLORS.textPrimary,
     fontSize: 52,
-    fontWeight: '900',
-    letterSpacing: -1,
+    fontWeight: "800",
+    letterSpacing: -1
   },
-
   streakLabel: {
     color: COLORS.textSecondary,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
-    marginTop: -2,
+    marginTop: -2
   },
-
   keepGoing: {
     color: COLORS.textSecondary,
     fontSize: 12,
-    marginTop: 8,
+    marginTop: 8
   },
-
   heroBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -909,16 +898,14 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderRadius: 20,
     paddingVertical: 7,
     paddingHorizontal: 11,
-    marginTop: 16,
+    marginTop: 16
   },
-
   heroBadgeText: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontSize: 10,
     fontWeight: '800',
-    marginLeft: 5,
+    marginLeft: 5
   },
-
   // --------------------------------------------------
   // Statistics
   // --------------------------------------------------
@@ -926,22 +913,20 @@ const createStyles = (COLORS) => StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 14,
+    marginTop: 14
   },
-
   statCard: {
     flex: 1,
     minHeight: 82,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 16,
     paddingHorizontal: 13,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-
   statIconWrap: {
     width: 38,
     height: 38,
@@ -949,71 +934,61 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.primaryFaded,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    marginRight: 10
   },
-
   statTextBlock: {
-    flex: 1,
+    flex: 1
   },
-
   statNumber: {
     color: COLORS.textPrimary,
     fontSize: 23,
-    fontWeight: '900',
+    fontWeight: "800"
   },
-
   statLabel: {
     color: COLORS.textSecondary,
     fontSize: 10,
     marginTop: 2,
-    lineHeight: 14,
+    lineHeight: 14
   },
-
   // --------------------------------------------------
   // Calendar
   // --------------------------------------------------
 
   calendarCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 18,
     padding: 16,
     marginTop: 14,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'center'
   },
-
   calendarHeaderText: {
-    flex: 1,
+    flex: 1
   },
-
   calendarEyebrow: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+    fontWeight: "800",
+    letterSpacing: 1.2
   },
-
   calendarTitle: {
     color: COLORS.textPrimary,
     fontSize: 20,
-    fontWeight: '900',
-    marginTop: 2,
+    fontWeight: "800",
+    marginTop: 2
   },
-
   calendarSubtitle: {
     color: COLORS.textSecondary,
     fontSize: 11,
     marginTop: 5,
-    lineHeight: 16,
+    lineHeight: 16
   },
-
   monthStreakPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1022,96 +997,80 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderColor: COLORS.primaryLight,
     borderRadius: 20,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 10
   },
-
   monthStreakText: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontSize: 12,
-    fontWeight: '900',
-    marginLeft: 4,
+    fontWeight: "800",
+    marginLeft: 4
   },
-
   weekRow: {
     flexDirection: 'row',
     marginTop: 20,
-    marginBottom: 8,
+    marginBottom: 8
   },
-
   weekDay: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'center'
   },
-
   weekDayText: {
     color: COLORS.textTertiary,
     fontSize: 8,
-    fontWeight: '900',
+    fontWeight: "800"
   },
-
   calendarGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'wrap'
   },
-
   dayCell: {
     width: '14.2857%',
     height: 45,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-
   dayInner: {
     width: 35,
     height: 35,
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    position: 'relative'
   },
-
   dayNumber: {
     color: COLORS.textTertiary,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '700'
   },
-
   claimedDay: {
     backgroundColor: COLORS.primarySoft,
     borderWidth: 1,
-    borderColor: COLORS.primaryLight,
+    borderColor: COLORS.primaryLight
   },
-
   claimedDayNumber: {
-    color: COLORS.primary,
-    fontWeight: '900',
+    color: COLORS.primaryText,
+    fontWeight: "800"
   },
-
   todayDay: {
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.primary
   },
-
   todayDayNumber: {
     color: COLORS.textPrimary,
-    fontWeight: '900',
+    fontWeight: "800"
   },
-
   claimedTodayDay: {
     borderWidth: 2,
-    borderColor: COLORS.primary,
+    borderColor: COLORS.primary
   },
-
   dayFireWrap: {
     position: 'absolute',
     top: -5,
-    right: -4,
+    right: -4
   },
-
   dayFire: {
-    fontSize: 9,
+    fontSize: 9
   },
-
   // --------------------------------------------------
   // Calendar legend
   // --------------------------------------------------
@@ -1124,14 +1083,12 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.divider,
     marginTop: 12,
-    paddingTop: 12,
+    paddingTop: 12
   },
-
   legendItem: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center'
   },
-
   legendFireCircle: {
     width: 18,
     height: 18,
@@ -1139,37 +1096,33 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 5,
+    marginRight: 5
   },
-
   legendTodayCircle: {
     width: 13,
     height: 13,
     borderRadius: 4,
     borderWidth: 1.5,
     borderColor: COLORS.primary,
-    marginRight: 5,
+    marginRight: 5
   },
-
   legendText: {
     color: COLORS.textSecondary,
-    fontSize: 9,
+    fontSize: 9
   },
-
   // --------------------------------------------------
   // Daily reward card
   // --------------------------------------------------
 
   rewardCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 18,
     padding: 16,
     marginTop: 14,
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-
   rewardIconWrap: {
     width: 44,
     height: 44,
@@ -1177,26 +1130,22 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.primaryFaded,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 12
   },
-
   rewardContent: {
-    paddingRight: 45,
+    paddingRight: 45
   },
-
   rewardTitle: {
     color: COLORS.textPrimary,
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: "800"
   },
-
   rewardText: {
     color: COLORS.textSecondary,
     fontSize: 11,
     lineHeight: 17,
-    marginTop: 4,
+    marginTop: 4
   },
-
   rewardBadge: {
     position: 'absolute',
     top: 16,
@@ -1204,16 +1153,14 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.primarySoft,
     borderRadius: 12,
     paddingVertical: 5,
-    paddingHorizontal: 8,
+    paddingHorizontal: 8
   },
-
   rewardBadgeText: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    fontWeight: "800",
+    letterSpacing: 0.8
   },
-
   lastRewardRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1221,23 +1168,20 @@ const createStyles = (COLORS) => StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.divider,
     marginTop: 14,
-    paddingTop: 12,
+    paddingTop: 12
   },
-
   lastRewardLabel: {
     color: COLORS.textTertiary,
     fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontWeight: "800",
+    letterSpacing: 1
   },
-
   dateText: {
-    color: COLORS.primary,
+    color: COLORS.primaryText,
     fontSize: 11,
     fontWeight: '800',
-    marginTop: 3,
+    marginTop: 3
   },
-
   // --------------------------------------------------
   // Error
   // --------------------------------------------------
@@ -1246,19 +1190,17 @@ const createStyles = (COLORS) => StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 12,
-    alignItems: 'stretch',
+    alignItems: 'stretch'
   },
-
   errorCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
     borderRadius: 18,
     padding: 22,
     alignItems: 'center',
-    ...SHADOWS.small,
+    ...SHADOWS.small
   },
-
   errorIconWrap: {
     width: 54,
     height: 54,
@@ -1266,39 +1208,34 @@ const createStyles = (COLORS) => StyleSheet.create({
     backgroundColor: COLORS.errorLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: 12
   },
-
   errorTitle: {
     color: COLORS.textPrimary,
     fontSize: 17,
-    fontWeight: '900',
-    textAlign: 'center',
+    fontWeight: "800",
+    textAlign: 'center'
   },
-
   errorText: {
     color: COLORS.textSecondary,
     fontSize: 12,
     lineHeight: 18,
     textAlign: 'center',
     marginTop: 7,
-    marginBottom: 18,
+    marginBottom: 18
   },
-
   retryButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 12,
     paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingHorizontal: 24
   },
-
   retryButtonText: {
     color: COLORS.white,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '800'
   },
-
   bottomSpacer: {
-    height: 20,
-  },
+    height: 20
+  }
 });

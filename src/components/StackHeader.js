@@ -17,7 +17,7 @@ export default function StackHeader({ title, subtitle, onBack, right }) {
           <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.text}>
-          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2}>{title}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={2} accessibilityRole="header">{title}</Text>
           {subtitle ? <Text style={[styles.subtitle, { color: colors.textSecondary }]} numberOfLines={2}>{subtitle}</Text> : null}
         </View>
         {right ? <View style={styles.right}>{right}</View> : null}

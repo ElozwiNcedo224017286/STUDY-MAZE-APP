@@ -176,7 +176,7 @@ function RevisionTopic({ note, expanded, complete, answerVisible, onToggle, onCo
 }
 
 export default function StudyNotesScreen({ navigation }) {
-  const { colors: palette } = useTheme();
+  const { colors: palette, isDark } = useTheme();
   const COLORS = palette;
   const styles = useMemo(() => createStyles(palette), [palette]);
 
@@ -236,14 +236,14 @@ export default function StudyNotesScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <StackHeader
         title="Revision Notes"
         subtitle="Teacher summaries for focused recap"
         onBack={() => navigation.goBack()}
       />
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 28 }}
+        contentContainerStyle={{ width: '100%', maxWidth: 960, alignSelf: 'center', paddingBottom: insets.bottom + SPACE.section }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -657,7 +657,7 @@ const createStyles = COLORS => StyleSheet.create({
   keyPointLabel: {
     fontSize: 10,
     fontWeight: "800",
-    color: COLORS.success,
+    color: COLORS.successText,
     marginBottom: 3,
     textTransform: 'uppercase'
   },

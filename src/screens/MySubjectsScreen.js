@@ -69,6 +69,7 @@ const createStyles = COLORS => StyleSheet.create({
     flex: 1
   },
   content: {
+    ...PAGE_CONTENT,
     flexGrow: 1,
     padding: 20,
     gap: 14

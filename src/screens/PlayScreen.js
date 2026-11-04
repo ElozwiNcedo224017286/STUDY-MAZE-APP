@@ -70,7 +70,7 @@ export default function PlayScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <ScreenHeader title="Play" subtitle="Build your knowledge, one game at a time."
+      <ScreenHeader title="Play" titleHighlight="Zone" subtitle="Build your knowledge, one game at a time."
         right={<View style={styles.statPill}><Ionicons name="wallet-outline" size={17} color={colors.primaryText} /><Text style={styles.statText}>{balanceLabel}</Text></View>}
       />
 

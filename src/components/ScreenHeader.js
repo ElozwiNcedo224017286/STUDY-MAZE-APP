@@ -34,7 +34,7 @@ export default function ScreenHeader({
       <View style={styles.row}>
         <View style={styles.textBlock}>
           {(title || titleHighlight) ? (
-            <Text style={styles.titleRow}>
+            <Text style={styles.titleRow} accessibilityRole="header">
               {title ? (
                 <Text style={[styles.titlePart, { color: colors.textPrimary }]}>
                   {title}

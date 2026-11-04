@@ -22,6 +22,8 @@ const DARK_COLORS = {
   cardBackground: '#172033',
   cardShadow: 'rgba(0, 0, 0, 0.24)',
   primaryText: '#C4B5FD',
+  successText: '#6EE7B7',
+  warningText: '#FCD34D',
 };
 
 const LIGHT_COLORS = { ...COLORS, surface: COLORS.white, primaryText: COLORS.primary };

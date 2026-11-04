@@ -18,7 +18,11 @@ Voice Lab accepts recordings, uploaded audio and video clips, and typed answers.
 Spoken replies are optional: text feedback remains available if speech or local
 audio storage fails. Revision Notes retains the active subject's teacher notes
 and includes a Business Studies revision pack with progress tracking and PDF or
-Word export. Open it from the Mentor tab.
+Word export. Open all four study tools from Smart Learn. Teacher notes and personal
+PDF notes are available under Your study materials. The fourth student tab,
+Challenges, contains class standings and links to streaks, rewards and achievements.
+The updated navigation and visual guidelines are described in
+[the Smart Learn UI notes](docs/smart-learn-ui-2026-11-04.md).
 
 Run the regression checks from the repository root:
 

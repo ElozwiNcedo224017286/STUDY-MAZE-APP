@@ -23,12 +23,14 @@ export const COLORS = {
 
   textPrimary: '#1A2332',
   textSecondary: '#5A6B7F',
-  textTertiary: '#94A3B8',
+  textTertiary: '#64748B',
   textInverse: '#FFFFFF',
 
   success: '#10B981',
+  successText: '#047857',
   successLight: 'rgba(16, 185, 129, 0.12)',
   warning: '#F59E0B',
+  warningText: '#92400E',
   warningLight: 'rgba(245, 158, 11, 0.12)',
   error: '#EF4444',
   errorLight: 'rgba(239, 68, 68, 0.12)',
@@ -87,7 +89,6 @@ export const colors = {
   coral: '#FF4D6D',
   teal: '#4ECDC4',
   ink: '#F4F0FF',
-  inkDim: '#B7A9E0',
   inkDim: '#B7A9E0'
 };
 

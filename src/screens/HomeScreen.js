@@ -370,7 +370,7 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.brandLogoWrap}>
               <Image source={require('../../assets/logo.png')} style={styles.brandLogo} />
             </View>
-            <Text style={styles.brandText}>
+            <Text style={styles.brandText} accessibilityRole="header">
               <Text style={[styles.brandStudy, { color: colors.textPrimary }]}>Study</Text>
               <Text style={[styles.brandMaze, { color: colors.primaryText }]}>Maze</Text>
             </Text>
@@ -479,7 +479,7 @@ export default function HomeScreen({ navigation }) {
               activeOpacity={0.85}
               onPress={() => (isTeacher ? navigation.navigate('Studio') : navigation.getParent()?.navigate('Streak'))}
             >
-              <Text style={styles.continueBtnText}>Details</Text>
+              <Text style={styles.continueBtnText}>{isTeacher ? 'Open Studio' : 'View streak'}</Text>
               <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
@@ -678,13 +678,6 @@ export default function HomeScreen({ navigation }) {
 }
 
 const createStyles = COLORS => StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(26, 16, 48, 0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24
-  },
   rewardCard: {
     width: '100%',
     maxWidth: 360,
@@ -804,7 +797,8 @@ const createStyles = COLORS => StyleSheet.create({
     height: '100%'
   },
   brandText: {
-    fontSize: 19,
+    fontFamily: TYPE.pageTitle.fontFamily,
+    fontSize: 24,
     letterSpacing: -0.4
   },
   brandStudy: {
@@ -925,7 +919,7 @@ const createStyles = COLORS => StyleSheet.create({
     marginTop: 6
   },
   greeting: {
-    ...TYPE.pageTitle,
+    ...TYPE.sectionTitle,
     color: COLORS.textPrimary,
     marginBottom: 16
   },

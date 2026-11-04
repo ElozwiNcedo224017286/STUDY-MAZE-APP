@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +32,7 @@ export default function NotesWorkspaceScreen({ navigation, route }) {
 
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const [segment, setSegment] = useState(route?.params?.section === 'own-notes' ? 'own-notes' : 'teacher-notes');
   const [ownNotesOpened, setOwnNotesOpened] = useState(route?.params?.section === 'own-notes');
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function NotesWorkspaceScreen({ navigation, route }) {
         subtitle="Learn from your teacher or turn your own slides into study notes."
       />
 
-      <View style={styles.segmentWrap}>
+      <View style={[styles.segmentWrap, { width: Math.min(width - SPACE.page * 2, 920), alignSelf: 'center', marginHorizontal: 0 }]}>
         {['teacher-notes', 'own-notes'].map((key) => (
           <TouchableOpacity
             key={key}
@@ -61,6 +63,8 @@ export default function NotesWorkspaceScreen({ navigation, route }) {
             ]}
             onPress={() => { if (key === 'own-notes') setOwnNotesOpened(true); setSegment(key); }}
             activeOpacity={0.8}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: segment === key }}
           >
             <Text
               style={[
@@ -98,7 +102,7 @@ function TeacherNotesPane({ insets }) {
     <ScrollView
       contentContainerStyle={[
         styles.body,
-        { paddingBottom: insets.bottom + 100 },
+        { paddingBottom: insets.bottom + SPACE.section },
       ]}
       showsVerticalScrollIndicator={false}
       refreshControl={
@@ -322,7 +326,7 @@ function OwnNotesPane({ insets }) {
     <ScrollView
       contentContainerStyle={[
         styles.body,
-        { paddingBottom: insets.bottom + 100 },
+        { paddingBottom: insets.bottom + SPACE.section },
       ]}
       showsVerticalScrollIndicator={false}
     >

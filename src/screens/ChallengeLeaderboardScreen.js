@@ -59,7 +59,7 @@ export default function ChallengeLeaderboardScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <ScreenHeader title={isTab ? 'Challenges' : 'Leaderboard'} subtitle="A little friendly competition. A lot of progress." onBack={isTab ? undefined : () => navigation.goBack()} />
+      <ScreenHeader title={isTab ? 'Class' : 'Leaderboard'} titleHighlight={isTab ? 'Challenges' : undefined} subtitle="A little friendly competition. A lot of progress." onBack={isTab ? undefined : () => navigation.goBack()} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + SPACE.section }]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.primary]} tintColor={colors.primaryText} />}>
         <View style={styles.summary}>
@@ -80,7 +80,7 @@ export default function ChallengeLeaderboardScreen({ navigation, route }) {
             <View style={styles.emptyIcon}><Ionicons name="trophy-outline" size={32} color={colors.primaryText} /></View>
             <Text style={styles.sectionTitle}>Your next challenge is on its way</Text>
             <Text style={styles.emptyText}>When your class starts a challenge, the details and leaderboard will appear here. Keep practising in the meantime.</Text>
-            <TouchableOpacity onPress={play} style={styles.primaryButton} accessibilityRole="button"><Text style={styles.primaryButtonText}>Explore games</Text><Ionicons name="arrow-forward" size={17} color="#FFFFFF" /></TouchableOpacity>
+            <TouchableOpacity onPress={play} style={styles.primaryButton} accessibilityRole="button" accessibilityLabel="Explore games"><Text style={styles.primaryButtonText}>Explore games</Text><Ionicons name="arrow-forward" size={17} color="#FFFFFF" /></TouchableOpacity>
           </View>
         ) : (
           <>
@@ -89,7 +89,7 @@ export default function ChallengeLeaderboardScreen({ navigation, route }) {
               <Text style={styles.sectionTitle}>{challenge.title}</Text>
               {!!challenge.description && <Text style={styles.description}>{challenge.description}</Text>}
               <View style={styles.dateRow}><Ionicons name="calendar-outline" size={16} color={colors.textSecondary} /><Text style={styles.dateText}>{dateLabel(challenge.starts_at)} – {dateLabel(challenge.ends_at)}</Text></View>
-              <TouchableOpacity style={styles.primaryButton} onPress={play} accessibilityRole="button"><Text style={styles.primaryButtonText}>Play and earn XP</Text><Ionicons name="arrow-forward" size={17} color="#FFFFFF" /></TouchableOpacity>
+              <TouchableOpacity style={styles.primaryButton} onPress={play} accessibilityRole="button" accessibilityLabel="Play and earn XP"><Text style={styles.primaryButtonText}>Play and earn XP</Text><Ionicons name="arrow-forward" size={17} color="#FFFFFF" /></TouchableOpacity>
             </LinearGradient>
             <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Class leaderboard</Text><Text style={styles.caption}>{rows.length} {rows.length === 1 ? 'learner' : 'learners'}</Text></View>
             <View style={styles.leaderboard}>

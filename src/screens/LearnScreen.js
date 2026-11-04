@@ -30,7 +30,7 @@ export default function LearnScreen({ navigation, route }) {
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <ScreenHeader title="Smart Learn" subtitle="The right tool for your next study session."
+      <ScreenHeader title="Smart" titleHighlight="Learn" subtitle="The right tool for your next study session."
         right={
           <TouchableOpacity style={[styles.historyButton, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={() => open('MentorHub', { initialTab: 'history' })} accessibilityRole="button" accessibilityLabel="Open mentor chat history">
             <Ionicons name="time-outline" size={21} color={colors.primaryText} />
