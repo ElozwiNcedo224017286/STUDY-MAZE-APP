@@ -1,3 +1,5 @@
+import { TeacherNotesPane, OwnNotesPane } from './NotesWorkspaceScreen';
+import StudyHero from '../components/learn/StudyHero';
 import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
 import { useTheme } from '../context/ThemeContext';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -18,8 +20,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import StackHeader from '../components/StackHeader';
 import { COLORS, SHADOWS } from '../theme/colors';
 import { useSubject } from '../context/SubjectContext';
-import useSubjectMaterials from '../hooks/useSubjectMaterials';
-import SubjectPrompt from '../components/SubjectPrompt';
 import { BUSINESS_CASE_NOTES, REVISION_PACK } from '../data/businessCaseRevisionNotes';
 
 const PROGRESS_KEY = '@studymaze_business_case_revision_progress';
@@ -28,21 +28,6 @@ const FILTERS = [
   { id: 'todo', label: 'To revise' },
   { id: 'complete', label: 'Complete' },
 ];
-
-function TeacherNoteCard({ note }) {
-  const { colors: palette } = useTheme();
-  const COLORS = palette;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-
-  const meta = [note.subject, note.grade && `Grade ${note.grade}`].filter(Boolean).join(' | ');
-  return (
-    <View style={styles.teacherCard}>
-      {meta ? <Text style={styles.teacherMeta}>{meta}</Text> : null}
-      <Text style={styles.teacherTitle}>{note.title}</Text>
-      <Text style={styles.teacherBody}>{note.content}</Text>
-    </View>
-  );
-}
 
 function FlowDiagram({ diagram }) {
   const { colors: palette } = useTheme();
@@ -53,7 +38,7 @@ function FlowDiagram({ diagram }) {
     <View style={styles.diagram}>
       <Text style={styles.diagramTitle}>{diagram.title}</Text>
       {diagram.steps.map((step, index) => (
-        <React.Fragment key={step}>
+        <React.Fragment key={`step-${index}`}>
           <View style={[styles.flowNode, index % 2 ? styles.flowNodeGreen : styles.flowNodePurple]}>
             <Text style={styles.flowNumber}>{String(index + 1).padStart(2, '0')}</Text>
             <Text style={styles.flowText}>{step}</Text>
@@ -80,7 +65,7 @@ function MatrixDiagram({ diagram }) {
       <Text style={styles.diagramTitle}>{diagram.title}</Text>
       <View style={styles.matrix}>
         {diagram.cells.map((cell, index) => (
-          <View key={cell.label} style={[styles.matrixCell, index % 2 ? styles.matrixGreen : styles.matrixPurple]}>
+          <View key={`cell-${index}`} style={[styles.matrixCell, index % 2 ? styles.matrixGreen : styles.matrixPurple]}>
             <Text style={styles.matrixLabel}>{cell.label}</Text>
             <Text style={styles.matrixDetail}>{cell.detail}</Text>
           </View>
@@ -119,13 +104,13 @@ function RevisionTopic({ note, expanded, complete, answerVisible, onToggle, onCo
 
       {expanded ? (
         <View style={styles.topicContent}>
-          {note.paragraphs.map((paragraph) => (
-            <Text key={paragraph} style={styles.paragraph}>{paragraph}</Text>
+          {note.paragraphs.map((paragraph, index) => (
+            <Text key={`${note.id}-paragraph-${index}`} style={styles.paragraph}>{paragraph}</Text>
           ))}
 
           <View style={styles.bulletList}>
-            {note.bullets.map((bullet) => (
-              <View key={bullet} style={styles.bulletRow}>
+            {note.bullets.map((bullet, index) => (
+              <View key={`${note.id}-bullet-${index}`} style={styles.bulletRow}>
                 <View style={styles.bullet} />
                 <Text style={styles.bulletText}>{bullet}</Text>
               </View>
@@ -175,15 +160,62 @@ function RevisionTopic({ note, expanded, complete, answerVisible, onToggle, onCo
   );
 }
 
-export default function StudyNotesScreen({ navigation }) {
+const NOTE_SECTIONS = [
+  { key: 'teacher-notes', title: 'Class notes', label: 'Teacher notes', icon: 'school-outline' },
+  { key: 'own-notes', title: 'My PDFs', label: 'Own notes', icon: 'cloud-upload-outline' },
+  { key: 'revision-pack', title: 'Practice pack', label: 'Practice pack', icon: 'ribbon-outline' },
+];
+
+export default function StudyNotesScreen({ navigation, route }) {
+  const { colors, isDark } = useTheme();
+  const { activeSubject, status } = useSubject();
+  const insets = useSafeAreaInsets();
+  const initial = NOTE_SECTIONS.some(item => item.key === route?.params?.section) ? route.params.section : 'teacher-notes';
+  const [section, setSection] = useState(initial);
+  const [ownNotesOpened, setOwnNotesOpened] = useState(initial === 'own-notes');
+  useEffect(() => {
+    const next = route?.params?.section;
+    if (!NOTE_SECTIONS.some(item => item.key === next)) return;
+    if (next === 'own-notes') setOwnNotesOpened(true);
+    setSection(next);
+  }, [route?.params?.section]);
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.backgroundSecondary }}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+      <StackHeader title="Revision Notes" subtitle="Your learning library" onBack={() => navigation.goBack()} />
+      <View style={PAGE_CONTENT}>
+        <StudyHero eyebrow="REVISE & REMEMBER" title="Make it stick" description="Bring your notes together. Find your next breakthrough." image={require('../../assets/Artwork/icon-notes.png')} />
+        <View style={[hubStyles.tabs, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {NOTE_SECTIONS.map(item => <TouchableOpacity key={item.key} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: section === item.key }} onPress={() => { if (item.key === 'own-notes') setOwnNotesOpened(true); setSection(item.key); }} style={[hubStyles.tab, section === item.key && { backgroundColor: colors.primarySoft }]}>
+            <Ionicons name={item.icon} size={19} color={section === item.key ? colors.primaryText : colors.textSecondary} accessible={false} />
+            <Text style={[hubStyles.tabText, { color: section === item.key ? colors.primaryText : colors.textSecondary }]}>{item.title}</Text>
+          </TouchableOpacity>)}
+        </View>
+        <View style={hubStyles.subjectRow}>
+          <Ionicons name={section === 'revision-pack' ? 'ribbon-outline' : 'book-outline'} size={15} color={colors.primaryText} accessible={false} />
+          <Text style={[hubStyles.subjectText, { color: colors.textSecondary }]}>{section === 'revision-pack' ? REVISION_PACK.subject : status === 'ready' && activeSubject ? activeSubject.subject_name : 'Choose your current subject'}</Text>
+          {section !== 'revision-pack' && <TouchableOpacity onPress={() => navigation.navigate('MySubjects')} accessibilityRole="button" accessibilityLabel="Change study subject"><Text style={{ ...TYPE.label, color: colors.primaryText }}>Change</Text></TouchableOpacity>}
+        </View>
+      </View>
+      {section === 'teacher-notes' && <TeacherNotesPane insets={insets} />}
+      {ownNotesOpened && <View style={{ flex: 1, display: section === 'own-notes' ? 'flex' : 'none' }}><OwnNotesPane insets={insets} /></View>}
+      {section === 'revision-pack' && <RevisionPackPane insets={insets} />}
+    </View>
+  );
+}
+const hubStyles = StyleSheet.create({
+  tabs: { flexDirection: 'row', borderWidth: 1, borderRadius: RADIUS.card, padding: SPACE.xs, gap: SPACE.xs },
+  tab: { flex: 1, borderRadius: 13, paddingVertical: SPACE.md, paddingHorizontal: SPACE.xs, alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 64 },
+  tabText: { ...TYPE.caption, fontWeight: '700', textAlign: 'center' },
+  subjectRow: { flexDirection: 'row', alignItems: 'center', gap: SPACE.sm, minHeight: 46, paddingHorizontal: SPACE.xs },
+  subjectText: { ...TYPE.caption, flex: 1 },
+});
+
+function RevisionPackPane({ insets }) {
   const { colors: palette, isDark } = useTheme();
   const COLORS = palette;
   const styles = useMemo(() => createStyles(palette), [palette]);
 
-  const insets = useSafeAreaInsets();
-  const { activeSubject, status } = useSubject();
-  const { materials, loading, error, refresh: load } = useSubjectMaterials();
-  const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(BUSINESS_CASE_NOTES[0].id);
   const [completed, setCompleted] = useState([]);
@@ -235,40 +267,7 @@ export default function StudyNotesScreen({ navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <StackHeader
-        title="Revision Notes"
-        subtitle="Teacher summaries for focused recap"
-        onBack={() => navigation.goBack()}
-      />
-      <ScrollView
-        contentContainerStyle={{ width: '100%', maxWidth: 960, alignSelf: 'center', paddingBottom: insets.bottom + SPACE.section }}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }}
-            colors={[COLORS.primary]}
-          />
-        }
-      >
-        <View style={styles.teacherSection}>
-          <Text style={styles.sectionEyebrow}>FROM YOUR TEACHER</Text>
-          {status !== 'ready' || !activeSubject ? <SubjectPrompt /> : loading ? (
-            <ActivityIndicator color={COLORS.primary} style={styles.loader} />
-          ) : error ? (
-            <View>
-              <Text style={styles.emptyText} accessibilityRole="alert">{error}</Text>
-              <TouchableOpacity onPress={load} accessibilityRole="button"><Text style={styles.teacherTitle}>Retry notes</Text></TouchableOpacity>
-            </View>
-          ) : materials.length ? (
-            materials.map((note) => <TeacherNoteCard key={note.id} note={note} />)
-          ) : (
-            <Text style={styles.emptyText}>No additional teacher notes have been posted yet.</Text>
-          )}
-        </View>
-
+    <ScrollView contentContainerStyle={{ width: '100%', maxWidth: 960, alignSelf: 'center', paddingBottom: insets.bottom + SPACE.section }} showsVerticalScrollIndicator={false}>
         <View style={styles.packHeader}>
           <View style={styles.packMetaRow}>
             <View style={styles.subjectTag}>
@@ -353,8 +352,7 @@ export default function StudyNotesScreen({ navigation }) {
             </View>
           ) : null}
         </View>
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 

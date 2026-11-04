@@ -1,3 +1,6 @@
+import { normalizeStudyList } from '../utils/studyLists';
+import { Ionicons } from '@expo/vector-icons';
+import StudyHero from '../components/learn/StudyHero';
 import { TYPE, SPACE, RADIUS, PAGE_CONTENT } from '../theme/layout';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
@@ -26,70 +29,12 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function NotesWorkspaceScreen({ navigation, route }) {
-  const { colors: palette } = useTheme();
-  const COLORS = palette;
-  const styles = useMemo(() => createStyles(palette), [palette]);
-
-  const { colors, isDark } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const [segment, setSegment] = useState(route?.params?.section === 'own-notes' ? 'own-notes' : 'teacher-notes');
-  const [ownNotesOpened, setOwnNotesOpened] = useState(route?.params?.section === 'own-notes');
-  useEffect(() => {
-    const next = route?.params?.section;
-    if (next === 'own-notes') setOwnNotesOpened(true);
-    if (next === 'own-notes' || next === 'teacher-notes') setSegment(next);
-  }, [route?.params?.section]);
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-      />
-
-      <StackHeader
-        title="Study notes"
-        onBack={() => navigation.goBack()}
-        subtitle="Learn from your teacher or turn your own slides into study notes."
-      />
-
-      <View style={[styles.segmentWrap, { width: Math.min(width - SPACE.page * 2, 920), alignSelf: 'center', marginHorizontal: 0 }]}>
-        {['teacher-notes', 'own-notes'].map((key) => (
-          <TouchableOpacity
-            key={key}
-            style={[
-              styles.segment,
-              segment === key && styles.segmentActive,
-            ]}
-            onPress={() => { if (key === 'own-notes') setOwnNotesOpened(true); setSegment(key); }}
-            activeOpacity={0.8}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: segment === key }}
-          >
-            <Text
-              style={[
-                styles.segmentText,
-                segment === key && styles.segmentTextActive,
-              ]}
-            >
-              {key === 'teacher-notes' ? 'Teacher notes' : 'Own notes'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {segment === 'teacher-notes' && <TeacherNotesPane insets={insets} />}
-      {/* Keep an opened Own Notes job mounted while switching Learn panes. */}
-      {ownNotesOpened && (
-        <View style={{ flex: 1, display: segment === 'own-notes' ? 'flex' : 'none' }}>
-          <OwnNotesPane insets={insets} />
-        </View>
-      )}
-    </View>
-  );
+  const section = route?.params?.section === 'own-notes' ? 'own-notes' : 'teacher-notes';
+  useEffect(() => { navigation.replace('StudyNotes', { section }); }, [navigation, section]);
+  return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator accessibilityLabel="Opening study notes" /></View>;
 }
 
-function TeacherNotesPane({ insets }) {
+export function TeacherNotesPane({ insets }) {
   const { colors: palette } = useTheme();
   const COLORS = palette;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -97,6 +42,8 @@ function TeacherNotesPane({ insets }) {
   const { activeSubject, status } = useSubject();
   const { materials, loading, error, refresh: load } = useSubjectMaterials();
   const [refreshing, setRefreshing] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const visibleMaterials = useMemo(() => normalizeStudyList(materials, { prefix: 'material' }), [materials]);
 
   return (
     <ScrollView
@@ -127,7 +74,7 @@ function TeacherNotesPane({ insets }) {
           <Text style={styles.emptyText} accessibilityRole="alert">{error}</Text>
           <TouchableOpacity onPress={load} accessibilityRole="button"><Text style={styles.emptyTitle}>Retry notes</Text></TouchableOpacity>
         </View>
-      ) : materials.length === 0 ? (
+      ) : visibleMaterials.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>No notes yet</Text>
 
@@ -137,19 +84,15 @@ function TeacherNotesPane({ insets }) {
           </Text>
         </View>
       ) : (
-        materials.map((m) => (
-          <View key={m.id} style={styles.noteCard}>
-            {(m.subject || m.grade) ? (
-              <Text style={styles.meta}>
-                {[m.subject, m.grade && `Grade ${m.grade}`]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </Text>
-            ) : null}
-
-            <Text style={styles.title}>{m.title}</Text>
-
-            <Text style={styles.bodyText}>{m.content}</Text>
+        visibleMaterials.map((m) => (
+          <View key={m.listKey} style={styles.noteCard}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={m.title || 'Untitled class note'} accessibilityState={{ expanded: expanded === m.listKey }} onPress={() => setExpanded(previous => previous === m.listKey ? null : m.listKey)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={{ width: 42, height: 46, borderRadius: 13, backgroundColor: palette.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="book-outline" size={22} color={palette.primaryText} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.meta}>{m.subject || activeSubject?.subject_name}</Text><Text style={styles.title}>{m.title || 'Untitled class note'}</Text></View>
+              <Ionicons name={expanded === m.listKey ? 'chevron-up' : 'chevron-down'} size={18} color={palette.primaryText} />
+            </TouchableOpacity>
+            <Text style={[styles.bodyText, { marginTop: 12 }]} numberOfLines={expanded === m.listKey ? undefined : 2}>{m.content}</Text>
+            <Text style={{ ...TYPE.caption, color: palette.primaryText, marginTop: 10 }}>{expanded === m.listKey ? 'Tap the title to close' : 'Tap to explore this note'}</Text>
           </View>
         ))
       )}
@@ -157,7 +100,7 @@ function TeacherNotesPane({ insets }) {
   );
 }
 
-function OwnNotesPane({ insets }) {
+export function OwnNotesPane({ insets }) {
   const { colors: palette } = useTheme();
   const COLORS = palette;
   const styles = useMemo(() => createStyles(palette), [palette]);
@@ -192,7 +135,7 @@ function OwnNotesPane({ insets }) {
   const generatedNotes = result?.key === contextKey ? result.notes : null;
   const uploaded = !!generatedNotes;
   const currentHistory = contextKey && history.key === contextKey;
-  const savedNotes = currentHistory ? history.notes : [];
+  const savedNotes = useMemo(() => normalizeStudyList(currentHistory ? history.notes : [], { prefix: 'personal-note' }), [currentHistory, history.notes]);
   const savedNotesLoading = !!contextKey && (!currentHistory || history.loading);
   const historyError = currentHistory ? history.error : '';
 
@@ -385,7 +328,7 @@ function OwnNotesPane({ insets }) {
           ) : savedNotes.length > 0 ? (
             savedNotes.map((note) => (
               <GeneratedStudyNotes
-                key={note.id}
+                key={note.listKey}
                 notes={note}
               />
             ))

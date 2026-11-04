@@ -59,7 +59,7 @@ export default function ChallengeLeaderboardScreen({ navigation, route }) {
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-      <ScreenHeader title={isTab ? 'Class' : 'Leaderboard'} titleHighlight={isTab ? 'Challenges' : undefined} subtitle="A little friendly competition. A lot of progress." onBack={isTab ? undefined : () => navigation.goBack()} />
+      <ScreenHeader title={isTab ? 'Challenges' : 'Leaderboard'} subtitle="A little friendly competition. A lot of progress." onBack={isTab ? undefined : () => navigation.goBack()} />
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + SPACE.section }]} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.primary]} tintColor={colors.primaryText} />}>
         <View style={styles.summary}>

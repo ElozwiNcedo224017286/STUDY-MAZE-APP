@@ -148,7 +148,7 @@ export default function ProfileScreen({ navigation }) {
     <View style={[styles.container, { backgroundColor: colors.backgroundSecondary }]}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <ScreenHeader title="Your" titleHighlight="Profile" subtitle="Your progress, subjects and account." right={
+      <ScreenHeader title="Profile" subtitle="Your progress, subjects and account." right={
           <TouchableOpacity
             style={styles.settingsBtn}
             activeOpacity={0.75}

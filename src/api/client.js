@@ -1,5 +1,6 @@
 import { supabase, SUPABASE_FUNCTIONS_URL } from './supabase';
 import { File } from 'expo-file-system';
+import { normalizeStudyList } from '../utils/studyLists';
 
 async function getEdgeFunctionErrorMessage(error, fallback) {
   const response = error?.context;
@@ -516,7 +517,7 @@ export const api = {
     const { data, error } = await supabase.rpc('student_list_subject_materials', { _class_subject_id: classSubjectId });
     if (error) throw error;
     if (data != null && !Array.isArray(data)) throw new Error('Invalid subject materials response.');
-    return { materials: data || [] };
+    return { materials: normalizeStudyList(data, { prefix: `material:${classSubjectId}` }) };
   },
 
   createStudyMaterial: async ({ classSubjectId, title, grade, content }) => {
@@ -705,8 +706,8 @@ export const api = {
     });
     if (error) throw error;
     if (data != null && !Array.isArray(data)) throw new Error('Invalid personal study notes response.');
-    return (data || []).map((row) => {
-      if (!row || typeof row.note_id !== 'string' || typeof row.upload_id !== 'string' ||
+    const notes = (data || []).map((row) => {
+      if (!row || typeof row.note_id !== 'string' || !row.note_id.trim() || typeof row.upload_id !== 'string' ||
           row.class_subject_id !== classSubjectId) throw new Error('Invalid subject-linked personal note response.');
       return {
         id: row.note_id,
@@ -727,6 +728,7 @@ export const api = {
         },
       };
     });
+    return normalizeStudyList(notes, { prefix: `personal-note:${classSubjectId}` });
   },
 
   getNotifications: async () => {
